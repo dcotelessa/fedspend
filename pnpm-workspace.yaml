@@ -1,0 +1,5 @@
+packages:
+  - 'backend'
+allowBuilds:
+  '@nestjs/core': true
+  better-sqlite3: true

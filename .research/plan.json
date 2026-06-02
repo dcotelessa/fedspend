@@ -1,0 +1,391 @@
+{
+  "planId": "epic-01-backend-foundation",
+  "epicName": "NestJS Backend Foundation",
+  "goal": "Scaffold the NestJS backend with all modules, TypeORM dual-database config, entities, and the health endpoint. No frontend code. No seed data (that's Epic 2).",
+  "scope": {
+    "included": [
+      "NestJS project scaffolding (backend/)",
+      "TypeORM dual-database config (SQLite local / Postgres prod)",
+      "All 5 entity definitions with correct constraints",
+      "6 NestJS modules (agencies, spending, geography, disaster, sync, health)",
+      "Response wrapper interceptor with @Paginated() decorator",
+      "CORS, global validation pipe, health endpoint",
+      ".env.example",
+      "tsconfig path alias to @shared/*"
+    ],
+    "excluded": [
+      "Frontend code (Epic 4)",
+      "Seed data / sync pipeline (Epic 2)",
+      "Query API endpoints (Epic 3)",
+      "shared/interfaces/index.ts (already exists)"
+    ]
+  },
+  "assumptions": [
+    "Node 22+ and pnpm 10+ are available on the development machine",
+    "NestJS CLI is available via npx @nestjs/cli",
+    "Git repo is already initialized with .gitignore in place",
+    "shared/interfaces/index.ts already contains all entity interfaces and ApiResponse<T>",
+    "docs/ directory already contains all epic plan files"
+  ],
+  "risks": [
+    {
+      "id": "R1",
+      "description": "TypeORM better-sqlite3 native module may fail to install on some systems. Mitigation: verify install succeeds in Story 1.",
+      "severity": "medium"
+    },
+    {
+      "id": "R2",
+      "description": "tsconfig paths alias (@shared/*) may not resolve correctly at runtime without additional NestJS config (nest-cli.json compilerOptions). Build agent must test this.",
+      "severity": "medium"
+    },
+    {
+      "id": "R3",
+      "description": "Epic doc lists sync.controller.ts in file tree but CLI command says --no-controller. This is a contradiction — resolved by NOT creating sync.controller.ts in Epic 1 (sync endpoints belong to Epic 2).",
+      "severity": "low"
+    }
+  ],
+  "contradictions": [
+    {
+      "location": "epic-01-backend-foundation.md Step 8 vs File Tree",
+      "description": "Step 8 says 'npx nest g module sync --no-controller' but the file tree shows 'sync/sync.controller.ts'. The correct approach for Epic 1 is to NOT create sync.controller.ts — sync endpoints are defined in Epic 2. The sync module only needs the module and service scaffold.",
+      "resolution": "Skip sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts as empty scaffolds."
+    },
+    {
+      "location": "epic-01-backend-foundation.md Step 9 vs shared/interfaces/index.ts",
+      "description": "File tree lists 'common/api-response.interface.ts' but ApiResponse<T> already exists in shared/interfaces/index.ts. Duplicating it would create drift risk.",
+      "resolution": "Import ApiResponse<T> from @shared/interfaces in the interceptor rather than duplicating the interface in common/."
+    }
+  ],
+  "stories": [
+    {
+      "id": "S01",
+      "title": "Scaffold NestJS project and install dependencies",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Create the backend/ NestJS application with all required packages installed",
+      "scope": {
+        "files": [
+          "backend/ (entire scaffolded directory)",
+          "backend/package.json",
+          "backend/tsconfig.json",
+          "backend/tsconfig.build.json",
+          "backend/.env.example"
+        ]
+      },
+      "inputs": [
+        "Existing repo root at fedspend/",
+        "Epic 1 Step 2 (scaffold command)",
+        "Epic 1 Step 3 (dependency list)",
+        "Epic 1 Step 11 (.env.example content)"
+      ],
+      "outputs": [
+        "NestJS project at backend/ that compiles and starts with default scaffold",
+        "All required dependencies installed: @nestjs/typeorm, typeorm, better-sqlite3, pg, @nestjs/config, class-validator, class-transformer, @nestjs/schedule",
+        "Dev dependency: @types/better-sqlite3",
+        ".env.example with DATABASE_URL, FRONTEND_URL, NODE_ENV"
+      ],
+      "dependencies": [],
+      "effort": "S",
+      "build": "BUILD-FAST",
+      "acceptanceCriteria": [
+        "`cd backend && pnpm install` completes without errors",
+        "`pnpm start:dev` starts the default NestJS scaffold (HelloWorld)",
+        "All 9 runtime dependencies appear in package.json",
+        ".env.example exists with the 3 required variables",
+        "better-sqlite3 native module compiles successfully"
+      ],
+      "notes": "The repo root already has .gitignore, README.md, docs/, and shared/. Skip those. Only create backend/."
+    },
+    {
+      "id": "S02",
+      "title": "Configure tsconfig path alias and nest-cli.json for @shared",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Wire up the @shared/* path alias so backend code can import from shared/interfaces",
+      "scope": {
+        "files": [
+          "backend/tsconfig.json",
+          "backend/tsconfig.build.json",
+          "backend/nest-cli.json"
+        ]
+      },
+      "inputs": [
+        "Scaffolded backend/ from S01",
+        "Epic 1 Step 5"
+      ],
+      "outputs": [
+        "tsconfig.json paths entry for @shared/* → ../shared/*",
+        "nest-cli.json compilerOptions.plugins or compilerOptions.assets configured if needed",
+        "Build compiles and resolves @shared/interfaces imports"
+      ],
+      "dependencies": ["S01"],
+      "effort": "S",
+      "build": "BUILD-FAST",
+      "acceptanceCriteria": [
+        "tsconfig.json contains paths: { '@shared/*': ['../shared/*'] }",
+        "A test import `import { Agency } from '@shared/interfaces'` compiles without error",
+        "`pnpm build` succeeds with the path alias configured"
+      ],
+      "notes": "NestJS may need nest-cli.json compilerOptions to handle out-of-tree paths at build time. The builder may not follow tsconfig paths. May need to add a webpack plugin or use tsconfig-paths. Build agent should verify build + runtime resolution."
+    },
+    {
+      "id": "S03",
+      "title": "Configure TypeORM dual-database (SQLite / Postgres)",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Set up TypeORM with environment-based switching between SQLite (dev) and Postgres (prod)",
+      "scope": {
+        "files": [
+          "backend/src/config/typeorm.config.ts",
+          "backend/src/app.module.ts",
+          "backend/.env.example"
+        ]
+      },
+      "inputs": [
+        "Scaffolded backend/ from S01",
+        "Epic 1 Step 6"
+      ],
+      "outputs": [
+        "typeorm.config.ts with getTypeOrmConfig function",
+        "AppModule registers TypeOrmModule.forRootAsync using ConfigService",
+        "SQLite mode: better-sqlite3, database: data/fedspend.sqlite, synchronize: true",
+        "Postgres mode: triggered by DATABASE_URL env var, ssl, synchronize: false, migrationsRun: true",
+        "data/ directory creation handled (gitignored)"
+      ],
+      "dependencies": ["S01"],
+      "effort": "M",
+      "build": "BUILD-DEEP",
+      "acceptanceCriteria": [
+        "With no DATABASE_URL, app starts and creates data/fedspend.sqlite",
+        "TypeORM config function switches to postgres config when DATABASE_URL is set",
+        "AppModule uses ConfigModule.forRoot() with isGlobal: true",
+        "Entity glob pattern resolves correctly: __dirname + '/../**/*.entity{.ts,.js}'",
+        "No entity tables exist yet (entities come in S05) but TypeORM connects without error"
+      ],
+      "notes": "Risk R1: better-sqlite3 native compilation. The entity glob pattern needs to be tested — NestJS CLI scaffold puts app.module.ts in src/, so __dirname at runtime is dist/, meaning the glob should be __dirname + '/**/*.entity{.ts,.js}'. The epic doc uses '/../**/*.entity' which may be wrong. Build agent should verify."
+    },
+    {
+      "id": "S04",
+      "title": "Create 6 NestJS modules with controller/service scaffolds",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Generate all 6 modules (agencies, spending, geography, disaster, sync, health) with their controllers and services",
+      "scope": {
+        "files": [
+          "backend/src/agencies/agencies.module.ts",
+          "backend/src/agencies/agencies.controller.ts",
+          "backend/src/agencies/agencies.service.ts",
+          "backend/src/spending/spending.module.ts",
+          "backend/src/spending/spending.controller.ts",
+          "backend/src/spending/spending.service.ts",
+          "backend/src/geography/geography.module.ts",
+          "backend/src/geography/geography.controller.ts",
+          "backend/src/geography/geography.service.ts",
+          "backend/src/disaster/disaster.module.ts",
+          "backend/src/disaster/disaster.controller.ts",
+          "backend/src/disaster/disaster.service.ts",
+          "backend/src/sync/sync.module.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/health/health.module.ts",
+          "backend/src/health/health.controller.ts"
+        ]
+      },
+      "inputs": [
+        "Backend project from S01",
+        "Epic 1 Step 8"
+      ],
+      "outputs": [
+        "6 modules registered in AppModule",
+        "agencies, spending, geography, disaster modules each have controller + service",
+        "sync module has module + service only (NO controller — contradicts file tree, follows CLI command)",
+        "health module has module + controller only (no service needed)",
+        "Empty dto/ directories created for agencies, spending, geography, disaster"
+      ],
+      "dependencies": ["S01"],
+      "effort": "S",
+      "build": "BUILD-FAST",
+      "acceptanceCriteria": [
+        "All 6 modules appear in AppModule imports",
+        "`pnpm start:dev` starts without errors with all modules registered",
+        "sync module does NOT have a controller file (contradiction resolution)",
+        "Each module that has entities (S05) imports TypeOrmModule.forFeature — placeholder ready"
+      ],
+      "notes": "CONTRADICTION RESOLVED: File tree shows sync/sync.controller.ts but Step 8 CLI command says --no-controller. Following the CLI command — no sync controller in Epic 1. Sync endpoints are Epic 2's concern."
+    },
+    {
+      "id": "S05",
+      "title": "Define all 5 TypeORM entities with constraints",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Create all entity classes with correct columns, types, relations, and unique constraints",
+      "scope": {
+        "files": [
+          "backend/src/agencies/agency.entity.ts",
+          "backend/src/spending/spending-record.entity.ts",
+          "backend/src/geography/geo-spending-snapshot.entity.ts",
+          "backend/src/disaster/disaster-funding-record.entity.ts",
+          "backend/src/disaster/disaster-recovery-ratio.entity.ts",
+          "Each module's .module.ts (update to register entities)"
+        ]
+      },
+      "inputs": [
+        "Modules from S04",
+        "TypeORM config from S03",
+        "Data model from docs/data-model.md",
+        "Interfaces from shared/interfaces/index.ts"
+      ],
+      "outputs": [
+        "5 entity files with @Entity decorators",
+        "All columns match data-model.md exactly",
+        "All monetary values use integer type (cents)",
+        "Unique constraints: SpendingRecord(agencyId, fiscalYear, quarter, awardTypeLabel), GeoSpendingSnapshot(stateCode, fiscalYear, agencyId, scope), DisasterFundingRecord(defGroup, stateCode)",
+        "FK: SpendingRecord.agencyId → Agency, GeoSpendingSnapshot.agencyId → Agency (nullable)",
+        "Each module registers entities via TypeOrmModule.forFeature([...])"
+      ],
+      "dependencies": ["S03", "S04"],
+      "effort": "M",
+      "build": "BUILD-DEEP",
+      "acceptanceCriteria": [
+        "`pnpm start:dev` creates data/fedspend.sqlite with all 5 tables",
+        "Table columns match data-model.md field definitions",
+        "Unique constraints exist on the 3 composite keys",
+        "SpendingRecord.agencyId has FK to Agency.id",
+        "GeoSpendingSnapshot.agencyId has nullable FK to Agency.id",
+        "All monetary columns (obligatedAmount, outlayAmount, femaObligated, fedSpendingObligated, perCapita) are integer type",
+        "recoveryRatio is numeric/float type (not integer)"
+      ],
+      "notes": "Careful with GeoSpendingSnapshot unique constraint — agencyId can be null. TypeORM needs @Unique decorator with the array syntax, and SQLite treats NULLs as unique in constraints by default, which is actually what we want (null = all-agencies combined per state/fy/scope). The build agent should verify this behavior."
+    },
+    {
+      "id": "S06",
+      "title": "Response wrapper interceptor and @Paginated() decorator",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Create the common response wrapper infrastructure that will be used by all paginated list endpoints",
+      "scope": {
+        "files": [
+          "backend/src/common/response-wrapper.interceptor.ts",
+          "backend/src/common/paginated.decorator.ts"
+        ]
+      },
+      "inputs": [
+        "Backend project from S01",
+        "ApiResponse<T> interface from shared/interfaces/index.ts",
+        "Epic 1 Step 9"
+      ],
+      "outputs": [
+        "ResponseWrapperInterceptor that wraps paginated responses as { data, meta }",
+        "Single-item endpoints return T directly (no wrapping)",
+        "@Paginated() decorator to mark endpoints that should be wrapped",
+        "Interceptor registered globally in AppModule"
+      ],
+      "dependencies": ["S01"],
+      "effort": "M",
+      "build": "BUILD-DEEP",
+      "acceptanceCriteria": [
+        "@Paginated() decorator can be applied to controller methods",
+        "ResponseWrapperInterceptor checks for @Paginated() metadata",
+        "Paginated endpoints return { data: T[], meta: { total, page, pageSize } }",
+        "Non-paginated endpoints return T directly unchanged",
+        "Interceptor is registered as a global provider in AppModule",
+        "Import ApiResponse<T> from @shared/interfaces, not duplicated locally"
+      ],
+      "notes": "CONTRADICTION RESOLVED: Epic file tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts. Do NOT duplicate — import from @shared/interfaces. The interceptor needs a way to get total count from the service layer. Common patterns: (1) service returns { data, total }, (2) interceptor wraps after the fact. Build agent should choose the cleaner approach."
+    },
+    {
+      "id": "S07",
+      "title": "CORS, validation pipe, and health endpoint",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Wire up CORS, global validation, and the GET /health endpoint that verifies database connectivity",
+      "scope": {
+        "files": [
+          "backend/src/main.ts",
+          "backend/src/health/health.controller.ts",
+          "backend/src/health/health.module.ts"
+        ]
+      },
+      "inputs": [
+        "Modules from S04",
+        "TypeORM config from S03",
+        "Epic 1 Step 10"
+      ],
+      "outputs": [
+        "main.ts: CORS enabled via FRONTEND_URL env var (fallback '*' in dev)",
+        "main.ts: Global ValidationPipe with whitelist: true, transform: true",
+        "GET /health returns { status: 'ok', timestamp: ISO, database: 'connected' }",
+        "Health endpoint checks TypeORM DataSource connection is active"
+      ],
+      "dependencies": ["S03", "S04"],
+      "effort": "S",
+      "build": "BUILD-FAST",
+      "acceptanceCriteria": [
+        "CORS headers present in responses (Origin matches FRONTEND_URL)",
+        "Without FRONTEND_URL set, CORS allows '*'",
+        "Invalid request body with extra properties has those properties stripped (whitelist)",
+        "`GET /health` returns { status: 'ok', timestamp: '<ISO>', database: 'connected' }",
+        "`GET /health` returns { database: 'disconnected' } and appropriate status when DB is unreachable"
+      ],
+      "notes": "Health check needs to inject DataSource from @nestjs/typeorm and call dataSource.query('SELECT 1') or check .isInitialized. Decide whether to use @nestjs/terminus or keep it simple — for a portfolio project, the simple approach in the epic doc is fine."
+    },
+    {
+      "id": "S08",
+      "title": "End-to-end verification of Epic 1",
+      "epic": "NestJS Backend Foundation",
+      "goal": "Start the full backend and verify all acceptance criteria pass",
+      "scope": {
+        "files": [
+          "All backend/ files (verification only, no new files)"
+        ]
+      },
+      "inputs": [
+        "All stories S01–S07 completed"
+      ],
+      "outputs": [
+        "Verified working backend with all acceptance criteria met"
+      ],
+      "dependencies": ["S01", "S02", "S03", "S04", "S05", "S06", "S07"],
+      "effort": "S",
+      "build": "BUILD-FAST",
+      "acceptanceCriteria": [
+        "`pnpm start:dev` starts without errors",
+        "`GET /health` returns status JSON with database: 'connected'",
+        "data/fedspend.sqlite exists with all 5 entity tables",
+        "All 6 modules are registered and importable",
+        "TypeORM config switches between SQLite and Postgres based on DATABASE_URL",
+        "Response wrapper interceptor exists with @Paginated() decorator",
+        "CORS enabled via FRONTEND_URL",
+        "No frontend code exists in backend/",
+        "shared/interfaces/index.ts is importable from backend via @shared/* alias",
+        "@Paginated() decorator and interceptor are registered globally"
+      ],
+      "notes": "This is a verification-only story. If any criteria fail, the specific issue should be fixed as part of the responsible story, not here. This story confirms the entire epic is complete."
+    }
+  ],
+  "storyOrder": ["S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08"],
+  "dependencyGraph": {
+    "S01": [],
+    "S02": ["S01"],
+    "S03": ["S01"],
+    "S04": ["S01"],
+    "S05": ["S03", "S04"],
+    "S06": ["S01"],
+    "S07": ["S03", "S04"],
+    "S08": ["S01", "S02", "S03", "S04", "S05", "S06", "S07"]
+  },
+  "parallelizableGroups": [
+    {
+      "batch": 1,
+      "stories": ["S01"],
+      "note": "Must complete first — all other stories depend on the scaffolded project"
+    },
+    {
+      "batch": 2,
+      "stories": ["S02", "S03", "S04", "S06"],
+      "note": "All depend only on S01. Can run in parallel. S03 and S04 both modify app.module.ts — may need merge if parallel builds."
+    },
+    {
+      "batch": 3,
+      "stories": ["S05", "S07"],
+      "note": "Depend on S03 + S04. Can run in parallel."
+    },
+    {
+      "batch": 4,
+      "stories": ["S08"],
+      "note": "Final verification, depends on everything"
+    }
+  ]
+}
