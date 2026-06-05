@@ -244,7 +244,7 @@ run_verify() {
     error "verify.sh not found in $(pwd)"
     exit 2
   fi
-  bash ./verify.sh "$STORY" 2>&1 | tee "$VERIFY_OUT"
+  bash ./verify2.sh "$STORY" --guard 2>&1 | tee "$VERIFY_OUT"
   local exit_code="${PIPESTATUS[0]}"
   return "$exit_code"
 }
