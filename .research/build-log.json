@@ -1,1 +1,28 @@
-{"runs":[]}
+{
+  "runs": [
+    {
+      "story": "S01",
+      "agent": "build-fast",
+      "model": "ollama/qwen3-coder-next",
+      "result": "FAIL",
+      "attempt": 2,
+      "timestamp": "2026-06-05T07:22:32Z"
+    },
+    {
+      "story": "S01",
+      "agent": "build-fast",
+      "model": "ollama/qwen3-coder-next",
+      "result": "FAIL",
+      "attempt": 3,
+      "timestamp": "2026-06-05T07:25:03Z"
+    },
+    {
+      "story": "S01",
+      "agent": "build-fast",
+      "model": "ollama/qwen3-coder-next",
+      "result": "PASS",
+      "attempt": 4,
+      "timestamp": "2026-06-05T07:26:00Z"
+    }
+  ]
+}

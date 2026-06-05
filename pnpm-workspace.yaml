@@ -3,3 +3,4 @@ packages:
 allowBuilds:
   '@nestjs/core': true
   better-sqlite3: true
+  unrs-resolver: set this to true or false
