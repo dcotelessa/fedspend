@@ -213,6 +213,10 @@
         {
           "text": "pnpm build exits 0",
           "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "With no DATABASE_URL, app boots and creates data/fedspend.sqlite",
+          "check": "cd backend && rm -f data/fedspend.sqlite && (timeout 30 env -u DATABASE_URL pnpm start:dev > /tmp/s03boot.log 2>&1 & BP=$!; for i in $(seq 1 25); do [ -f data/fedspend.sqlite ] && break; sleep 1; done; kill $BP 2>/dev/null; grep -q \"Nest application successfully started\" /tmp/s03boot.log && test -f data/fedspend.sqlite)"
         }
       ],
       "notes": "The config factory MUST call mkdirSync('data', { recursive: true }) before returning the SQLite config — better-sqlite3 will fail if the parent directory doesn't exist. The path 'data/' is relative to the backend/ working directory (where nest start runs from). The entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' is CORRECT as written (see resolutions). AppModule must import ConfigModule.forRoot({ isGlobal: true }) BEFORE TypeOrmModule.forRootAsync, since the config factory injects ConfigService."
