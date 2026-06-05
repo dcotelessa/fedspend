@@ -199,7 +199,7 @@ $failure_block
 - Money values are integers (cents), never floats
 - TypeScript only, no .js files in backend
 - Do not ask clarifying questions — the spec above is complete
-- When all files are written and build passes, say exactly: STORY COMPLETE
+- When all files are written and build passes, say exactly: ===STORY_COMPLETE===
 PROMPT
 
   success "Prompt written to $PROMPT_TMP"
@@ -232,7 +232,7 @@ print_session_instructions() {
   cat "$PROMPT_TMP"
   echo
   rule
-  echo -e "${BOLD}3. When Pi says STORY COMPLETE, come back here and press Enter.${RESET}"
+  echo -e "${BOLD}3. When Pi says ===STORY_COMPLETE===, come back here and press Enter.${RESET}"
   rule
   echo
 }
@@ -309,7 +309,7 @@ main() {
     print_session_instructions "$model" "$attempt"
 
     # Wait for user to complete Pi session
-    read -rp "  Press Enter when Pi says STORY COMPLETE... " _
+    read -rp "  Press Enter when Pi says ===STORY_COMPLETE===... " _
 
     echo
     rule
