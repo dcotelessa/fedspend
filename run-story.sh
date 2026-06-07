@@ -149,11 +149,21 @@ generate_prompt() {
   goal="$(jq -r '.goal // "see scope"' "$STORY_TMP")"
   build="$(jq -r '.build // "BUILD-FAST"' "$STORY_TMP")"
 
-  local files
-  files="$(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null | sed 's/^/  - /')"
+  # Label each scoped file with its on-disk state so the model never explores.
+  # EXISTS -> read then edit surgically; CREATE -> write new. This kills the
+  # "run find/glob/ls to discover the project" failure that stalls sessions.
+  local files=""
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    if [[ -e "$f" ]]; then
+      files+="  - EXISTS (read first, then edit only what this story needs): $f"$'\n'
+    else
+      files+="  - CREATE (new file): $f"$'\n'
+    fi
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
 
   local criteria
-  criteria="$(jq -r '(.acceptanceCriteria // []) | .[]' "$STORY_TMP" 2>/dev/null | sed 's/^/  - [ ] /')"
+  criteria="$(jq -r '(.acceptanceCriteria // []) | .[] | .text' "$STORY_TMP" 2>/dev/null | sed 's/^/  - [ ] /')"
 
   local notes
   notes="$(jq -r '.notes // ""' "$STORY_TMP")"
@@ -192,14 +202,22 @@ $notes
 $deps
 $failure_block
 ## Rules
-- Read each file before modifying it — never overwrite blindly
-- Write one file at a time and verify with read tool after each write
-- Run bash {"description":"build check","command":"cd backend && pnpm build 2>&1 | tail -5"} after all files written
-- Do not implement anything beyond the files list above
-- Money values are integers (cents), never floats
-- TypeScript only, no .js files in backend
-- Do not ask clarifying questions — the spec above is complete
-- When all files are written and build passes, say exactly: ===STORY_COMPLETE===
+- The files above are labeled EXISTS or CREATE. Read the EXISTS ones, create
+  the CREATE ones. Do NOT run find, glob, or ls. Do NOT explore the
+  filesystem or look in node_modules — there is nothing to discover.
+- Read each EXISTS file before modifying it. Edit surgically — never rewrite a
+  whole file to change one part (that drops other stories' contributions to
+  shared files like app.module.ts).
+- Do not implement anything beyond the files list above. Do not create files
+  not in the list. Do not write summaries, backlogs, or notes anywhere.
+- Money values are integers (cents), never floats.
+- TypeScript only, no .js files in backend.
+- Do not ask clarifying questions — the spec above is complete.
+- STOP THE MOMENT THE WORK IS DONE. After writing the listed files and running
+  the build, emit exactly ===STORY_COMPLETE=== and then STOP. Do NOT continue,
+  do NOT "improve", do NOT rewrite a file you already wrote, do NOT add extra
+  files. Emit nothing after ===STORY_COMPLETE===. Continuing past this point
+  has corrupted correct work before — the signal is a hard stop.
 PROMPT
 
   success "Prompt written to $PROMPT_TMP"
@@ -232,16 +250,16 @@ print_session_instructions() {
   cat "$PROMPT_TMP"
   echo
   rule
-  echo -e "${BOLD}3. When Pi says ===STORY_COMPLETE===, come back here and press Enter.${RESET}"
+  echo -e "${BOLD}3. The MOMENT Pi emits ===STORY_COMPLETE===, come back here and press Enter. Do not let it keep going.${RESET}"
   rule
   echo
 }
 
 # ── STEP 5: VERIFY ────────────────────────────────────────────────────────────
 run_verify() {
-  info "Running verify.sh for $STORY..."
-  if [[ ! -f "./verify.sh" ]]; then
-    error "verify.sh not found in $(pwd)"
+  info "Running verify2.sh --guard for $STORY..."
+  if [[ ! -f "./verify2.sh" ]]; then
+    error "verify2.sh not found in $(pwd)"
     exit 2
   fi
   bash ./verify2.sh "$STORY" --guard 2>&1 | tee "$VERIFY_OUT"
@@ -309,7 +327,16 @@ main() {
     print_session_instructions "$model" "$attempt"
 
     # Wait for user to complete Pi session
-    read -rp "  Press Enter when Pi says ===STORY_COMPLETE===... " _
+    read -rp "  Press Enter the MOMENT Pi emits ===STORY_COMPLETE=== (don't let it keep going)... " _
+
+    # Termination checkpoint: snapshot whatever the model produced BEFORE we
+    # verify. If the model drifted and verify fails, the diff is preserved and
+    # inspectable; if a later retry trashes good work, this is the restore
+    # point. Uses a stash so the working tree is untouched.
+    git stash push -u -m "checkpoint-${STORY}-attempt-${attempt}" >/dev/null 2>&1 && \
+      git stash apply >/dev/null 2>&1 && \
+      info "Checkpoint stashed: checkpoint-${STORY}-attempt-${attempt} (restore with git stash list)" || \
+      warn "Checkpoint stash skipped (nothing to stash or git unavailable)"
 
     echo
     rule
@@ -327,7 +354,7 @@ main() {
     else
       echo
       prior_failures="$(extract_failures)"
-      error "$STORY FAILED verify.sh (attempt $attempt)."
+      error "$STORY FAILED verify2.sh (attempt $attempt)."
       echo
       echo "Failed criteria:"
       echo "$prior_failures"
