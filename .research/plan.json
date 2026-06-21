@@ -1,5 +1,5 @@
 {
-  "epic": "Epics 1-2 (consolidated)",
+  "epic": "FedSpind full plan (Epics 1-10)",
   "version": "2.0.0",
   "stories": [
     {
@@ -842,6 +842,1294 @@
         }
       ],
       "notes": "Use Test.createTestingModule({imports:[AppModule]}).overrideProvider(UsaSpendingService).useValue(mockUsa) etc. Then supertest POST /sync and inspect the (in-memory or sqlite) DB. Assert: 6 Agency rows, at least 1 SpendingRecord per FY per agency, GeoSpendingSnapshots for sampled states, DisasterFundingRecords per DEF group, DisasterRecoveryRatios with computed values. Verify NO real HTTP was issued by checking the mocks received the expected calls. This spec's scope is just the e2e file; it may edit prior files only to close wiring gaps surfaced by the run."
+    },
+    {
+      "id": "E3-S01",
+      "epic": "E3",
+      "title": "Query DTOs with class-validator + global ValidationPipe wiring",
+      "goal": "Create DTOs for every query endpoint (PaginationDto, GeographyQueryDto, AgencySpotlightQueryDto, DisasterStatesQueryDto, DisasterRatiosQueryDto) with class-validator decorators. Fiscal year 2020-2024, page default 1, pageSize default 15 max 100, scope enum, defGroup enum. ValidationPipe already exists from E1-S07 — this story only adds DTOs.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E1-S07"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/agencies/dto/agency-spotlight-query.dto.ts",
+          "backend/src/geography/dto/geography-query.dto.ts",
+          "backend/src/disaster/dto/disaster-states-query.dto.ts",
+          "backend/src/disaster/dto/disaster-ratios-query.dto.ts",
+          "backend/src/common/pagination.dto.ts",
+          "backend/src/common/dtos.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "all 5 DTO files exist",
+          "check": "for f in backend/src/agencies/dto/agency-spotlight-query.dto.ts backend/src/geography/dto/geography-query.dto.ts backend/src/disaster/dto/disaster-states-query.dto.ts backend/src/disaster/dto/disaster-ratios-query.dto.ts backend/src/common/pagination.dto.ts; do test -f $f || exit 1; done"
+        },
+        {
+          "text": "DTOs use class-validator decorators (@IsInt, @IsOptional, @IsEnum, @Min, @Max)",
+          "check": "cd backend && grep -lhE '@Is(Int|Optional|Enum|String)' src/**/*.dto.ts src/common/*.dto.ts | wc -l | grep -q 5"
+        },
+        {
+          "text": "dtos.spec.ts passes (table-driven: each DTO accepts valid input, rejects invalid)",
+          "check": "cd backend && pnpm test -- --testPathPattern=dtos.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "Use class-validator + class-transformer. Validation happens via the global ValidationPipe from E1-S07 (whitelist+transform+forbidNonWhitelisted). Test each DTO by instantiating it and running validate() from class-validator; testTable covers: valid fiscalYear=2024, invalid fiscalYear=2019, missing scope, pageSize over 100, etc."
+    },
+    {
+      "id": "E3-S02",
+      "epic": "E3",
+      "title": "Agencies query endpoints (list, summary, spotlight)",
+      "goal": "Implement AgenciesService.query methods and AgenciesController endpoints: GET /agencies, GET /agencies/:id/summary, GET /agencies/:id/spotlight. List returns 6 agencies with current FY totals; summary returns current+prior FY totals + YoY change; spotlight returns SpendingRecord[] grouped by fiscalYear + awardTypeLabel.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E3-S01",
+        "E2-S05"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/agencies/agencies.service.ts",
+          "backend/src/agencies/agencies.controller.ts",
+          "backend/src/agencies/agencies.service.spec.ts",
+          "backend/src/agencies/agencies.controller.spec.ts",
+          "backend/src/agencies/agencies.module.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/agencies/agencies.module.ts",
+            "start": 1,
+            "end": 25,
+            "reason": "exports — add AgenciesService to module exports so SyncModule can use it if needed; ensure controllers array has AgenciesController"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "3 endpoints registered in AgenciesController",
+          "check": "cd backend && grep -cE '@Get' src/agencies/agencies.controller.ts | grep -q 3"
+        },
+        {
+          "text": "AgenciesService has findAllWithTotals, findSummary, findSpotlight methods",
+          "check": "cd backend && grep -q 'findAllWithTotals' src/agencies/agencies.service.ts && grep -q 'findSummary' src/agencies/agencies.service.ts && grep -q 'findSpotlight' src/agencies/agencies.service.ts"
+        },
+        {
+          "text": "agencies.service.spec.ts passes (table-driven: totals aggregation, YoY calc, spotlight grouping)",
+          "check": "cd backend && pnpm test -- --testPathPattern=agencies.service.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "agencies.controller.spec.ts passes (table-driven: each endpoint calls service with correct args, returns ApiResponse<T> for list endpoints)",
+          "check": "cd backend && pnpm test -- --testPathPattern=agencies.controller.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "List endpoint wraps in ApiResponse<T[]> (paginated). Single-item endpoints return T directly (no wrapper) per E1-S06. YoY change = (current - prior) / prior * 100, guard divide-by-zero (return 0 if prior=0). Spotlight groups by fiscalYear then awardTypeLabel."
+    },
+    {
+      "id": "E3-S03",
+      "epic": "E3",
+      "title": "Geography query endpoints (states list, state detail)",
+      "goal": "Implement GeographyService + endpoints: GET /geography/states?fiscalYear=&agencyId=&scope= returns GeoSpendingSnapshot[] sorted by obligatedAmount desc; GET /geography/state/:code returns all years+agencies for one state.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E3-S01",
+        "E2-S05"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/geography/geography.service.ts",
+          "backend/src/geography/geography.controller.ts",
+          "backend/src/geography/geography.service.spec.ts",
+          "backend/src/geography/geography.controller.spec.ts",
+          "backend/src/geography/geography.module.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/geography/geography.module.ts",
+            "start": 1,
+            "end": 25,
+            "reason": "exports + controllers — register GeographyService in exports and GeographyController in controllers"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "2 endpoints in GeographyController",
+          "check": "cd backend && grep -cE '@Get' src/geography/geography.controller.ts | grep -q 2"
+        },
+        {
+          "text": "GeographyService has queryStates and getStateDetail methods",
+          "check": "cd backend && grep -q 'queryStates' src/geography/geography.service.ts && grep -q 'getStateDetail' src/geography/geography.service.ts"
+        },
+        {
+          "text": "nullable agencyId handled (returns combined-agency data when null/missing)",
+          "check": "cd backend && grep -qE 'agencyId.*(null|undefined|IsNull)' src/geography/geography.service.ts"
+        },
+        {
+          "text": "geography.service.spec.ts passes (table-driven: query by FY, filter by agency, filter by scope, sort desc, state detail returns all years)",
+          "check": "cd backend && pnpm test -- --testPathPattern=geography.service.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "geography.controller.spec.ts passes",
+          "check": "cd backend && pnpm test -- --testPathPattern=geography.controller.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "Mock repositories in spec. testTable must cover: (a) filter by fiscalYear only, (b) filter by fiscalYear + agencyId, (c) filter by fiscalYear + scope=recipient, (d) nullable agencyId returns IsNull() query, (e) sorted by obligatedAmount desc."
+    },
+    {
+      "id": "E3-S04",
+      "epic": "E3",
+      "title": "Disaster query endpoints (overview, states, ratios, state detail)",
+      "goal": "Implement DisasterService + 4 endpoints: GET /disaster/overview (one row per DEF group with totals), GET /disaster/states?defGroup=&fiscalYear= (DisasterFundingRecord[] sorted by obligatedAmount desc), GET /disaster/recovery-ratios?fiscalYear= (DisasterRecoveryRatio[] sorted by ratio asc), GET /disaster/state/:code (full profile).",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E3-S01",
+        "E2-S05"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/disaster/disaster.service.ts",
+          "backend/src/disaster/disaster.controller.ts",
+          "backend/src/disaster/disaster.service.spec.ts",
+          "backend/src/disaster/disaster.controller.spec.ts",
+          "backend/src/disaster/disaster.module.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/disaster/disaster.module.ts",
+            "start": 1,
+            "end": 25,
+            "reason": "exports + controllers — register DisasterService and DisasterController"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "4 endpoints in DisasterController",
+          "check": "cd backend && grep -cE '@Get' src/disaster/disaster.controller.ts | grep -q 4"
+        },
+        {
+          "text": "DisasterService has getOverview, queryStates, queryRatios, getStateProfile methods",
+          "check": "cd backend && grep -q 'getOverview' src/disaster/disaster.service.ts && grep -q 'queryStates' src/disaster/disaster.service.ts && grep -q 'queryRatios' src/disaster/disaster.service.ts && grep -q 'getStateProfile' src/disaster/disaster.service.ts"
+        },
+        {
+          "text": "ratios endpoint sorts ascending (worst first)",
+          "check": "cd backend && grep -qE '(order.*ASC|sort.*asc|recoveryRatio.*ASC)' src/disaster/disaster.service.ts"
+        },
+        {
+          "text": "disaster.service.spec.ts passes (table-driven: overview aggregation, states by DEF group, ratios sort, state profile shape)",
+          "check": "cd backend && pnpm test -- --testPathPattern=disaster.service.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "disaster.controller.spec.ts passes",
+          "check": "cd backend && pnpm test -- --testPathPattern=disaster.controller.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "Overview aggregates per DEF group: totalObligated, totalAwardCount, stateCount, highestPerCapitaState, coverageGapCount (states with ratio<0.5). Ratios sorted ASC = worst-covered first (ratio near 0 = gap). State profile combines all DEF groups for one state + its ratio + declaration count."
+    },
+    {
+      "id": "E3-S05",
+      "epic": "E3",
+      "title": "E2E query API tests with seeded data",
+      "goal": "E2E spec that boots the app with seeded test data (6 agencies + sample spending/geo/disaster rows) and asserts every query endpoint returns the correct shape + filtered results.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E3-S01",
+        "E3-S02",
+        "E3-S03",
+        "E3-S04"
+      ],
+      "scope": {
+        "files": [
+          "backend/test/query-e2e.spec.ts",
+          "backend/test/seed.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "all backend specs pass",
+          "check": "cd backend && pnpm test -- --testPathPattern='src/.*spec.ts'"
+        },
+        {
+          "text": "query-e2e.spec.ts passes (every endpoint exercised with seed data)",
+          "check": "cd backend && pnpm test -- --testPathPattern=query-e2e.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "seed.ts inserts 6 agencies + 5 sample SpendingRecords + 5 GeoSpendingSnapshots + 5 DisasterFundingRecords + 5 DisasterRecoveryRatios into an in-memory sqlite. E2E spec uses Test.createTestingModule + supertest to hit every endpoint and assert response shape + filtering correctness. Do NOT test validation rejection here (covered in DTO specs)."
+    },
+    {
+      "id": "E4-S01",
+      "epic": "E4",
+      "title": "Scaffold Angular 17 app + install Material, ng2-charts, jest-preset-angular",
+      "goal": "Run `npx @angular/cli new frontend --style=scss --routing=true --ssr=false --package-manager=pnpm`. Install @angular/material, @angular/cdk, ng2-charts, chart.js. Swap Karma for jest-preset-angular. Add @shared/* path alias. Verify with a sanity spec.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E1-S08"
+      ],
+      "scope": {
+        "files": [
+          "frontend/package.json",
+          "frontend/tsconfig.json",
+          "frontend/tsconfig.spec.json",
+          "frontend/angular.json",
+          "frontend/src/main.ts",
+          "frontend/jest.config.js",
+          "frontend/setup-jest.ts",
+          "frontend/src/app/app.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "frontend/package.json has @angular/material, ng2-charts, chart.js, jest-preset-angular",
+          "check": "cd frontend && node -e \"const p=require('./package.json'); ['@angular/material','@angular/cdk','ng2-charts','chart.js','jest-preset-angular'].forEach(d=>{const ok=p.dependencies[d]||p.devDependencies[d]; if(!ok){console.error('missing',d);process.exit(1)}})\""
+        },
+        {
+          "text": "tsconfig.json has @shared/* path alias",
+          "check": "cd frontend && jq -e '.compilerOptions.paths.\"@shared/*\" == [\"../shared/*\"]' tsconfig.json >/dev/null"
+        },
+        {
+          "text": "Karma removed, jest configured (jest.config.js + setup-jest.ts)",
+          "check": "test -f frontend/jest.config.js && test -f frontend/setup-jest.ts && ! test -f frontend/karma.conf.js"
+        },
+        {
+          "text": "app.spec.ts passes via jest",
+          "check": "cd frontend && pnpm test -- --testPathPattern=app.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds (pnpm build)",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Remove karma.conf.js and the karma-related devDeps. Configure jest-preset-angular per its docs: add preset to jest.config.js, set transform to jest-preset-angular, set setupFilesAfterEnv to setup-jest.ts. The Angular 17 standalone API is the default — use it (no NgModules). app.spec.ts asserts the root AppComponent compiles."
+    },
+    {
+      "id": "E4-S02",
+      "epic": "E4",
+      "title": "5 routes with placeholder standalone components",
+      "goal": "Create 5 standalone components (DashboardComponent, GeographicViewComponent, AgencyListComponent, AgencySpotlightComponent, DisasterLensComponent) and wire routes via provideRouter in main.ts. Each component is a placeholder with just a heading. Verify all 5 routes render via a routing spec.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E4-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "frontend/src/app/dashboard/dashboard.component.html",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html",
+          "frontend/src/app/agency-list/agency-list.component.ts",
+          "frontend/src/app/agency-list/agency-list.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/routes.ts",
+          "frontend/src/main.ts",
+          "frontend/src/app/routes.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/main.ts",
+            "start": 1,
+            "end": 20,
+            "reason": "bootstrapApplication — add provideRouter(routes) to providers"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "5 component files exist",
+          "check": "for c in dashboard/dashboard geographic-view/geographic-view agency-list/agency-list agency-spotlight/agency-spotlight disaster-lens/disaster-lens; do test -f frontend/src/app/$c.component.ts || exit 1; done"
+        },
+        {
+          "text": "routes.ts exports 5 routes (/, /geography, /agencies, /agencies/:id, /disaster)",
+          "check": "cd frontend && grep -qE \"path.*['\\\"]\\$['\\\"]|path.*['\\\"]geography['\\\"]|path.*['\\\"]agencies['\\\"]|path.*['\\\"]disaster['\\\"]\" src/app/routes.ts"
+        },
+        {
+          "text": "main.ts uses provideRouter(routes)",
+          "check": "cd frontend && grep -q 'provideRouter' src/main.ts"
+        },
+        {
+          "text": "routes.spec.ts passes (table-driven: each path navigates to the right component)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=routes.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Use standalone components (Angular 17 default). routes.ts exports `routes: Routes[]` array. main.ts: bootstrapApplication(AppComponent, {providers: [provideRouter(routes), provideHttpClient(), provideAnimations()]})."
+    },
+    {
+      "id": "E4-S03",
+      "epic": "E4",
+      "title": "ApiService with typed methods for every backend endpoint",
+      "goal": "Implement ApiService as the single deep module owning all HTTP. Methods per epic-04 spec: getAgencies, getAgencySpotlight, getAgencySummary, getGeographyStates, getGeographyState, getDisasterOverview, getDisasterStates, getDisasterRecoveryRatios, getDisasterState. All return Observable<T> typed via @shared/interfaces. catchError returns safe fallbacks (empty arrays).",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E4-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/api.service.ts",
+          "frontend/src/app/api.service.spec.ts",
+          "frontend/src/environments/environment.ts",
+          "frontend/src/environments/environment.prod.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "ApiService has all 9 methods",
+          "check": "cd frontend && for m in getAgencies getAgencySpotlight getAgencySummary getGeographyStates getGeographyState getDisasterOverview getDisasterStates getDisasterRecoveryRatios getDisasterState; do grep -q \"$m(\" src/app/api.service.ts || exit 1; done"
+        },
+        {
+          "text": "all methods return Observable<T> typed via @shared/interfaces",
+          "check": "cd frontend && grep -q \"from '@shared/interfaces'\" src/app/api.service.ts"
+        },
+        {
+          "text": "environment.ts has apiUrl, environment.prod.ts exists",
+          "check": "cd frontend && grep -q 'apiUrl' src/environments/environment.ts && test -f src/environments/environment.prod.ts"
+        },
+        {
+          "text": "api.service.spec.ts passes (table-driven: each method calls HttpClient with correct URL + params, returns parsed data)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=api.service.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Single deep module per AGENTS.md Skill 3. HttpClient injected. Base URL from environment.apiUrl. List endpoints map r.data, single endpoints return r directly. catchError(() => of([] as T[])) for list endpoints; of(null) for single. Spec uses HttpClientTestingModule + HttpTestingController."
+    },
+    {
+      "id": "E4-S04",
+      "epic": "E4",
+      "title": "LoadingService + LoadingInterceptor + ErrorInterceptor",
+      "goal": "LoadingService exposes `loading$: WritableSignal<boolean>`. LoadingInterceptor increments/decrements a counter on every HTTP request, sets loading$ true when >0. ErrorInterceptor catches non-2xx, shows mat-snack-bar with the error message, does NOT retry. Wire both via provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])).",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E4-S03"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/loading.service.ts",
+          "frontend/src/app/loading.interceptor.ts",
+          "frontend/src/app/error.interceptor.ts",
+          "frontend/src/app/loading.service.spec.ts",
+          "frontend/src/app/interceptors.spec.ts",
+          "frontend/src/main.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/main.ts",
+            "start": 1,
+            "end": 25,
+            "reason": "providers — replace provideHttpClient() with provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor]))"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "LoadingService exposes loading$ as WritableSignal<boolean>",
+          "check": "cd frontend && grep -qE 'loading\\$.*signal.*boolean|WritableSignal<boolean>' src/app/loading.service.ts"
+        },
+        {
+          "text": "LoadingInterceptor increments/decrements counter via LoadingService",
+          "check": "cd frontend && grep -qE '(increment|decrement|counter)' src/app/loading.interceptor.ts"
+        },
+        {
+          "text": "ErrorInterceptor shows mat-snack-bar on error",
+          "check": "cd frontend && grep -qE '(MatSnackBar|snack_bar|snackbar|open\\()' src/app/error.interceptor.ts"
+        },
+        {
+          "text": "main.ts registers both interceptors via withInterceptors([...])",
+          "check": "cd frontend && grep -q 'withInterceptors' src/main.ts"
+        },
+        {
+          "text": "loading.service.spec.ts + interceptors.spec.ts pass",
+          "check": "cd frontend && pnpm test -- --testPathPattern='(loading.service|interceptors).spec.ts' --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Interceptors are functional (Angular 17 style), not classes. LoadingService is @Injectable({providedIn:'root'}). Counter is private; only loading$ is public. ErrorInterceptor reads error.status + error.message and shows snack-bar with duration 5000."
+    },
+    {
+      "id": "E4-S05",
+      "epic": "E4",
+      "title": "BarChartComponent (shared, ng2-charts wrapper)",
+      "goal": "Create a reusable standalone BarChartComponent with @Input labels/datasets/title/horizontal. Wraps ng2-charts canvas with consistent styling. Used across Geography/Disaster/Dashboard views.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E4-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/bar-chart/bar-chart.component.ts",
+          "frontend/src/app/bar-chart/bar-chart.component.html",
+          "frontend/src/app/bar-chart/bar-chart.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "BarChartComponent accepts @Input labels, datasets, title, horizontal",
+          "check": "cd frontend && grep -q 'labels' src/app/bar-chart/bar-chart.component.ts && grep -q 'datasets' src/app/bar-chart/bar-chart.component.ts && grep -q 'title' src/app/bar-chart/bar-chart.component.ts && grep -q 'horizontal' src/app/bar-chart/bar-chart.component.ts"
+        },
+        {
+          "text": "component wraps ng2-charts base-chart",
+          "check": "cd frontend && grep -q 'base-chart' src/app/bar-chart/bar-chart.component.html"
+        },
+        {
+          "text": "bar-chart.component.spec.ts passes (table-driven: input shapes → expected chart config)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=bar-chart.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Pure presentation component. Spec asserts the computed chart config (type, indexAxis, data) from a table of input shapes. Set indexAxis='y' when horizontal=true. Do NOT try to render canvas in jsdom — assert the computed config instead."
+    },
+    {
+      "id": "E4-S06",
+      "epic": "E4",
+      "title": "CurrencyFormatPipe (cents → dollars) + app theme",
+      "goal": "Create CurrencyFormatPipe that transforms integer cents → formatted dollar string ($15,000,000.00). Apply Angular Material theme (prebuilt or custom). Wire the pipe into a shared module.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E4-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/currency-format.pipe.ts",
+          "frontend/src/app/currency-format.pipe.spec.ts",
+          "frontend/src/styles.scss",
+          "frontend/src/index.html"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "CurrencyFormatPipe transforms cents to formatted dollars",
+          "check": "cd frontend && grep -q 'transform' src/app/currency-format.pipe.ts"
+        },
+        {
+          "text": "currency-format.pipe.spec.ts passes (table-driven: 0→$0.00, 1500000000→$15,000,000.00, negative, undefined)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=currency-format.pipe.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "Angular Material theme applied (styles.scss has @use or @import for material)",
+          "check": "cd frontend && grep -qE '(@use|@import).*@angular/material' src/styles.scss"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Use Angular's built-in CurrencyPipe via `.transform(cents/100, 'USD', 'symbol', '1.2-2')` OR implement directly with Intl.NumberFormat. Standalone pipe (Angular 17). Spec testTable: 0, 1, 99, 1500000000, -500, undefined, null."
+    },
+    {
+      "id": "E5-S01",
+      "epic": "E5",
+      "title": "Geographic View — controls bar (agency, FY, scope selectors)",
+      "goal": "Top controls bar with 3 selectors: agency mat-select (All Agencies + 6), fiscal year mat-select (2020-2024), scope mat-button-toggle-group (recipient/performance). Emits a filter-changed signal that other parts of the view consume.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E4-S06"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html",
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 1,
+            "end": 30,
+            "reason": "component — replace placeholder with real component that has filter signals"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "component has signals for agencyId, fiscalYear, scope",
+          "check": "cd frontend && grep -qE '(signal|writeable)' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "template has the 3 Material controls (mat-select x2, mat-button-toggle-group x1)",
+          "check": "cd frontend && grep -q 'mat-select' src/app/geographic-view/geographic-view.component.html && grep -q 'mat-button-toggle-group' src/app/geographic-view/geographic-view.component.html"
+        },
+        {
+          "text": "geographic-view.component.spec.ts passes (table-driven: filter change emits correct GeographyQuery)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=geographic-view.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Angular 17 signals for filter state (no NgModel boilerplate). On agency select → agencyId signal set; on FY select → fiscalYear signal; on scope toggle → scope signal. Component exposes a computed filter$ signal. Spec asserts each control change updates the filter correctly."
+    },
+    {
+      "id": "E5-S02",
+      "epic": "E5",
+      "title": "Geographic View — top 10 bar chart + 50-state table",
+      "goal": "Top section: BarChartComponent showing top 10 states by obligatedAmount for current filter (horizontal). Bottom: mat-table with all states, columns State/Total/PerCapita/AwardCount/vsAvg, mat-paginator 15/page, mat-sort on all columns.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E5-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html",
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 30,
+            "end": 80,
+            "reason": "add data fetching via ApiService.getGeographyStates and expose top10 + allStates computed signals"
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.html",
+            "start": 1,
+            "end": 60,
+            "reason": "add BarChartComponent + mat-table + mat-paginator + mat-sort sections"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "component fetches via ApiService.getGeographyStates when filter changes",
+          "check": "cd frontend && grep -q 'getGeographyStates' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "template uses app-bar-chart",
+          "check": "cd frontend && grep -q 'app-bar-chart' src/app/geographic-view/geographic-view.component.html"
+        },
+        {
+          "text": "template has mat-table, mat-paginator, mat-sort",
+          "check": "cd frontend && grep -q 'mat-table' src/app/geographic-view/geographic-view.component.html && grep -q 'mat-paginator' src/app/geographic-view/geographic-view.component.html && grep -q 'mat-sort' src/app/geographic-view/geographic-view.component.html"
+        },
+        {
+          "text": "geographic-view.component.spec.ts passes (top10 slicing, paginator 15 default, sort by obligatedAmount desc)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=geographic-view.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "vs All-Agencies Avg column = (state.obligatedAmount - allAgenciesAvgForState / total) * 100. Computed in component from the same dataset. Spec mocks ApiService and feeds a testTable of geo snapshots → asserts top10 + vsAvg computation."
+    },
+    {
+      "id": "E5-S03",
+      "epic": "E5",
+      "title": "Geographic View — recipient vs performance delta insight",
+      "goal": "When scope is toggled, compute and show a delta stat for the top state: 'California contractors receive $X but only $Y worth of work happens in-state.' Requires loading both recipient and performance scope data for the comparison.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E5-S02"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html",
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 30,
+            "end": 100,
+            "reason": "add secondary fetch for the opposite scope, compute delta stat for top state"
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.html",
+            "start": 1,
+            "end": 70,
+            "reason": "add delta insight stat block near top of view"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "component fetches both scopes for delta computation",
+          "check": "cd frontend && grep -c 'getGeographyStates' src/app/geographic-view/geographic-view.component.ts | grep -q 2"
+        },
+        {
+          "text": "delta computed for top state by obligatedAmount",
+          "check": "cd frontend && grep -qE '(delta|recipient|performance)' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "geographic-view.component.spec.ts passes (delta stat for testTable of recipient+performance data)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=geographic-view.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "When user selects scope=recipient, ALSO fetch performance data (and vice versa) to compute the delta. Show delta stat only when both scopes loaded successfully. Delta = recipient$ - performance$ for the top state."
+    },
+    {
+      "id": "E6-S01",
+      "epic": "E6",
+      "title": "Agency Spotlight — header (name, current FY total, YoY badge)",
+      "goal": "Header section: agency full name + abbreviation, current FY total obligated (large), YoY change percentage badge (green positive, red negative). Fetches via ApiService.getAgencySummary(id). Route param :id.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E4-S06"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "component reads :id route param",
+          "check": "cd frontend && grep -qE '(route|paramMap|ActivatedRoute|param)' src/app/agency-spotlight/agency-spotlight.component.ts"
+        },
+        {
+          "text": "component calls ApiService.getAgencySummary",
+          "check": "cd frontend && grep -q 'getAgencySummary' src/app/agency-spotlight/agency-spotlight.component.ts"
+        },
+        {
+          "text": "agency-spotlight.component.spec.ts passes (table-driven: positive YoY, negative YoY, zero YoY, missing prior year)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=agency-spotlight.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Use AgencySummary interface from @shared/interfaces. Badge color = green if yoyChange >= 0, red if negative. Display large dollar amount via CurrencyFormatPipe."
+    },
+    {
+      "id": "E6-S02",
+      "epic": "E6",
+      "title": "Agency Spotlight — stacked bar chart with FY range selector",
+      "goal": "Stacked bar chart: X=fiscalYear, Y=obligatedAmount, segments per award type (Contracts/Grants/Direct Payments/Loans/IDVs). FY range selector (two mat-selects from/to, default 2020-2024). AWARD_COLORS constant for consistent colors. Fetches via getAgencySpotlight(id, {fiscalYearStart, fiscalYearEnd}).",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E6-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+          "frontend/src/app/award-colors.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "AWARD_COLORS constant exists with 5 award types",
+          "check": "cd frontend && for t in Contracts Grants 'Direct Payments' Loans IDVs; do grep -q \"\\\"$t\\\"\" src/app/award-colors.ts || exit 1; done"
+        },
+        {
+          "text": "component has fiscalYearStart, fiscalYearEnd signals",
+          "check": "cd frontend && grep -q 'fiscalYearStart' src/app/agency-spotlight/agency-spotlight.component.ts && grep -q 'fiscalYearEnd' src/app/agency-spotlight/agency-spotlight.component.ts"
+        },
+        {
+          "text": "template uses app-bar-chart with stacked config",
+          "check": "cd frontend && grep -q 'app-bar-chart' src/app/agency-spotlight/agency-spotlight.component.html"
+        },
+        {
+          "text": "agency-spotlight.component.spec.ts passes (stacked dataset built from raw SpendingRecords)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=agency-spotlight.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Transform raw SpendingRecord[] → stacked chart dataset: group by fiscalYear, then per FY bucket each awardTypeLabel as a separate dataset. AWARD_COLORS maps award type → hex color."
+    },
+    {
+      "id": "E6-S03",
+      "epic": "E6",
+      "title": "Agency Spotlight — award breakdown table + dynamic insight line",
+      "goal": "mat-table with columns: Award Type, FY2024 Obligated, % of Total, Award Count. Sorted by obligated desc. Below chart: dynamic insight line computed from data (e.g. 'In FY2024, NASA spent X% on Contracts').",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E6-S02"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "template has mat-table with the 4 columns",
+          "check": "cd frontend && grep -q 'mat-table' src/app/agency-spotlight/agency-spotlight.component.html"
+        },
+        {
+          "text": "component computes insight string from current data",
+          "check": "cd frontend && grep -qE '(insight|computeInsight)' src/app/agency-spotlight/agency-spotlight.component.ts"
+        },
+        {
+          "text": "agency-spotlight.component.spec.ts passes (table-driven: insight string for various data shapes)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=agency-spotlight.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Insight computation: percentage of largest award type for current FY. Or trend (increased/decreased) over the FY range. Keep simple — one insight line, computed from data."
+    },
+    {
+      "id": "E7-S01",
+      "epic": "E7",
+      "title": "Disaster Lens — DEF group tabs + 4 summary cards",
+      "goal": "mat-tab-group with 5 DEF group tabs (COVID-19, Hurricane, Wildfire, Infrastructure, General). Fiscal year mat-select (optional, default all). 4 summary cards: total spending, state count, coverage gap count (ratio<0.5), highest per-capita state. Fetches via getDisasterOverview + getDisasterStates.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E4-S06"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "template has mat-tab-group with 5 DEF group tabs",
+          "check": "cd frontend && grep -c 'mat-tab' src/app/disaster-lens/disaster-lens.component.html | grep -q 5"
+        },
+        {
+          "text": "component fetches getDisasterOverview and getDisasterStates",
+          "check": "cd frontend && grep -q 'getDisasterOverview' src/app/disaster-lens/disaster-lens.component.ts && grep -q 'getDisasterStates' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "disaster-lens.component.spec.ts passes (table-driven: card values for various overview shapes)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=disaster-lens.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "4 cards display: totalObligated (via CurrencyFormatPipe), stateCount (length), coverageGapCount (states with ratio<0.5 from ratios endpoint), highestPerCapitaState (from overview response). Tab change → refetch states."
+    },
+    {
+      "id": "E7-S02",
+      "epic": "E7",
+      "title": "Disaster Lens — top 15 states bar chart",
+      "goal": "Horizontal bar chart showing top 15 states by obligatedAmount for the selected DEF group + FY filter. Uses shared BarChartComponent. Updates on tab change.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E7-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "template has app-bar-chart",
+          "check": "cd frontend && grep -q 'app-bar-chart' src/app/disaster-lens/disaster-lens.component.html"
+        },
+        {
+          "text": "component slices top 15 from states data",
+          "check": "cd frontend && grep -qE '(slice\\(.*15|top.*15)' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "disaster-lens.component.spec.ts passes (top 15 selection from testTable of state arrays)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=disaster-lens.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Top 15 by obligatedAmount desc. Bar chart input: labels=state names, datasets=[{data: obligatedAmounts}]."
+    },
+    {
+      "id": "E7-S03",
+      "epic": "E7",
+      "title": "Disaster Lens — recovery ratio table with color chips + tooltip",
+      "goal": "Recovery ratio mat-table: State, Declarations, FEMA, Fed DEF, Ratio (chip-colored), Dominant Incident. Sorted ratio ascending (worst first). Chip color: red <0.5, yellow 0.5-1.0, green >1.0. Tooltip explaining ratio calc. mat-paginator 15/page. getRatioColor helper.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E7-S02"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
+          "frontend/src/app/ratio-color.ts",
+          "frontend/src/app/ratio-color.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "getRatioColor exported: <0.5=warn, 0.5-1.0=accent, >1.0=primary",
+          "check": "cd frontend && grep -qE '(0\\.5|warn|accent|primary)' src/app/ratio-color.ts"
+        },
+        {
+          "text": "component sorts ratios ascending",
+          "check": "cd frontend && grep -qE '(sort.*asc|recoveryRatio.*asc|order.*ASC)' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "template has mat-table + mat-paginator + tooltip",
+          "check": "cd frontend && grep -q 'mat-table' src/app/disaster-lens/disaster-lens.component.html && grep -q 'mat-paginator' src/app/disaster-lens/disaster-lens.component.html"
+        },
+        {
+          "text": "ratio-color.spec.ts passes (table-driven: ratio → expected color)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=ratio-color.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "disaster-lens.component.spec.ts passes",
+          "check": "cd frontend && pnpm test -- --testPathPattern=disaster-lens.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Tooltip text: 'Recovery Ratio = Federal DEF Spending ÷ FEMA Baseline. A ratio below 1.0 indicates federal spending has not yet matched FEMA\\'s initial obligation level.' getRatioColor is a pure helper — extracted because table tests need it isolated. Sort done client-side from getDisasterRecoveryRatios response."
+    },
+    {
+      "id": "E8-S01",
+      "epic": "E8",
+      "title": "Dashboard — 4 summary cards + agency quick-compare chart",
+      "goal": "4 summary cards: total obligated (all 6 agencies all years), largest agency by FY2024 spend, coverage gap count (states with ratio<0.5), last sync timestamp. Grouped bar chart: all 6 agencies FY2024 obligated, click navigates to /agencies/:id.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E5-S03",
+        "E6-S03",
+        "E7-S03"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "frontend/src/app/dashboard/dashboard.component.html",
+          "frontend/src/app/dashboard/dashboard.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "component fetches getAgencies + getDisasterRecoveryRatios for card data",
+          "check": "cd frontend && grep -q 'getAgencies' src/app/dashboard/dashboard.component.ts && grep -q 'getDisasterRecoveryRatios' src/app/dashboard/dashboard.component.ts"
+        },
+        {
+          "text": "chart click triggers router.navigate to /agencies/:id",
+          "check": "cd frontend && grep -qE '(router|navigate)' src/app/dashboard/dashboard.component.ts"
+        },
+        {
+          "text": "dashboard.component.spec.ts passes (table-driven: card computations from sample agency+ratio data)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=dashboard.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Total obligated = sum across all agencies all years (already in agency list response). Largest agency = max by FY2024. Coverage gap count = ratios filter ratio<0.5, distinct states. Last sync timestamp from a new ApiService method getLastSync() that calls GET /sync/status."
+    },
+    {
+      "id": "E8-S02",
+      "epic": "E8",
+      "title": "Dashboard — 3 navigation cards",
+      "goal": "3 nav cards linking to /geography, /agencies, /disaster with title + one-sentence description + icon. Click navigates via routerLink.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E8-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "frontend/src/app/dashboard/dashboard.component.html",
+          "frontend/src/app/dashboard/dashboard.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "template has 3 cards with routerLink to /geography, /agencies, /disaster",
+          "check": "cd frontend && grep -q '/geography' src/app/dashboard/dashboard.component.html && grep -q '/agencies' src/app/dashboard/dashboard.component.html && grep -q '/disaster' src/app/dashboard/dashboard.component.html"
+        },
+        {
+          "text": "dashboard.component.spec.ts passes",
+          "check": "cd frontend && pnpm test -- --testPathPattern=dashboard.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "routerLink on the card host element. mat-card for consistent styling. Icons from Material Icons font. Page load target: under 2 seconds — assert in spec via fakeAsync + tick."
+    },
+    {
+      "id": "E9-S01",
+      "epic": "E9",
+      "title": "render.yaml + Render config",
+      "goal": "Create render.yaml at repo root with backend web service, frontend static site, postgres database. Build/start commands match the deployed structure. No production code changes — just config.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E8-S02"
+      ],
+      "scope": {
+        "files": [
+          "render.yaml",
+          "frontend/_redirects",
+          "frontend/public/_redirects",
+          "backend/test/render-yaml.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "render.yaml exists with web service (fedspend-api), static site (fedspend-ui), database (fedspend-db)",
+          "check": "test -f render.yaml && grep -q 'fedspend-api' render.yaml && grep -q 'fedspend-ui' render.yaml && grep -q 'fedspend-db' render.yaml"
+        },
+        {
+          "text": "backend buildCommand uses pnpm",
+          "check": "grep -q 'pnpm' render.yaml"
+        },
+        {
+          "text": "_redirects file present for SPA routing",
+          "check": "test -f frontend/_redirects && grep -q '/index.html' frontend/_redirects"
+        },
+        {
+          "text": "yaml is valid",
+          "check": "python3 -c 'import yaml; yaml.safe_load(open(\"render.yaml\"))'"
+        },
+        {
+          "text": "render-yaml.spec.ts passes (parses yaml, asserts 3 services + database)",
+          "check": "cd backend && pnpm test -- --testPathPattern=render-yaml.spec.ts --passWithNoTests"
+        }
+      ],
+      "notes": "render.yaml spec per epic-09 doc: backend builds via `cd backend && pnpm install --frozen-lockfile && pnpm build`, starts via `cd backend && node dist/main.js`. Frontend builds via `cd frontend && pnpm install --frozen-lockfile && pnpm build`, staticPublishPath `frontend/dist/frontend/browser`. _redirects file is copied to dist via angular.json assets config (covered in E9-S03)."
+    },
+    {
+      "id": "E9-S02",
+      "epic": "E9",
+      "title": "Backend prod config — migrations, env vars, health check",
+      "goal": "Generate initial TypeORM migration. Set NODE_ENV=production behavior: migrationsRun=true, synchronize=false. Verify /health endpoint works in prod mode (no FRONTEND_URL fallback to '*' — must be explicit). Document required env vars.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E9-S01"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/config/typeorm.config.ts",
+          "backend/src/migrations/.gitkeep",
+          "backend/src/migrations/1700000000000-Init.ts",
+          "backend/package.json",
+          "backend/.env.example",
+          "backend/src/config/typeorm.config.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/config/typeorm.config.ts",
+            "start": 1,
+            "end": 50,
+            "reason": "ensure postgres branch has migrationsRun:true, synchronize:false"
+          },
+          {
+            "file": "backend/package.json",
+            "start": 1,
+            "end": 30,
+            "reason": "scripts — add typeorm:migrate script"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "Init migration file exists under backend/src/migrations/",
+          "check": "test -f backend/src/migrations/1700000000000-Init.ts"
+        },
+        {
+          "text": "postgres branch has migrationsRun:true and synchronize:false",
+          "check": "cd backend && grep -A2 \"postgres\" src/config/typeorm.config.ts | grep -q 'migrationsRun' && grep -A5 \"postgres\" src/config/typeorm.config.ts | grep -q 'synchronize: false'"
+        },
+        {
+          "text": "package.json has typeorm migration script",
+          "check": "cd backend && jq -e '.scripts.\"typeorm:migrate\" != null' package.json >/dev/null"
+        },
+        {
+          "text": ".env.example documents DATABASE_URL, FRONTEND_URL, NODE_ENV",
+          "check": "cd backend && grep -q 'DATABASE_URL' .env.example && grep -q 'FRONTEND_URL' .env.example && grep -q 'NODE_ENV' .env.example"
+        },
+        {
+          "text": "typeorm.config.spec.ts still passes (updated to cover migrationsRun assertion)",
+          "check": "cd backend && pnpm test -- --testPathPattern=typeorm.config.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "Generate migration via `pnpm typeorm migration:generate src/migrations/Init -d src/config/typeorm-datasource.ts`. Need a datasource file (TypeORM DataSource for CLI). Or hand-write the migration. migrationsRun:true in the postgres config branch (already asserted by E1-S03 spec but stricter here)."
+    },
+    {
+      "id": "E9-S03",
+      "epic": "E9",
+      "title": "Frontend prod build config — environment.prod, _redirects in assets",
+      "goal": "Configure angular.json to include _redirects in the build output assets. Confirm environment.prod.ts has empty apiUrl (same-origin). Verify production build completes and emits dist/frontend/browser/_redirects.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E9-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/angular.json",
+          "frontend/src/environments/environment.prod.ts",
+          "frontend/_redirects",
+          "frontend/build-output.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/angular.json",
+            "start": 1,
+            "end": 100,
+            "reason": "assets array — add _redirects to be copied to dist"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "environment.prod.ts has apiUrl: ''",
+          "check": "cd frontend && grep -qE \"apiUrl.*['\\\"]['\\\"]\" src/environments/environment.prod.ts"
+        },
+        {
+          "text": "angular.json includes _redirects in assets",
+          "check": "cd frontend && grep -q '_redirects' angular.json"
+        },
+        {
+          "text": "production build emits _redirects in dist",
+          "check": "cd frontend && pnpm build && test -f dist/frontend/browser/_redirects"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "build-output.spec.ts passes (asserts dist/frontend/browser/_redirects exists post-build)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=build-output.spec.ts --passWithNoTests"
+        }
+      ],
+      "notes": "Configure angular.json production fileReplacements to swap environment.ts → environment.prod.ts (if not already). Add _redirects to assets array so it's copied verbatim to dist/frontend/browser/."
+    },
+    {
+      "id": "E10-S01",
+      "epic": "E10",
+      "title": "App shell — top nav + footer",
+      "goal": "Top nav: route links for Dashboard, Geography, Agencies, Disaster. Footer: 'Data: USASpending.gov (U.S. Treasury) · OpenFEMA (FEMA) · Updated nightly'. Wrap all views in a consistent shell.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E8-S02"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/app.component.ts",
+          "frontend/src/app/app.component.html",
+          "frontend/src/app/app.component.spec.ts",
+          "frontend/src/styles.scss"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "app.component.html has nav with routerLink to all 4 routes",
+          "check": "cd frontend && grep -q 'routerLink' src/app/app.component.html && for r '/' '/geography' '/agencies' '/disaster'; do grep -q \"\\\"$r\\\"\" src/app/app.component.html || exit 1; done"
+        },
+        {
+          "text": "footer mentions USASpending.gov and OpenFEMA",
+          "check": "cd frontend && grep -q 'USASpending' src/app/app.component.html && grep -q 'OpenFEMA' src/app/app.component.html"
+        },
+        {
+          "text": "app.component.spec.ts passes",
+          "check": "cd frontend && pnpm test -- --testPathPattern=app.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Use mat-toolbar for nav. Standalone AppComponent with router-outlet in the middle. Footer is a static block at bottom of layout."
+    },
+    {
+      "id": "E10-S02",
+      "epic": "E10",
+      "title": "Dark mode toggle with Material theme switching",
+      "goal": "mat-slide-toggle in nav for dark mode. Use CSS custom properties or Material theme classes. Persist preference in localStorage. Tables and charts must look sharp on dark backgrounds.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E10-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/theme.service.ts",
+          "frontend/src/app/theme.service.spec.ts",
+          "frontend/src/styles.scss",
+          "frontend/src/app/app.component.ts",
+          "frontend/src/app/app.component.html"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/app.component.html",
+            "start": 1,
+            "end": 30,
+            "reason": "nav — add mat-slide-toggle bound to ThemeService"
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "ThemeService exposes isDark$ signal and toggle()",
+          "check": "cd frontend && grep -qE '(isDark|toggle)' src/app/theme.service.ts"
+        },
+        {
+          "text": "ThemeService reads/writes localStorage",
+          "check": "cd frontend && grep -q 'localStorage' src/app/theme.service.ts"
+        },
+        {
+          "text": "styles.scss has dark theme definitions",
+          "check": "cd frontend && grep -qE '(\\.dark-theme|prefers-color-scheme)' src/styles.scss"
+        },
+        {
+          "text": "theme.service.spec.ts passes (table-driven: initial state, toggle, persist, restore)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=theme.service.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Use Angular Material's theming via mat.define-light-theme and mat.define-dark-theme. Apply theme class on document.body. Charts: set Chart.js defaults.color based on ThemeService."
+    },
+    {
+      "id": "E10-S03",
+      "epic": "E10",
+      "title": "Data disclaimer + README",
+      "goal": "Small disclaimer banner: 'Recovery ratios are analytical estimates based on public data. Not an official government metric.' Rewrite README with: what it is, architecture, local-dev steps, API endpoints, recovery ratio explanation, Render deployment.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E10-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/disclaimer/disclaimer.component.ts",
+          "frontend/src/app/disclaimer/disclaimer.component.html",
+          "README.md",
+          "frontend/src/app/disclaimer/disclaimer.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "disclaimer component exists and contains 'analytical estimates'",
+          "check": "cd frontend && grep -q 'analytical estimates' src/app/disclaimer/disclaimer.component.html"
+        },
+        {
+          "text": "README has all 6 sections (what, architecture, local-dev, API, recovery ratio, deploy)",
+          "check": "grep -q '## ' README.md && for s in 'What' 'Architecture' 'Local' 'API' 'Recovery' 'Deploy\\|Render'; do grep -qi \"$s\" README.md || exit 1; done"
+        },
+        {
+          "text": "README has the architecture diagram",
+          "check": "grep -q 'USASpending' README.md && grep -q 'OpenFEMA' README.md"
+        },
+        {
+          "text": "disclaimer.component.spec.ts passes (component compiles, renders disclaimer text)",
+          "check": "cd frontend && pnpm test -- --testPathPattern=disclaimer.component.spec.ts --passWithNoTests"
+        }
+      ],
+      "notes": "DisclaimerComponent is a small standalone component placed at the bottom of each view (or once in app shell footer). README follows the structure from epic-10 doc."
+    },
+    {
+      "id": "E10-S04",
+      "epic": "E10",
+      "title": "Polish tests — cross-layer unit coverage + final build pass",
+      "goal": "Add the 3 unit tests called out in epic-10: SyncService DEF code grouping, RecoveryRatioService edge cases (already in E2-S04 but verify), DisasterLensComponent table sort defaults. Run full backend + frontend test suites + builds to confirm demo-ready state.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E10-S02",
+        "E10-S03"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/sync/sync.service.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "all backend specs pass (pnpm test)",
+          "check": "cd backend && pnpm test"
+        },
+        {
+          "text": "all frontend specs pass (pnpm test)",
+          "check": "cd frontend && pnpm test"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "DisasterLens spec asserts table sorts by recoveryRatio ascending by default",
+          "check": "cd frontend && grep -qE '(sort.*asc|recoveryRatio.*asc)' src/app/disaster-lens/disaster-lens.component.spec.ts"
+        }
+      ],
+      "notes": "If the existing specs already cover the 3 polish tests, this story just confirms full-suite green. If DEF grouping or sort-default has gaps, this story closes them by editing the relevant specs (only the spec files in scope)."
     }
   ],
   "storyOrder": [
@@ -860,7 +2148,36 @@
     "E2-S05",
     "E2-S06",
     "E2-S07",
-    "E2-S08"
+    "E2-S08",
+    "E3-S01",
+    "E3-S02",
+    "E3-S03",
+    "E3-S04",
+    "E3-S05",
+    "E4-S01",
+    "E4-S02",
+    "E4-S03",
+    "E4-S04",
+    "E4-S05",
+    "E4-S06",
+    "E5-S01",
+    "E5-S02",
+    "E5-S03",
+    "E6-S01",
+    "E6-S02",
+    "E6-S03",
+    "E7-S01",
+    "E7-S02",
+    "E7-S03",
+    "E8-S01",
+    "E8-S02",
+    "E9-S01",
+    "E9-S02",
+    "E9-S03",
+    "E10-S01",
+    "E10-S02",
+    "E10-S03",
+    "E10-S04"
   ],
   "resolutions": [
     {
