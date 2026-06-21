@@ -1,0 +1,390 @@
+{
+  "epic": "Epic 1 — NestJS Backend Foundation",
+  "version": "2.0.0",
+  "stories": [
+    {
+      "id": "E1-S01",
+      "epic": "E1",
+      "title": "Scaffold NestJS project, install dependencies, remove defaults",
+      "goal": "Produce a bootable NestJS backend at backend/ with all runtime/dev dependencies installed, the default AppController/AppService removed, and a spec that proves AppModule compiles.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/package.json",
+          "backend/tsconfig.json",
+          "backend/tsconfig.build.json",
+          "backend/nest-cli.json",
+          "backend/.env.example",
+          "backend/src/main.ts",
+          "backend/src/app.module.ts",
+          "backend/src/app.module.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        { "text": "backend/package.json has all required runtime dependencies",
+          "check": "cd backend && node -e \"const p=require('./package.json'); const r=['@nestjs/core','@nestjs/common','@nestjs/typeorm','typeorm','better-sqlite3','pg','@nestjs/config','class-validator','class-transformer','@nestjs/schedule']; const m=r.filter(d=>!p.dependencies[d]); if(m.length){console.error('missing',m);process.exit(1)}\"" },
+        { "text": "backend/src/main.ts exists",
+          "check": "test -f backend/src/main.ts" },
+        { "text": "backend/src/app.module.ts exists",
+          "check": "test -f backend/src/app.module.ts" },
+        { "text": "default AppController and AppService removed (no files, no registrations)",
+          "check": "! test -f backend/src/app.controller.ts && ! test -f backend/src/app.service.ts && ! test -f backend/src/app.controller.spec.ts && ! test -f backend/src/app.service.spec.ts" },
+        { "text": "app.module.spec.ts passes",
+          "check": "cd backend && pnpm test -- --testPathPattern=app.module.spec.ts --passWithNoTests" },
+        { "text": "backend builds cleanly (pnpm build)",
+          "check": "cd backend && pnpm build" }
+      ],
+      "notes": "Use `npx @nestjs/cli new backend --package-manager pnpm --skip-git --strict` then surgically remove AppController/AppService. The CLI also generates app.controller.spec.ts and app.service.spec.ts — remove those too. The spec file app.module.spec.ts must import AppModule and assert it is a class decorated with @Module. Do NOT add TypeORM, ConfigModule, or any feature module here — those belong to later stories."
+    },
+    {
+      "id": "E1-S02",
+      "epic": "E1",
+      "title": "Configure @shared/* path alias in tsconfig",
+      "goal": "Wire the @shared/* path alias so backend source can import from the repo-root shared/interfaces/ directory. Prove it with a spec that imports ApiResponse from @shared/interfaces.",
+      "build": "BUILD-FAST",
+      "dependencies": ["E1-S01"],
+      "scope": {
+        "files": [
+          "backend/tsconfig.json",
+          "backend/tsconfig.build.json",
+          "backend/src/shared-alias.spec.ts"
+        ],
+        "regions": [
+          { "file": "backend/tsconfig.json", "start": 1, "end": 30,
+            "reason": "compilerOptions.paths — add @shared/* mapping to ../shared/*" }
+        ]
+      },
+      "acceptanceCriteria": [
+        { "text": "tsconfig.json maps @shared/* to ../shared/*",
+          "check": "cd backend && jq -e '.compilerOptions.paths.\"@shared/*\" == [\"../shared/*\"]' tsconfig.json >/dev/null" },
+        { "text": "tsconfig.build.json does NOT exclude ../shared",
+          "check": "cd backend && ! jq -e '.exclude | index(\"../shared\") // false' tsconfig.build.json >/dev/null" },
+        { "text": "shared-alias.spec.ts passes",
+          "check": "cd backend && pnpm test -- --testPathPattern=shared-alias.spec.ts --passWithNoTests" },
+        { "text": "backend still builds with alias resolved",
+          "check": "cd backend && pnpm build" }
+      ],
+      "notes": "Per resolution: do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types at compile time; they are type-only imports and produce no output in dist/."
+    },
+    {
+      "id": "E1-S03",
+      "epic": "E1",
+      "title": "TypeORM dual-database config (SQLite/Postgres) + AppModule wiring",
+      "goal": "Create getTypeOrmConfig(configService) that returns Postgres config when DATABASE_URL is set, SQLite config otherwise. Register via TypeOrmModule.forRootAsync + ConfigModule.forRoot in AppModule. SQLite config must mkdirSync('data',{recursive:true}) before returning. Prove all branches with a table-driven spec.",
+      "build": "BUILD-DEEP",
+      "dependencies": ["E1-S01"],
+      "scope": {
+        "files": [
+          "backend/src/config/typeorm.config.ts",
+          "backend/src/config/typeorm.config.spec.ts",
+          "backend/src/app.module.ts"
+        ],
+        "regions": [
+          { "file": "backend/src/app.module.ts", "start": 1, "end": 20,
+            "reason": "imports block — add ConfigModule and TypeOrmModule imports" },
+          { "file": "backend/src/app.module.ts", "start": 22, "end": 35,
+            "reason": "@Module decorator imports array — register ConfigModule.forRoot() and TypeOrmModule.forRootAsync({useFactory: getTypeOrmConfig, inject: [ConfigService]})" }
+        ]
+      },
+      "acceptanceCriteria": [
+        { "text": "backend/src/config/typeorm.config.ts exists",
+          "check": "test -f backend/src/config/typeorm.config.ts" },
+        { "text": "config factory calls mkdirSync('data', {recursive:true}) for sqlite path",
+          "check": "cd backend && grep -q \"mkdirSync\" src/config/typeorm.config.ts" },
+        { "text": "entity glob pattern is __dirname + '/../**/*.entity{.ts,.js}'",
+          "check": "cd backend && grep -q \"../\\\\*\\\\*/\\\\*.entity\" src/config/typeorm.config.ts" },
+        { "text": "typeorm.config.spec.ts passes (table-driven: DATABASE_URL set → postgres, unset → sqlite)",
+          "check": "cd backend && pnpm test -- --testPathPattern=typeorm.config.spec.ts --passWithNoTests" },
+        { "text": "AppModule imports ConfigModule and TypeOrmModule.forRootAsync",
+          "check": "cd backend && grep -q \"TypeOrmModule.forRootAsync\" src/app.module.ts && grep -q \"ConfigModule.forRoot\" src/app.module.ts" },
+        { "text": "backend builds",
+          "check": "cd backend && pnpm build" }
+      ],
+      "notes": "Per resolution: the glob __dirname + '/../**/*.entity{.ts,.js}' is correct because at runtime typeorm.config.ts compiles to dist/config/, so __dirname = dist/config/, ../ = dist/, glob matches dist/**/*.entity.js. Per resolution: mkdirSync('data', {recursive:true}) MUST be called in the factory before returning the sqlite config — better-sqlite3 won't create the parent dir. The spec must mock ConfigService.get('DATABASE_URL') and assert both branches. Do NOT use synchronize:true in the postgres branch."
+    },
+    {
+      "id": "E1-S04",
+      "epic": "E1",
+      "title": "Create 6 NestJS module scaffolds (agencies, spending, geography, disaster, sync, health)",
+      "goal": "Scaffold 6 feature modules with the right controller/service shape per module. agencies/spending/geography/disaster get module+controller+service+dto dir. sync gets module+service only (no controller). health gets module+controller only (no service). Register all 6 in AppModule. Prove registration with a spec.",
+      "build": "BUILD-FAST",
+      "dependencies": ["E1-S01", "E1-S03"],
+      "scope": {
+        "files": [
+          "backend/src/agencies/agencies.module.ts",
+          "backend/src/agencies/agencies.controller.ts",
+          "backend/src/agencies/agencies.service.ts",
+          "backend/src/agencies/dto/.gitkeep",
+          "backend/src/spending/spending.module.ts",
+          "backend/src/spending/spending.controller.ts",
+          "backend/src/spending/spending.service.ts",
+          "backend/src/spending/dto/.gitkeep",
+          "backend/src/geography/geography.module.ts",
+          "backend/src/geography/geography.controller.ts",
+          "backend/src/geography/geography.service.ts",
+          "backend/src/geography/dto/.gitkeep",
+          "backend/src/disaster/disaster.module.ts",
+          "backend/src/disaster/disaster.controller.ts",
+          "backend/src/disaster/disaster.service.ts",
+          "backend/src/disaster/dto/.gitkeep",
+          "backend/src/sync/sync.module.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/health/health.module.ts",
+          "backend/src/health/health.controller.ts",
+          "backend/src/modules.spec.ts",
+          "backend/src/app.module.ts"
+        ],
+        "regions": [
+          { "file": "backend/src/app.module.ts", "start": 1, "end": 15,
+            "reason": "imports block — add imports for the 6 feature modules" },
+          { "file": "backend/src/app.module.ts", "start": 17, "end": 30,
+            "reason": "@Module imports array — register all 6 feature modules" }
+        ]
+      },
+      "acceptanceCriteria": [
+        { "text": "all 6 module files exist",
+          "check": "for m in agencies spending geography disaster sync health; do test -f backend/src/$m/$m.module.ts || exit 1; done" },
+        { "text": "agencies, spending, geography, disaster each have controller + service",
+          "check": "for m in agencies spending geography disaster; do test -f backend/src/$m/$m.controller.ts && test -f backend/src/$m/$m.service.ts || exit 1; done" },
+        { "text": "sync has service, NO controller",
+          "check": "test -f backend/src/sync/sync.service.ts && ! test -f backend/src/sync/sync.controller.ts" },
+        { "text": "health has controller, NO service",
+          "check": "test -f backend/src/health/health.controller.ts && ! test -f backend/src/health/health.service.ts" },
+        { "text": "each dto/ directory has a .gitkeep",
+          "check": "for m in agencies spending geography disaster; do test -f backend/src/$m/dto/.gitkeep || exit 1; done" },
+        { "text": "all 6 modules registered in AppModule imports",
+          "check": "cd backend && grep -q \"AgenciesModule\" src/app.module.ts && grep -q \"SpendingModule\" src/app.module.ts && grep -q \"GeographyModule\" src/app.module.ts && grep -q \"DisasterModule\" src/app.module.ts && grep -q \"SyncModule\" src/app.module.ts && grep -q \"HealthModule\" src/app.module.ts" },
+        { "text": "modules.spec.ts passes",
+          "check": "cd backend && pnpm test -- --testPathPattern=modules.spec.ts --passWithNoTests" },
+        { "text": "backend builds",
+          "check": "cd backend && pnpm build" }
+      ],
+      "notes": "Per resolution: sync module is module + service only (NO controller) — sync API endpoints belong to Epic 2. Per resolution: health module is module + controller only (NO service). Per resolution: empty dto/ directories must have a .gitkeep so git tracks them. Controllers and services are EMPTY SCAFFOLDS in this story — just the class with @Controller()/@Injectable() decorator and an empty body. No endpoints, no methods. They get implemented in Epic 3 (query API). The modules.spec.ts must assert each module class exists, is decorated with @Module, and (where applicable) registers its controller/provider."
+    },
+    {
+      "id": "E1-S05",
+      "epic": "E1",
+      "title": "Define 5 TypeORM entities with columns, types, relations, and unique constraints",
+      "goal": "Create the 5 entities per data-model.md with correct column types (all monetary as integer cents, perCapita as integer cents/person, recoveryRatio as float), unique constraints, and register them in their feature modules via TypeOrmModule.forFeature(). Prove with a table-driven entities.spec.ts.",
+      "build": "BUILD-DEEP",
+      "dependencies": ["E1-S03", "E1-S04"],
+      "scope": {
+        "files": [
+          "backend/src/agencies/agency.entity.ts",
+          "backend/src/spending/spending-record.entity.ts",
+          "backend/src/geography/geo-spending-snapshot.entity.ts",
+          "backend/src/disaster/disaster-funding-record.entity.ts",
+          "backend/src/disaster/disaster-recovery-ratio.entity.ts",
+          "backend/src/entities.spec.ts",
+          "backend/src/agencies/agencies.module.ts",
+          "backend/src/spending/spending.module.ts",
+          "backend/src/geography/geography.module.ts",
+          "backend/src/disaster/disaster.module.ts"
+        ],
+        "regions": [
+          { "file": "backend/src/agencies/agencies.module.ts", "start": 1, "end": 20,
+            "reason": "add TypeOrmModule.forFeature([Agency]) to imports" },
+          { "file": "backend/src/spending/spending.module.ts", "start": 1, "end": 20,
+            "reason": "add TypeOrmModule.forFeature([SpendingRecord]) to imports" },
+          { "file": "backend/src/geography/geography.module.ts", "start": 1, "end": 20,
+            "reason": "add TypeOrmModule.forFeature([GeoSpendingSnapshot]) to imports" },
+          { "file": "backend/src/disaster/disaster.module.ts", "start": 1, "end": 20,
+            "reason": "add TypeOrmModule.forFeature([DisasterFundingRecord, DisasterRecoveryRatio]) to imports" }
+        ]
+      },
+      "acceptanceCriteria": [
+        { "text": "all 5 entity files exist",
+          "check": "for e in agencies/agency spending/spending-record geography/geo-spending-snapshot disaster/disaster-funding-record disaster/disaster-recovery-ratio; do test -f backend/src/$e.entity.ts || exit 1; done" },
+        { "text": "monetary columns use integer type (not float)",
+          "check": "cd backend && grep -hE '(obligatedAmount|outlayAmount|femaObligated|fedSpendingObligated|perCapita)' src/**/*.entity.ts | grep -v 'number' | grep . && exit 1 || true" },
+        { "text": "recoveryRatio is float/decimal (not integer)",
+          "check": "cd backend && grep -A2 'recoveryRatio' src/disaster/disaster-recovery-ratio.entity.ts | grep -qE '(float|decimal|double|real|number)'" },
+        { "text": "SpendingRecord has @Unique on (agencyId, fiscalYear, quarter, awardTypeLabel)",
+          "check": "cd backend && grep -q \"agencyId, fiscalYear, quarter, awardTypeLabel\" src/spending/spending-record.entity.ts" },
+        { "text": "GeoSpendingSnapshot has @Unique on (stateCode, fiscalYear, agencyId, scope)",
+          "check": "cd backend && grep -q \"stateCode, fiscalYear, agencyId, scope\" src/geography/geo-spending-snapshot.entity.ts" },
+        { "text": "DisasterFundingRecord has @Unique on (defGroup, stateCode)",
+          "check": "cd backend && grep -q \"defGroup, stateCode\" src/disaster/disaster-funding-record.entity.ts" },
+        { "text": "entities.spec.ts passes",
+          "check": "cd backend && pnpm test -- --testPathPattern=entities.spec.ts --passWithNoTests" },
+        { "text": "backend builds",
+          "check": "cd backend && pnpm build" }
+      ],
+      "notes": "Per resolution: perCapita stored as integer cents/person (not dollars). Per resolution: recoveryRatio is dimensionless float — the cents rule does NOT apply. Per resolution: GeoSpendingSnapshot unique constraint includes nullable agencyId; SQLite allows multiple NULL agencyId rows — accept this, dedupe at app level in Epic 2. Use the standard @Unique decorator. Entities use @Column({ type: 'integer' }) for cents fields in sqlite. Use TypeORM metadata in the spec (getMetadataArgsStorage) to assert columns and unique constraints declaratively — do NOT spin up a database for unit tests."
+    },
+    {
+      "id": "E1-S06",
+      "epic": "E1",
+      "title": "Response wrapper interceptor + @Paginated() decorator",
+      "goal": "Create ResponseWrapperInterceptor that wraps paginated list responses as ApiResponse<T[]> = { data, meta: { total, page, pageSize } } and leaves single-item responses unwrapped. Opt-in via @Paginated() decorator. Import ApiResponse<T> from @shared/interfaces — do NOT duplicate it.",
+      "build": "BUILD-DEEP",
+      "dependencies": ["E1-S01", "E1-S04"],
+      "scope": {
+        "files": [
+          "backend/src/common/response-wrapper.interceptor.ts",
+          "backend/src/common/paginated.decorator.ts",
+          "backend/src/common/response-wrapper.interceptor.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        { "text": "response-wrapper.interceptor.ts exists",
+          "check": "test -f backend/src/common/response-wrapper.interceptor.ts" },
+        { "text": "paginated.decorator.ts exists",
+          "check": "test -f backend/src/common/paginated.decorator.ts" },
+        { "text": "ApiResponse imported from @shared/interfaces (not duplicated locally)",
+          "check": "cd backend && grep -q \"from '@shared/interfaces'\" src/common/response-wrapper.interceptor.ts && ! test -f backend/src/common/api-response.interface.ts" },
+        { "text": "interceptor spec passes (table-driven: list wraps, single item passes through, non-paginated route unaffected)",
+          "check": "cd backend && pnpm test -- --testPathPattern=response-wrapper.interceptor.spec.ts --passWithNoTests" },
+        { "text": "backend builds",
+          "check": "cd backend && pnpm build" }
+      ],
+      "notes": "Per resolution: do NOT create common/api-response.interface.ts. ApiResponse<T> already lives in @shared/interfaces/index.ts — import it from there. The interceptor checks for the @Paginated() metadata via reflect-metadata; if present and the response is an array, wrap as {data, meta:{total:arr.length, page, pageSize}}. If absent or response is not an array, pass through unchanged. The spec must mock ExecutionContext and the next handler, run the interceptor with a table of {input shape, hasPaginated, expected output shape}."
+    },
+    {
+      "id": "E1-S07",
+      "epic": "E1",
+      "title": "CORS, global ValidationPipe, and GET /health endpoint",
+      "goal": "Enable CORS (FRONTEND_URL env, fallback '*' in dev) and global ValidationPipe (whitelist, transform, forbidNonWhitelisted) in main.ts. Implement HealthController.getHealth() returning { status:'ok', timestamp:ISO, database:'connected' } with a table-driven spec.",
+      "build": "BUILD-FAST",
+      "dependencies": ["E1-S03", "E1-S04"],
+      "scope": {
+        "files": [
+          "backend/src/main.ts",
+          "backend/src/health/health.controller.ts",
+          "backend/src/health/health.controller.spec.ts"
+        ],
+        "regions": [
+          { "file": "backend/src/main.ts", "start": 1, "end": 15,
+            "reason": "top of file — add ValidationPipe and FRONTEND_URL imports" },
+          { "file": "backend/src/main.ts", "start": 17, "end": 40,
+            "reason": "bootstrap() — add app.useGlobalPipes(new ValidationPipe({whitelist:true, transform:true, forbidNonWhitelisted:true})) and app.enableCors({origin: process.env.FRONTEND_URL || '*'})" }
+        ]
+      },
+      "acceptanceCriteria": [
+        { "text": "main.ts registers useGlobalPipes with ValidationPipe",
+          "check": "cd backend && grep -q \"useGlobalPipes\" src/main.ts && grep -q \"ValidationPipe\" src/main.ts" },
+        { "text": "ValidationPipe options include whitelist, transform, forbidNonWhitelisted",
+          "check": "cd backend && grep -q \"whitelist\" src/main.ts && grep -q \"forbidNonWhitelisted\" src/main.ts && grep -q \"transform\" src/main.ts" },
+        { "text": "main.ts enables CORS with FRONTEND_URL fallback to '*'",
+          "check": "cd backend && grep -q \"enableCors\" src/main.ts && grep -q \"FRONTEND_URL\" src/main.ts" },
+        { "text": "HealthController has GET /health returning {status, timestamp, database}",
+          "check": "cd backend && grep -q \"@Get\" src/health/health.controller.ts && grep -q \"status\" src/health/health.controller.ts" },
+        { "text": "health.controller.spec.ts passes (table-driven)",
+          "check": "cd backend && pnpm test -- --testPathPattern=health.controller.spec.ts --passWithNoTests" },
+        { "text": "backend builds",
+          "check": "cd backend && pnpm build" }
+      ],
+      "notes": "HealthController injects DataSource (from typeorm) to verify the database connection is active. Return { status:'ok', timestamp: new Date().toISOString(), database: ds.isInitialized ? 'connected' : 'disconnected' }. The spec must mock DataSource and use a table of {isInitialized, expected database field}. ValidationPipe config goes in main.ts bootstrap() — do NOT register it as an APP_PIPE provider in AppModule (keeps the pipe at the HTTP boundary, matching AGENTS.md Skill 1)."
+    },
+    {
+      "id": "E1-S08",
+      "epic": "E1",
+      "title": "End-to-end verification of Epic 1",
+      "goal": "Verify the full Epic 1 surface with one e2e spec that boots the NestJS app, hits /health, and asserts all 5 entity tables exist in the sqlite file. No new production code — only the spec and any small wiring fixes surfaced by the e2e run.",
+      "build": "BUILD-FAST",
+      "dependencies": ["E1-S01", "E1-S02", "E1-S03", "E1-S04", "E1-S05", "E1-S06", "E1-S07"],
+      "scope": {
+        "files": [
+          "backend/test/e2e.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        { "text": "all backend unit specs pass (pnpm test)",
+          "check": "cd backend && pnpm test" },
+        { "text": "backend builds cleanly (pnpm build)",
+          "check": "cd backend && pnpm build" },
+        { "text": "no AppController or AppService anywhere in backend/src",
+          "check": "! test -f backend/src/app.controller.ts && ! test -f backend/src/app.service.ts" },
+        { "text": "e2e spec passes (boots app, hits /health, checks 5 entity tables in sqlite)",
+          "check": "cd backend && pnpm test -- --testPathPattern=e2e.spec.ts --passWithNoTests" }
+      ],
+      "notes": "The e2e spec uses Test.createTestingModule({ imports: [AppModule] }).compile() then app.getHttpServer() with supertest to GET /health. Then it queries the sqlite file (or DataSource.query) to assert the 5 entity tables exist. If the e2e surfaces a wiring gap (missing module registration, broken import path), fix it inside the files already in scope of prior stories — do NOT create new files. This story's scope is intentionally just the e2e spec; the model may edit previously-committed files only to close wiring gaps surfaced by the e2e."
+    }
+  ],
+  "storyOrder": [
+    "E1-S01",
+    "E1-S02",
+    "E1-S03",
+    "E1-S04",
+    "E1-S05",
+    "E1-S06",
+    "E1-S07",
+    "E1-S08"
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": ["E1-S04"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": ["E1-S06"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": ["E1-S02"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": ["E1-S03"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": ["E1-S03"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": ["E1-S05"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": ["E1-S05"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": ["E1-S05"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": ["E1-S04"],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": ["E1-S01", "E1-S02", "E1-S04"],
+      "needs_human": false
+    }
+  ]
+}
