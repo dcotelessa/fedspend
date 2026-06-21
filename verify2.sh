@@ -10,9 +10,9 @@
 # backend/src/ that is not in the union of completed stories' file sets.
 #
 # Usage:
-#   ./verify2.sh S01            # check one story's criteria
-#   ./verify2.sh S01 --guard    # also run the unexpected-files guard
-#   ./verify2.sh --files-only S04   # only run the guard for a story
+#   ./verify2.sh E1-S01            # check one story's criteria
+#   ./verify2.sh E1-S01 --guard    # also run the unexpected-files guard
+#   ./verify2.sh --files-only E1-S04   # only run the guard for a story
 #
 # Exit 0 = all checked criteria passed (and guard clean if requested).
 # Exit 1 = at least one failure.
@@ -44,11 +44,11 @@ for arg in "$@"; do
   case "$arg" in
     --guard)      GUARD=true ;;
     --files-only) FILES_ONLY=true; GUARD=true ;;
-    S*)           STORY="$arg" ;;
+    E[0-9]*-S[0-9]*|S[0-9]*)  STORY="$arg" ;;
     *)            die "Unknown arg: $arg" ;;
   esac
 done
-[[ -n "$STORY" ]] || die "No story id given. Usage: ./verify2.sh S01 [--guard]"
+[[ -n "$STORY" ]] || die "No story id given. Usage: ./verify2.sh E1-S01 [--guard]"
 
 # story must exist
 exists="$(jq --arg id "$STORY" '[.stories[] | select(.id==$id)] | length' "$PLAN")"
