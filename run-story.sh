@@ -21,8 +21,8 @@ set -u
 
 # ── MODELS ────────────────────────────────────────────────────────────────────
 MODEL_HANDOFF="openrouter/qwen/qwen3-coder-480b-a35b-instruct:free"
-MODEL_BUILD_FAST="ollama/qwen3-coder-next"
-MODEL_BUILD_DEEP="ollama/qwen3-coder-next"
+MODEL_BUILD_FAST="ollama/qwen3-coder-next-temp03"
+MODEL_BUILD_DEEP="ollama/qwen3-coder-next-temp03"
 MODEL_ESCALATED="openrouter/anthropic/claude-sonnet-4-5"
 
 # ── PATHS ─────────────────────────────────────────────────────────────────────
