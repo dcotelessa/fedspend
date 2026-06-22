@@ -1,0 +1,31 @@
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity()
+export class DisasterRecoveryRatio {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 2 })
+  stateCode: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  stateName: string;
+
+  @Column()
+  fiscalYear: number;
+
+  @Column({ type: 'integer' })
+  femaObligated: number;
+
+  @Column({ type: 'integer' })
+  fedSpendingObligated: number;
+
+  @Column()
+  declarationCount: number;
+
+  @Column({ type: 'float' })
+  recoveryRatio: number;
+
+  @Column({ type: 'varchar', length: 255 })
+  dominantIncidentType: string;
+}

@@ -303,15 +303,15 @@
         },
         {
           "text": "SpendingRecord has @Unique on (agencyId, fiscalYear, quarter, awardTypeLabel)",
-          "check": "cd backend && grep -q \"agencyId, fiscalYear, quarter, awardTypeLabel\" src/spending/spending-record.entity.ts"
+          "check": "cd backend && grep -q \"@Unique\" src/spending/spending-record.entity.ts && grep -qE \"agencyId.*fiscalYear.*quarter.*awardTypeLabel\" src/spending/spending-record.entity.ts"
         },
         {
           "text": "GeoSpendingSnapshot has @Unique on (stateCode, fiscalYear, agencyId, scope)",
-          "check": "cd backend && grep -q \"stateCode, fiscalYear, agencyId, scope\" src/geography/geo-spending-snapshot.entity.ts"
+          "check": "cd backend && grep -q \"@Unique\" src/geography/geo-spending-snapshot.entity.ts && grep -qE \"stateCode.*fiscalYear.*agencyId.*scope\" src/geography/geo-spending-snapshot.entity.ts"
         },
         {
           "text": "DisasterFundingRecord has @Unique on (defGroup, stateCode)",
-          "check": "cd backend && grep -q \"defGroup, stateCode\" src/disaster/disaster-funding-record.entity.ts"
+          "check": "cd backend && grep -q \"@Unique\" src/disaster/disaster-funding-record.entity.ts && grep -qE \"defGroup.*stateCode\" src/disaster/disaster-funding-record.entity.ts"
         },
         {
           "text": "entities.spec.ts passes",
