@@ -4,18 +4,19 @@
 #   extract → context-bundle → worktree → tier-ladder build → verify → merge
 #
 # Usage:
-#   ./run-story.sh E1-S01
+#   ./run-story.sh E1-S03
 #
-# Tier ladder (local-first, escalate on fail):
-#   T1  ollama/qwen3-16gb             (1 attempt)  — floor, generalist
-#   T2  ollama/qwen3-coder:30b        (1 attempt)  — mid coder
-#   T3  ollama/qwen3-coder-next       (2 attempts) — largest local coder
-#   T4  zai-coding-plan/glm-4.7       (1 attempt)  — cheapest cloud thinking
-#   T5  zai-coding-plan/glm-5.1       (1 attempt)
-#   T6  zai-coding-plan/glm-5.2       (1 attempt)  — matches opencode
-#   T6 fail → stop, opencode reviews, resume after human OK
+# Tier ladder (Aider-first for local, opencode for cloud):
+#   T1  ollama/qwen3-coder-next via Aider  (2 attempts) — proven on E1-S02
+#   T2  ollama/gemma4:26b via Aider        (1 attempt)  — alt local, MoE
+#   T3  ollama/<smaller-qwen> via Aider    (1 attempt)  — when added
+#   T4  zai-coding-plan/glm-4.7 via opencode (1 attempt) — cloud coding-plan
+#   T5  zai-coding-plan/glm-5.1 via opencode (1 attempt)
+#   T6  zai-coding-plan/glm-5.2 via opencode (1 attempt) — matches thinking tier
+#   T6 fail → stop, opencode thinking tier reviews, resume after human OK
 #
-# Dependencies: jq, bash 4+. Run from repo root.
+# Dependencies: jq, bash 4+, aider (~/.local/bin/aider), opencode in PATH.
+# Run from repo root.
 
 set -u
 
@@ -24,25 +25,26 @@ PLAN=".research/plan.json"
 BUILD_LOG=".research/build-log.json"
 WORKTREE_BASE="../fedspend-build"
 STORY_TMP="/tmp/fedspend-story.json"
-BUNDLE_TMP="/tmp/fedspend-bundle.json"
 PROMPT_TMP="/tmp/fedspend-prompt.txt"
 VERIFY_OUT="/tmp/fedspend-verify.txt"
+export PATH="$HOME/.local/bin:$PATH"
 
 # ── TIER LADDER ───────────────────────────────────────────────────────────────
-# Format: "T<n>|<provider>/<model_id>|<max_attempts>"
+# Format: "T<n>|<harness>|<model_id>|<max_attempts>"
+#   harness = aider | opencode
+#   model_id is passed to the harness's --model flag
 TIER_LADDER=(
-  "T1|ollama/qwen3-16gb|1"
-  "T2|ollama/qwen3-coder:30b|1"
-  "T3|ollama/qwen3-coder-next|2"
-  "T4|zai-coding-plan/glm-4.7|1"
-  "T5|zai-coding-plan/glm-5.1|1"
-  "T6|zai-coding-plan/glm-5.2|1"
+  "T1|aider|ollama_chat/qwen3-coder-next|2"
+  "T2|aider|ollama_chat/gemma4:26b|1"
+  "T4|opencode|zai-coding-plan/glm-4.7|1"
+  "T5|opencode|zai-coding-plan/glm-5.1|1"
+  "T6|opencode|zai-coding-plan/glm-5.2|1"
 )
 
 # ── ARGS ──────────────────────────────────────────────────────────────────────
 STORY="${1:-}"
 if [[ -z "$STORY" ]]; then
-  echo "Usage: $0 <STORY_ID>   (e.g. ./run-story.sh E1-S01)"
+  echo "Usage: $0 <STORY_ID>   (e.g. ./run-story.sh E1-S03)"
   exit 2
 fi
 
@@ -138,6 +140,8 @@ provision_worktree() {
       }
     fi
     success "Worktree ready."
+    # Trust mise for the new worktree path
+    (cd "$wt" && mise trust >/dev/null 2>&1 || true)
   fi
   echo "$wt"
 }
@@ -169,13 +173,89 @@ build_context_bundle() {
   fi
   if ./build-context.sh "$STORY" >/dev/null 2>&1; then
     success "Bundle at .research/contexts/${STORY}.json"
+    # Copy bundle into worktree
+    local wt="$1"
+    mkdir -p "${wt}/.research/contexts"
+    cp ".research/contexts/${STORY}.json" "${wt}/.research/contexts/" 2>/dev/null || true
+    cp ".research/contexts/${STORY}.md" "${wt}/.research/contexts/" 2>/dev/null || true
   else
     warn "build-context.sh failed — proceeding without bundle."
   fi
 }
 
-# ── PROMPT GENERATION ────────────────────────────────────────────────────────
-generate_prompt() {
+# ── SCOPE.FILES LIST (for Aider file allowlist) ───────────────────────────────
+get_scope_files() {
+  # Returns space-separated list of files from plan.json scope.files
+  jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null
+}
+
+# ── PROMPT GENERATION (Aider-style — no tool-call instructions) ──────────────
+generate_prompt_aider() {
+  local model="$1"
+  local tier_num="$2"
+  local attempt_of_tier="$3"
+  local prior_failures="$4"
+  local wt="$5"
+
+  local title goal notes deps
+  title="$(jq -r '.title // "unknown"' "$STORY_TMP")"
+  goal="$(jq -r '.goal // "see scope"' "$STORY_TMP")"
+  notes="$(jq -r '.notes // ""' "$STORY_TMP")"
+  deps="$(jq -r '(.dependencies // []) | join(", ")' "$STORY_TMP")"
+
+  local criteria
+  criteria="$(jq -r '(.acceptanceCriteria // []) | .[] | .text' "$STORY_TMP" 2>/dev/null | sed 's/^/  - [ ] /')"
+
+  local failure_block=""
+  if [[ -n "$prior_failures" ]]; then
+    failure_block="
+## Prior Attempt Failed — Fix These
+The previous tier failed QA. These specific criteria were not met:
+$prior_failures
+
+Address each failed criterion explicitly. Do not re-implement what already
+passes — check what exists first, then fix only what failed.
+"
+  fi
+
+  local model_short; model_short="$(echo "$model" | sed 's|.*/||')"
+
+  cat > "$PROMPT_TMP" << PROMPT
+## Task: $STORY — $title [Tier $tier_num: $model_short via Aider, attempt $attempt_of_tier]
+
+## Goal
+$goal
+
+## Acceptance Criteria (ALL must pass before you finish)
+$criteria
+
+## Context Bundle
+A precomputed context bundle is at .research/contexts/${STORY}.json — read it
+to see exact current file contents, sliced regions for shared files, and any
+resolutions.
+
+## Notes / Known Risks
+$notes
+
+## Dependencies (already done — do not re-implement)
+$deps
+$failure_block
+## Rules
+- Work inside this repo only. The files in your allowlist are the CLOSED SET.
+- Write the *.spec.ts file FIRST. Run it. See RED. Then implement. Then GREEN.
+- Money values are integers (cents), never floats. recoveryRatio is a float.
+- TypeScript only, no .js files in backend.
+- No comments in generated code, ever.
+- Do not ask clarifying questions — the spec is complete.
+- Do not modify .gitignore or any file outside your allowlist.
+- When all acceptance criteria pass, you may stop. Emit a brief summary.
+PROMPT
+
+  success "Prompt written to $PROMPT_TMP"
+}
+
+# ── PROMPT GENERATION (opencode-style — tool-call OK for cloud) ──────────────
+generate_prompt_opencode() {
   local model="$1"
   local tier_num="$2"
   local attempt_of_tier="$3"
@@ -192,7 +272,7 @@ generate_prompt() {
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     if [[ -e "${wt}/${f}" ]]; then
-      files+="  - EXISTS (read first, edit only what this story needs): $f"$'\n'
+      files+="  - EXISTS (edit surgically): $f"$'\n'
     else
       files+="  - CREATE (new file): $f"$'\n'
     fi
@@ -201,31 +281,13 @@ generate_prompt() {
   local criteria
   criteria="$(jq -r '(.acceptanceCriteria // []) | .[] | .text' "$STORY_TMP" 2>/dev/null | sed 's/^/  - [ ] /')"
 
-  local bundle_path=".research/contexts/${STORY}.json"
-  local bundle_block=""
-  if [[ -f "$bundle_path" ]]; then
-    bundle_block="
-## Per-story Context Bundle
-A precomputed context bundle is at: $bundle_path
-It contains exact file contents (or sliced regions for shared files),
-acceptance criteria, and resolutions. Read it ONCE with the read tool, then
-work from it. Do NOT explore beyond what it contains.
-"
-  fi
-
   local failure_block=""
   if [[ -n "$prior_failures" ]]; then
     failure_block="
 ## Prior Attempt Failed — Fix These
-The previous tier failed QA. These specific criteria were not met:
 $prior_failures
-
-Address each failed criterion explicitly. Do not re-implement what already
-passes — check what exists first, then fix only what failed.
 "
   fi
-
-  local model_short; model_short="$(echo "$model" | cut -d/ -f2-)"
 
   cat > "$PROMPT_TMP" << PROMPT
 ## Task: $STORY — $title [Tier $tier_num: $model_short, attempt $attempt_of_tier]
@@ -233,34 +295,20 @@ passes — check what exists first, then fix only what failed.
 ## Goal
 $goal
 
-## Files to create or modify (CLOSED SET — no others)
+## Files (CLOSED SET)
 $files
-$bundle_block
-## Acceptance Criteria (ALL must pass before you report done)
+
+## Acceptance Criteria
 $criteria
 
-## Notes / Known Risks
+## Notes
 $notes
-
-## Dependencies (already done — do not re-implement)
-$deps
 $failure_block
 ## Rules
-- You are running inside a git worktree at: $wt
-  All file paths are relative to that directory.
-- The files above are labeled EXISTS or CREATE. Read the EXISTS ones first,
-  then edit surgically — never rewrite a whole file to change one part.
-- Write the *.spec.ts file FIRST. Run it. See RED. Then implement. Then GREEN.
-  verify2.sh rejects stories where the spec was written after the impl.
-- Do NOT run find, glob, or ls across node_modules or the whole tree.
-- Do NOT implement anything beyond the files list above. Do NOT create files
-  not in the list. Do NOT write summaries, backlogs, or notes anywhere.
-- Money values are integers (cents), never floats. recoveryRatio is a float.
-- TypeScript only, no .js files in backend.
-- No comments in generated code, ever.
-- Do not ask clarifying questions — the spec is complete.
-- STOP the moment the work is done. Emit exactly ===STORY_COMPLETE=== and
-  then stop. Do NOT continue, "improve", or rewrite files you already wrote.
+- Write the *.spec.ts file FIRST (RED), then implement (GREEN).
+- Do not create files outside the listed set.
+- TypeScript only — no .js files. No comments in generated code.
+- Emit ===STORY_COMPLETE=== when done.
 PROMPT
 
   success "Prompt written to $PROMPT_TMP"
@@ -268,36 +316,44 @@ PROMPT
 
 # ── SESSION INSTRUCTIONS ─────────────────────────────────────────────────────
 print_session_instructions() {
-  local model="$1"
-  local tier_num="$2"
-  local attempt_of_tier="$3"
-  local wt="$4"
+  local harness="$1"
+  local model="$2"
+  local tier_num="$3"
+  local attempt_of_tier="$4"
+  local wt="$5"
   local branch="build/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
 
+  local scope_files
+  scope_files="$(get_scope_files | tr '\n' ' ')"
+  scope_files="${scope_files% }"
+
   rule
-  echo -e "${BOLD}SESSION — Tier $tier_num: $model (attempt $attempt_of_tier)${RESET}"
+  echo -e "${BOLD}SESSION — Tier $tier_num: $model via $harness (attempt $attempt_of_tier)${RESET}"
   rule
   echo
   echo "  Story:    $STORY"
   echo "  Worktree: $wt"
   echo "  Branch:   $branch"
   echo
-  echo -e "${BOLD}1. Launch pi inside the worktree:${RESET}"
-  echo
-  echo "   cd $wt"
-  echo "   pi"
-  echo
-  echo -e "${BOLD}2. Switch to this tier's model:${RESET}"
-  echo
-  echo "   /model $model"
-  echo
-  echo -e "${BOLD}3. Paste this prompt (also saved to $PROMPT_TMP):${RESET}"
-  echo
-  cat "$PROMPT_TMP"
+  if [[ "$harness" == "aider" ]]; then
+    echo -e "${BOLD}1. Launch Aider inside the worktree${RESET}"
+    echo
+    echo "   cd $wt"
+    echo "   aider --model $model --no-auto-commits --yes --message \"\$(cat $PROMPT_TMP)\" \\"
+    echo "         $scope_files"
+    echo
+    echo -e "${BOLD}   (or interactive: drop --message and paste prompt in TUI)${RESET}"
+  else
+    echo -e "${BOLD}1. Launch opencode inside the worktree${RESET}"
+    echo
+    echo "   cd $wt"
+    echo "   opencode run -m $model \"\$(cat $PROMPT_TMP)\""
+    echo
+    echo -e "${BOLD}   (or interactive: opencode -m $model, then paste prompt)${RESET}"
+  fi
   echo
   rule
-  echo -e "${BOLD}4. The MOMENT pi emits ===STORY_COMPLETE===, come back here and press Enter.${RESET}"
-  echo -e "${BOLD}   Do NOT let it keep going past that signal.${RESET}"
+  echo -e "${BOLD}2. When the harness signals done, come back here and press Enter.${RESET}"
   rule
 }
 
@@ -313,14 +369,15 @@ extract_failures() {
   grep '^  FAIL' "$VERIFY_OUT" 2>/dev/null | sed 's/.*FAIL  /  - /'
 }
 
-# ── RECORD RESULT (extended schema) ───────────────────────────────────────────
+# ── RECORD RESULT ─────────────────────────────────────────────────────────────
 record_result() {
   local result="$1"
-  local tier_num="$2"
-  local model="$3"
-  local attempt_of_tier="$4"
-  local tier_max="$5"
-  local elapsed_sec="$6"
+  local tier_label="$2"
+  local harness="$3"
+  local model="$4"
+  local attempt_of_tier="$5"
+  local tier_max="$6"
+  local elapsed_sec="$7"
 
   local epic; epic="$(echo "$STORY" | grep -oE '^E[0-9]+')"
   local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -328,7 +385,8 @@ record_result() {
   local tmp; tmp="$(mktemp)"
   jq --arg story "$STORY" \
      --arg epic "$epic" \
-     --arg tier "T$tier_num" \
+     --arg tier "$tier_label" \
+     --arg harness "$harness" \
      --arg model "$model" \
      --arg result "$result" \
      --argjson attemptOfTier "$attempt_of_tier" \
@@ -336,29 +394,30 @@ record_result() {
      --argjson elapsedSec "$elapsed_sec" \
      --arg ts "$ts" \
      '.runs += [{
-       story:$story, epic:$epic, tier:$tier, model:$model, result:$result,
-       attemptOfTier:$attemptOfTier, tierMaxAttempts:$tierMax,
+       story:$story, epic:$epic, tier:$tier, harness:$harness, model:$model,
+       result:$result, attemptOfTier:$attemptOfTier, tierMaxAttempts:$tierMax,
        elapsedSec:$elapsedSec, timestamp:$ts
      }]' \
      "$BUILD_LOG" > "$tmp" && mv "$tmp" "$BUILD_LOG"
 
   if [[ "$result" == "PASS" ]]; then
-    success "Recorded: $STORY PASS at $model (T$tier_num, attempt $attempt_of_tier, ${elapsed_sec}s)"
+    success "Recorded: $STORY PASS at $model via $harness ($tier_label, attempt $attempt_of_tier, ${elapsed_sec}s)"
   else
-    warn "Recorded: $STORY FAIL at $model (T$tier_num, attempt $attempt_of_tier)"
+    warn "Recorded: $STORY FAIL at $model via $harness ($tier_label)"
   fi
 }
 
-# ── COMMIT ON PASS (in worktree, then merge) ─────────────────────────────────
+# ── COMMIT ON PASS ────────────────────────────────────────────────────────────
 commit_and_merge() {
   local model="$1"
-  local tier_num="$2"
-  local wt="$3"
-  local branch="$4"
+  local tier_label="$2"
+  local harness="$3"
+  local wt="$4"
+  local branch="$5"
 
   info "Committing in worktree..."
-  local model_short; model_short="$(echo "$model" | cut -d/ -f2-)"
-  local msg="$STORY PASS [T$tier_num $model_short]"
+  local model_short; model_short="$(echo "$model" | sed 's|.*/||')"
+  local msg="$STORY PASS [$tier_label $model_short via $harness]"
   if (cd "$wt" && git add -A && git commit -m "$msg" --no-verify) >/dev/null 2>&1; then
     success "Worktree commit: $msg"
   else
@@ -376,10 +435,10 @@ update_capability_report() {
 
   local tier_distribution
   tier_distribution="$(jq -r --arg epic "$epic" '
-    [.runs[] | select(.epic==$epic and .result=="PASS")] 
-    | group_by(.tier) 
-    | map({tier: .[0].tier, count: length}) 
-    | map("  \( .tier): \( .count)")
+    [.runs[] | select(.epic==$epic and .result=="PASS")]
+    | group_by(.tier)
+    | map({tier: .[0].tier, harness: .[0].harness, model: .[0].model, count: length})
+    | map("  \( .tier) \( .harness)/\( .model): \( .count)")
     | join("\n")
   ' "$BUILD_LOG" 2>/dev/null)"
 
@@ -388,28 +447,32 @@ update_capability_report() {
     [.runs[] | select(.epic==$epic and .result=="PASS")] | length
   ' "$BUILD_LOG" 2>/dev/null)"
 
-  local last_tier
-  last_tier="$(jq -r --arg epic "$epic" --arg story "$STORY" '
-    [.runs[] | select(.epic==$epic and .story==$story and .result=="PASS")] 
-    | .[0].tier // "n/a"
-  ' "$BUILD_LOG" 2>/dev/null)"
-
   {
     echo "# Capability Study — $epic"
     echo
     echo "Auto-updated after each story PASS. Source: \`build-log.json\`."
     echo
-    echo "## Last result"
-    echo "- Story: \`$STORY\`"
-    echo "- Tier reached: **$last_tier**"
-    echo
-    echo "## Epic-wide tier distribution (PASS only)"
+    echo "## Tier distribution (PASS only)"
     echo
     echo '```'
-    echo "${tier_distribution:-  (no data)}"
+    echo "${tier_distribution:-  (no PASS yet)}"
     echo '```'
     echo
     echo "Total PASS in epic: **${total_pass:-0}**"
+    echo
+    echo "## Full per-story history"
+    echo
+    jq -r --arg epic "$epic" '
+      [.runs[] | select(.epic==$epic)]
+      | group_by(.story)
+      | map({
+          story: .[0].story,
+          attempts: map({tier, harness, model, result}) | .,
+          passed: (any(.result == "PASS"))
+        })
+      | map("### \( .story) — \(if .passed then "PASS" else "FAIL" end)\n\(.attempts | map("  - \(.tier) \(.harness)/\(.model): \(.result)") | join("\n"))")
+      | join("\n\n")
+    ' "$BUILD_LOG" 2>/dev/null
   } > "$report"
   success "Capability report updated."
 }
@@ -426,14 +489,14 @@ main() {
   local wt; wt="$(provision_worktree)"
   local branch="build/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
 
-  build_context_bundle
+  build_context_bundle "$wt"
 
   local prior_failures=""
   local global_attempt=0
 
   for tier_entry in "${TIER_LADDER[@]}"; do
-    local tier_name model tier_max
-    IFS='|' read -r tier_name model tier_max <<< "$tier_entry"
+    local tier_name harness model tier_max
+    IFS='|' read -r tier_name harness model tier_max <<< "$tier_entry"
     local tier_num="${tier_name#T}"
 
     local aot
@@ -441,14 +504,14 @@ main() {
       global_attempt=$((global_attempt+1))
       local start_sec; start_sec="$(date +%s)"
 
-      generate_prompt "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
-      print_session_instructions "$model" "$tier_num" "$aot" "$wt" "$branch"
+      if [[ "$harness" == "aider" ]]; then
+        generate_prompt_aider "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
+      else
+        generate_prompt_opencode "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
+      fi
+      print_session_instructions "$harness" "$model" "$tier_num" "$aot" "$wt" "$branch"
 
-      read -rp "  Press Enter the MOMENT pi emits ===STORY_COMPLETE===... " _
-
-      # Checkpoint stash in worktree (preserves a restore point)
-      (cd "$wt" && git stash push -u -m "checkpoint-${STORY}-T${tier_num}-${aot}" >/dev/null 2>&1 && git stash apply >/dev/null 2>&1) || true
-      info "Checkpoint stashed in worktree."
+      read -rp "  Press Enter when the harness signals done... " _
 
       echo
       rule
@@ -456,9 +519,9 @@ main() {
         local end_sec; end_sec="$(date +%s)"
         local elapsed=$((end_sec - start_sec))
         echo
-        success "$STORY PASSED at T$tier_num ($model)."
-        record_result "PASS" "$tier_num" "$model" "$aot" "$tier_max" "$elapsed"
-        commit_and_merge "$model" "$tier_num" "$wt" "$branch"
+        success "$STORY PASSED at $tier_name ($model via $harness)."
+        record_result "PASS" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
+        commit_and_merge "$model" "$tier_name" "$harness" "$wt" "$branch"
         update_capability_report
         rule
         echo
@@ -468,10 +531,10 @@ main() {
       else
         local end_sec; end_sec="$(date +%s)"
         local elapsed=$((end_sec - start_sec))
-        record_result "FAIL" "$tier_num" "$model" "$aot" "$tier_max" "$elapsed"
+        record_result "FAIL" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
         prior_failures="$(extract_failures)"
         echo
-        error "$STORY FAILED at T$tier_num ($model), attempt $aot."
+        error "$STORY FAILED at $tier_name ($model via $harness), attempt $aot."
         echo
         echo "Failed criteria:"
         echo "$prior_failures"
@@ -480,19 +543,17 @@ main() {
     done
   done
 
-  # All tiers exhausted
   cat << EOF
 
 $(rule)
-$(error "$STORY EXHAUSTED all 6 tiers. T6 (glm-5.2) failed.")
+$(error "$STORY EXHAUSTED all tiers. T6 (glm-5.2 via opencode) failed.")
 
 Worktree preserved at: $wt
 Branch: $branch
 
 Options:
   1) Manual fix in worktree, then re-run verify inside it
-  2) opencode (GLM-5.2) reviews the failing criterion and proposes a plan or
-     code fix — paste me the failing criteria and the worktree path
+  2) opencode thinking tier reviews the failing criterion and proposes a fix
   3) Abort — remove worktree + branch
 EOF
   read -rp "  Choice [1/2/3]: " choice

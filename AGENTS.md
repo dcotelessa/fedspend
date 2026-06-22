@@ -74,8 +74,9 @@ Research → Planning → Handoff → Build → QA-verify → QA-review → Repo
   - T5 fail → stop, opencode thinking tier reviews, resume after human OK
 - **QA-verify:** `verify2.sh --guard` — deterministic, no model, the only thing
   that decides PASS/FAIL.
-- **QA-review:** `pi-subagents` `reviewer` builtin (after 2–3 watched stories
-  PASS) — judgment pass on code that passed verify.
+- **QA-review:** opencode thinking tier (after 2–3 watched stories PASS) —
+  judgment pass on code that passed verify. Invoke via a fresh opencode
+  session with a `reviewer`-style prompt against the merged diff.
 - **Report:** per-epic `.research/capability-study-E<N>.md`.
 
 ## Skill 1: Boundary-First Schema Enforcement (`enforce_boundaries`)
@@ -324,9 +325,25 @@ export class AgencyService {
 - A story is done ONLY when `./verify2.sh <STORY_ID> --guard` exits 0.
 - The model's word never ends a story. Disk reality does.
 
-## Installed Pi Extensions (gated install — see plan)
-1. `@narumitw/pi-lsp` — LSP diagnostics + symbol navigation (zero risk)
-2. `pi-safety-modes` — tool-call guardrail for unattended runs (not a sandbox)
-3. `pi-zai-tools` — Z.AI web search/reader (uses ZAI_API_KEY, thinking tier)
-4. `pi-subagents` (pinned, v0.30.x) — `reviewer`, `oracle`, `context-builder`
-   builtins; installed only after 2–3 watched stories PASS
+## Build Harness Stack
+- **Build (local tier):** Aider with `ollama_chat/<model>`. Diff-based editing
+  bypasses local-model tool-call weakness. File allowlist via `scope.files`
+  enforces closed-set story scope.
+- **Build (cloud tier, escalation):** opencode with `zai-coding-plan/<model>`.
+  Tool-call paradigm works for cloud GLM models. Triggered when T1/T2 fail.
+- **Thinking tier (planning, QA-review):** opencode running GLM-5.2 (this layer).
+- **Retired:** pi — proven unable to drive local qwen models; config archived to
+  `~/.pi.archive`. May revisit for future qwen variants with stronger tool-call
+  training (e.g., qwen3.6 series).
+
+## Per-Model Test Status (for capability study)
+| Model | Size | Harness | Outcome |
+|-------|------|---------|---------|
+| qwen3-16gb | 12 GB | pi | FAIL (0 real tool calls) |
+| qwen3-coder:30b | 18 GB | pi | FAIL (read-only mode, no action) |
+| qwen3-coder-next | 51 GB | pi | FAIL (read_file hallucination) |
+| qwen3-coder-next | 51 GB | opencode | FAIL (explain-mode) |
+| qwen3-coder-next | 51 GB | Aider | **PASS** (E1-S02) |
+| glm-4.7 | cloud | pi | PASS (E1-S01) |
+| qwen3.6 35b | TBD | pi or Aider | pending test |
+| smaller qwen variants | TBD | Aider | pending test |
