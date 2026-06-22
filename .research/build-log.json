@@ -59,6 +59,18 @@
       "elapsedSec": 480,
       "timestamp": "2026-06-22T01:12:40Z",
       "note": "first PASS. After 2 harness bugfixes (pnpm-workspace.yaml + criterion invocation), all 7 criteria green. Cloud coding-plan endpoint used correctly."
+    },
+    {
+      "story": "E1-S02",
+      "epic": "E1",
+      "tier": "T1",
+      "model": "ollama/qwen3-coder-next via Aider",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 240,
+      "timestamp": "2026-06-22T02:46:45Z",
+      "note": "BREAKTHROUGH. First PASS with local model. Aider (diff-based) succeeded where pi and opencode (tool-call-based) failed. Harness paradigm was the bottleneck, not the model."
     }
   ]
 }
