@@ -136,6 +136,15 @@
       "errors": "",
       "timestamp": "2026-06-22T08:08:53Z",
       "note": "3 unique-constraint checks in plan.json fixed to be quote-agnostic (model code was correct). Intermittent text-based tool call on first attempt, resolved on retry."
+    },
+    {
+      "story": "E1-S06",
+      "tier": "pi/llama.cpp/qwen3-coder:30b",
+      "result": "PASS",
+      "criteriaPass": 6,
+      "criteriaFail": 0,
+      "errors": "",
+      "timestamp": "2026-06-22T17:12:17Z"
     }
   ]
 }
