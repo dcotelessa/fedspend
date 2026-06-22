@@ -1,1 +1,52 @@
-{"runs":[]}
+{
+  "runs": [
+    {
+      "story": "E1-S01",
+      "epic": "E1",
+      "tier": "T1",
+      "model": "ollama/qwen3-16gb",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 0,
+      "timestamp": "2026-06-22T00:25:56Z",
+      "note": "hallucinated: countries/emergency-app, wrote 1 file outside scope (src/backend/api/routes/health.ts), 0 tool calls executed properly"
+    },
+    {
+      "story": "E1-S01",
+      "epic": "E1",
+      "tier": "T2",
+      "model": "ollama/qwen3-coder:30b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 0,
+      "timestamp": "2026-06-22T00:37:19Z",
+      "note": "tool-call hallucination: used read_file (wrong name), invented /home/user/ paths, gave generic troubleshooting. Never executed a real tool call."
+    },
+    {
+      "story": "E1-S01",
+      "epic": "E1",
+      "tier": "T3",
+      "model": "ollama/qwen3-coder-next",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 0,
+      "timestamp": "2026-06-22T00:51:44Z",
+      "note": "1 real tool call (read with filePath, rejected), then reverted to run_shell_command hallucination + /testbed path. T3 attempt 2 skipped — same model, same failure expected."
+    },
+    {
+      "story": "E1-S01",
+      "epic": "E1",
+      "tier": "T3",
+      "model": "ollama/qwen3-coder-next",
+      "result": "SKIP",
+      "attemptOfTier": 2,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 0,
+      "timestamp": "2026-06-22T00:51:44Z",
+      "note": "skipped — escalating to T4 after T3 attempt 1 showed same tool-hallucination pattern as T1/T2"
+    }
+  ]
+}

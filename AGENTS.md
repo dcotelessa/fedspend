@@ -314,7 +314,7 @@ export class AgencyService {
 - There is no `run_shell_command`, `list_files`, `shell`, `terminal`, or
   `python` tool.
 - `bash` requires BOTH keys: `{"description": "...", "command": "..."}`
-- `read`/`write`/`edit` use `filePath` (relative, never absolute, never leading
+- `read`/`write`/`edit` use `path` (relative, never absolute, never leading
   `/`). All paths are relative to the directory Pi was launched from (the
   worktree root for the current story).
 
