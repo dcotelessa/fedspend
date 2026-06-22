@@ -1,5 +1,7 @@
 packages:
   - 'backend'
+allowBuilds:
+  unrs-resolver: true
 onlyBuildDependencies:
   - '@nestjs/core'
   - 'better-sqlite3'
