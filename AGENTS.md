@@ -63,15 +63,15 @@ Research → Planning → Handoff → Build → QA-verify → QA-review → Repo
 - **Handoff:** `build-context.sh` produces a per-story context bundle
   (`.research/contexts/<STORY_ID>.json`) — only the files and regions the story
   touches. The model never sees the rest of the repo.
-- **Build:** local model via Pi, mechanical execution, in a per-story git
-  worktree at `../fedspend-build/<STORY_ID>/`. Tier ladder T1→T6:
-  - T1 `ollama/qwen3-16gb` (1 attempt)
-  - T2 `ollama/qwen3-coder:30b` (1 attempt)
-  - T3 `ollama/qwen3-coder-next` (2 attempts)
-  - T4 `zai-coding-plan/glm-4.7` (1 attempt)
-  - T5 `zai-coding-plan/glm-5.1` (1 attempt)
-  - T6 `zai-coding-plan/glm-5.2` (1 attempt)
-  - T6 fail → stop, opencode reviews, resume after human OK
+- **Build:** model via **opencode** (revised from pi after E1-S01 — pi could not
+  drive local qwen models reliably through its tool schema). Runs in a per-story
+  git worktree at `../fedspend-build/<STORY_ID>/`. Tier ladder:
+  - T1 `ollama/qwen3-coder-next` via opencode (2 attempts) — strongest local
+  - T2 `ollama/gemma4:26b` via opencode (1 attempt) — alt local, MoE
+  - T3 `zai-coding-plan/glm-4.7` via opencode (1 attempt) — cloud, cheapest
+  - T4 `zai-coding-plan/glm-5.1` via opencode (1 attempt)
+  - T5 `zai-coding-plan/glm-5.2` via opencode (1 attempt) — matches thinking tier
+  - T5 fail → stop, opencode thinking tier reviews, resume after human OK
 - **QA-verify:** `verify2.sh --guard` — deterministic, no model, the only thing
   that decides PASS/FAIL.
 - **QA-review:** `pi-subagents` `reviewer` builtin (after 2–3 watched stories
@@ -314,7 +314,7 @@ export class AgencyService {
 - There is no `run_shell_command`, `list_files`, `shell`, `terminal`, or
   `python` tool.
 - `bash` requires BOTH keys: `{"description": "...", "command": "..."}`
-- `read`/`write`/`edit` use `path` (relative, never absolute, never leading
+- `read`/`write`/`edit` use `filePath` (relative, never absolute, never leading
   `/`). All paths are relative to the directory Pi was launched from (the
   worktree root for the current story).
 
