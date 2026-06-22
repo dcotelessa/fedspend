@@ -330,8 +330,11 @@ export class AgencyService {
 ## Build Harness Stack
 - **llama-server:** `~/llama.cpp/build/bin/llama-server` — compiled with CUDA
   13.1 (sm_120, Blackwell). Started with `--jinja` for native tool-call support.
-  Model files stored at `/usr/share/ollama/.ollama/models/blobs/` (GGUF format).
-  Run `~/start-llama.sh` to start the server on port 8080.
+  Run `~/start-llama.sh coder` (qwen3-coder:30b, 71.8 tok/s) or
+  `~/start-llama.sh thinking` (qwen3.6:35b, 59.0 tok/s).
+  Model paths:
+  - qwen3-coder:30b Q4_K_M: `/usr/share/ollama/.ollama/models/blobs/` (Ollama blob)
+  - qwen3.6:35b Q4_K_M: `~/models/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` (Unsloth GGUF)
 - **Build (local tier, primary):** pi with `pi-llama-cpp` extension. Connects to
   llama-server's OpenAI-compatible endpoint. Native tool calls work via Jinja
   chat templates. `pi-safety-modes` catches dangerous operations.
@@ -358,5 +361,6 @@ export class AgencyService {
 | qwen3.6:35b | 23 GB | pi (Ollama) | FAIL (empty tool_code blocks) |
 | qwen3.6:35b | 23 GB | pi (Ollama + pi-json-tools) | FAIL (model couldn't self-correct to JSON) |
 | qwen3.6:35b | 23 GB | Aider (Ollama) | **PASS** (E1-S03) |
-| qwen3.6:35b | 23 GB | llama.cpp | FAIL (rope dimension_sections mismatch — pending fix) |
+| qwen3.6:35b | 23 GB | llama.cpp (Ollama GGUF) | FAIL (rope dimension_sections mismatch — Ollama GGUF defect) |
 | qwen3-coder:30b | 18 GB | **pi (llama.cpp + --jinja)** | **PASS** (E1-S04) — BREAKTHROUGH |
+| qwen3.6:35b | 23 GB | **pi (llama.cpp + --jinja)** | **PASS** (tool calls verified, 59 tok/s) |

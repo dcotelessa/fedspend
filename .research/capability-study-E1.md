@@ -45,6 +45,29 @@ Key finding: qwen3.6:35b can code (Aider PASS) but cannot tool-call through Olla
   - pi-safety-modes correctly intercepted `rm` operation
   - Inference: 71.8 tok/s (MoE, partial VRAM offload)
 
+## E1 Result: 8/8 stories PASS
+
+| Story | Tier | Model | Criteria |
+|-------|------|-------|----------|
+| E1-S01 (NestJS scaffold) | T4 cloud | glm-4.7 via pi | PASS |
+| E1-S02 (@shared alias) | T1 local | qwen3-coder-next via Aider | PASS |
+| E1-S03 (TypeORM config) | T1 local | qwen3.6:35b via Aider | PASS (7/7) |
+| E1-S04 (6 module scaffolds) | T1 local | **qwen3-coder:30b via pi+llama.cpp** | PASS (9/9) |
+| E1-S05 (5 TypeORM entities) | T1 local | qwen3-coder:30b via pi+llama.cpp | PASS (9/9) |
+| E1-S06 (response wrapper) | T1 local | qwen3-coder:30b via pi+llama.cpp | PASS (6/6) |
+| E1-S07 (CORS + health) | T1 local | qwen3-coder:30b via pi+llama.cpp | PASS (7/7) |
+| E1-S08 (E2E verification) | T1 local | qwen3-coder:30b via pi+llama.cpp | PASS (5/5) |
+
+S01-S03 were built before the llama.cpp breakthrough (using Aider+Ollama or cloud).
+S04-S08 were all built with pi+llama.cpp+qwen3-coder:30b — the final stack.
+
+## qwen3.6:35b Resolution
+
+The Ollama GGUF for qwen3.6:35b was defective (3 rope dimension_sections instead
+of 4, missing SSM tensors). Downloaded a proper Unsloth GGUF from HuggingFace:
+`unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_M` (22.7 GB). Loads cleanly with
+vanilla llama.cpp (no patches needed). Tool calls verified at 59.0 tok/s.
+
 ## The Tool-Call Discovery (E1-S04)
 
 ### The curl test that proved it
