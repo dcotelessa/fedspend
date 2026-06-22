@@ -47,6 +47,18 @@
       "elapsedSec": 0,
       "timestamp": "2026-06-22T00:51:44Z",
       "note": "skipped — escalating to T4 after T3 attempt 1 showed same tool-hallucination pattern as T1/T2"
+    },
+    {
+      "story": "E1-S01",
+      "epic": "E1",
+      "tier": "T4",
+      "model": "zai-coding-plan/glm-4.7",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 480,
+      "timestamp": "2026-06-22T01:12:40Z",
+      "note": "first PASS. After 2 harness bugfixes (pnpm-workspace.yaml + criterion invocation), all 7 criteria green. Cloud coding-plan endpoint used correctly."
     }
   ]
 }

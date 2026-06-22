@@ -85,7 +85,7 @@
         },
         {
           "text": "shared-alias.spec.ts passes",
-          "check": "cd backend && pnpm test -- --testPathPattern=shared-alias.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=shared-alias.spec.ts --passWithNoTests"
         },
         {
           "text": "backend still builds with alias resolved",
@@ -139,7 +139,7 @@
         },
         {
           "text": "typeorm.config.spec.ts passes (table-driven: DATABASE_URL set → postgres, unset → sqlite)",
-          "check": "cd backend && pnpm test -- --testPathPattern=typeorm.config.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=typeorm.config.spec.ts --passWithNoTests"
         },
         {
           "text": "AppModule imports ConfigModule and TypeOrmModule.forRootAsync",
@@ -229,7 +229,7 @@
         },
         {
           "text": "modules.spec.ts passes",
-          "check": "cd backend && pnpm test -- --testPathPattern=modules.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=modules.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -315,7 +315,7 @@
         },
         {
           "text": "entities.spec.ts passes",
-          "check": "cd backend && pnpm test -- --testPathPattern=entities.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=entities.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -357,7 +357,7 @@
         },
         {
           "text": "interceptor spec passes (table-driven: list wraps, single item passes through, non-paginated route unaffected)",
-          "check": "cd backend && pnpm test -- --testPathPattern=response-wrapper.interceptor.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=response-wrapper.interceptor.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -416,7 +416,7 @@
         },
         {
           "text": "health.controller.spec.ts passes (table-driven)",
-          "check": "cd backend && pnpm test -- --testPathPattern=health.controller.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=health.controller.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -461,7 +461,7 @@
         },
         {
           "text": "e2e spec passes (boots app, hits /health, checks 5 entity tables in sqlite)",
-          "check": "cd backend && pnpm test -- --testPathPattern=e2e.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=e2e.spec.ts --passWithNoTests"
         }
       ],
       "notes": "The e2e spec uses Test.createTestingModule({ imports: [AppModule] }).compile() then app.getHttpServer() with supertest to GET /health. Then it queries the sqlite file (or DataSource.query) to assert the 5 entity tables exist. If the e2e surfaces a wiring gap (missing module registration, broken import path), fix it inside the files already in scope of prior stories — do NOT create new files. This story's scope is intentionally just the e2e spec; the model may edit previously-committed files only to close wiring gaps surfaced by the e2e."
@@ -503,7 +503,7 @@
         },
         {
           "text": "sync.constants.spec.ts passes (table-driven: agency well-formedness, award type coverage, DEF group coverage)",
-          "check": "cd backend && pnpm test -- --testPathPattern=sync.constants.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=sync.constants.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -555,7 +555,7 @@
         },
         {
           "text": "usa-spending.service.spec.ts passes (table-driven: transform correctness per award type, transform correctness per geo scope, retry-then-success, retry-then-failure)",
-          "check": "cd backend && pnpm test -- --testPathPattern=usa-spending.service.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -607,7 +607,7 @@
         },
         {
           "text": "openfema.service.spec.ts passes (table-driven: aggregation, dominant incident, retry)",
-          "check": "cd backend && pnpm test -- --testPathPattern=openfema.service.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=openfema.service.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -639,7 +639,7 @@
         },
         {
           "text": "recovery-ratio.spec.ts passes (table-driven across 4 edge cases + boundaries)",
-          "check": "cd backend && pnpm test -- --testPathPattern=recovery-ratio.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=recovery-ratio.spec.ts --passWithNoTests"
         },
         {
           "text": "function is pure (no service injection, no side effects)",
@@ -697,7 +697,7 @@
         },
         {
           "text": "sync.service.spec.ts passes (table-driven: agencies upsert path, spending upsert path, geo upsert path, disaster upsert path, recovery ratio stored correctly)",
-          "check": "cd backend && pnpm test -- --testPathPattern=sync.service.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=sync.service.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -741,7 +741,7 @@
         },
         {
           "text": "sync.controller.spec.ts passes (table-driven: each endpoint calls the right service method, returns expected wrapper shape)",
-          "check": "cd backend && pnpm test -- --testPathPattern=sync.controller.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=sync.controller.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -797,7 +797,7 @@
         },
         {
           "text": "schedule.spec.ts passes",
-          "check": "cd backend && pnpm test -- --testPathPattern=schedule.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=schedule.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -830,7 +830,7 @@
       "acceptanceCriteria": [
         {
           "text": "all backend unit specs pass",
-          "check": "cd backend && pnpm test -- --testPathPattern='src/.*spec.ts'"
+          "check": "cd backend && pnpm test --testPathPatterns='src/.*spec.ts'"
         },
         {
           "text": "backend builds",
@@ -838,7 +838,7 @@
         },
         {
           "text": "sync e2e spec passes (POST /sync with mocked upstreams → rows in 5 tables)",
-          "check": "cd backend && pnpm test -- --testPathPattern=sync-e2e.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=sync-e2e.spec.ts --passWithNoTests"
         }
       ],
       "notes": "Use Test.createTestingModule({imports:[AppModule]}).overrideProvider(UsaSpendingService).useValue(mockUsa) etc. Then supertest POST /sync and inspect the (in-memory or sqlite) DB. Assert: 6 Agency rows, at least 1 SpendingRecord per FY per agency, GeoSpendingSnapshots for sampled states, DisasterFundingRecords per DEF group, DisasterRecoveryRatios with computed values. Verify NO real HTTP was issued by checking the mocks received the expected calls. This spec's scope is just the e2e file; it may edit prior files only to close wiring gaps surfaced by the run."
@@ -874,7 +874,7 @@
         },
         {
           "text": "dtos.spec.ts passes (table-driven: each DTO accepts valid input, rejects invalid)",
-          "check": "cd backend && pnpm test -- --testPathPattern=dtos.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=dtos.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -921,11 +921,11 @@
         },
         {
           "text": "agencies.service.spec.ts passes (table-driven: totals aggregation, YoY calc, spotlight grouping)",
-          "check": "cd backend && pnpm test -- --testPathPattern=agencies.service.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=agencies.service.spec.ts --passWithNoTests"
         },
         {
           "text": "agencies.controller.spec.ts passes (table-driven: each endpoint calls service with correct args, returns ApiResponse<T> for list endpoints)",
-          "check": "cd backend && pnpm test -- --testPathPattern=agencies.controller.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=agencies.controller.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -976,11 +976,11 @@
         },
         {
           "text": "geography.service.spec.ts passes (table-driven: query by FY, filter by agency, filter by scope, sort desc, state detail returns all years)",
-          "check": "cd backend && pnpm test -- --testPathPattern=geography.service.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=geography.service.spec.ts --passWithNoTests"
         },
         {
           "text": "geography.controller.spec.ts passes",
-          "check": "cd backend && pnpm test -- --testPathPattern=geography.controller.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=geography.controller.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -1031,11 +1031,11 @@
         },
         {
           "text": "disaster.service.spec.ts passes (table-driven: overview aggregation, states by DEF group, ratios sort, state profile shape)",
-          "check": "cd backend && pnpm test -- --testPathPattern=disaster.service.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=disaster.service.spec.ts --passWithNoTests"
         },
         {
           "text": "disaster.controller.spec.ts passes",
-          "check": "cd backend && pnpm test -- --testPathPattern=disaster.controller.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=disaster.controller.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -1066,11 +1066,11 @@
       "acceptanceCriteria": [
         {
           "text": "all backend specs pass",
-          "check": "cd backend && pnpm test -- --testPathPattern='src/.*spec.ts'"
+          "check": "cd backend && pnpm test --testPathPatterns='src/.*spec.ts'"
         },
         {
           "text": "query-e2e.spec.ts passes (every endpoint exercised with seed data)",
-          "check": "cd backend && pnpm test -- --testPathPattern=query-e2e.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=query-e2e.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -1116,7 +1116,7 @@
         },
         {
           "text": "app.spec.ts passes via jest",
-          "check": "cd frontend && pnpm test -- --testPathPattern=app.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=app.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds (pnpm build)",
@@ -1174,7 +1174,7 @@
         },
         {
           "text": "routes.spec.ts passes (table-driven: each path navigates to the right component)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=routes.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=routes.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1216,7 +1216,7 @@
         },
         {
           "text": "api.service.spec.ts passes (table-driven: each method calls HttpClient with correct URL + params, returns parsed data)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=api.service.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=api.service.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1271,7 +1271,7 @@
         },
         {
           "text": "loading.service.spec.ts + interceptors.spec.ts pass",
-          "check": "cd frontend && pnpm test -- --testPathPattern='(loading.service|interceptors).spec.ts' --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns='(loading.service|interceptors).spec.ts' --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1308,7 +1308,7 @@
         },
         {
           "text": "bar-chart.component.spec.ts passes (table-driven: input shapes → expected chart config)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=bar-chart.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=bar-chart.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1342,7 +1342,7 @@
         },
         {
           "text": "currency-format.pipe.spec.ts passes (table-driven: 0→$0.00, 1500000000→$15,000,000.00, negative, undefined)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=currency-format.pipe.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=currency-format.pipe.spec.ts --passWithNoTests"
         },
         {
           "text": "Angular Material theme applied (styles.scss has @use or @import for material)",
@@ -1390,7 +1390,7 @@
         },
         {
           "text": "geographic-view.component.spec.ts passes (table-driven: filter change emits correct GeographyQuery)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=geographic-view.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=geographic-view.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1444,7 +1444,7 @@
         },
         {
           "text": "geographic-view.component.spec.ts passes (top10 slicing, paginator 15 default, sort by obligatedAmount desc)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=geographic-view.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=geographic-view.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1494,7 +1494,7 @@
         },
         {
           "text": "geographic-view.component.spec.ts passes (delta stat for testTable of recipient+performance data)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=geographic-view.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=geographic-view.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1531,7 +1531,7 @@
         },
         {
           "text": "agency-spotlight.component.spec.ts passes (table-driven: positive YoY, negative YoY, zero YoY, missing prior year)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=agency-spotlight.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1573,7 +1573,7 @@
         },
         {
           "text": "agency-spotlight.component.spec.ts passes (stacked dataset built from raw SpendingRecords)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=agency-spotlight.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1610,7 +1610,7 @@
         },
         {
           "text": "agency-spotlight.component.spec.ts passes (table-driven: insight string for various data shapes)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=agency-spotlight.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1647,7 +1647,7 @@
         },
         {
           "text": "disaster-lens.component.spec.ts passes (table-driven: card values for various overview shapes)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=disaster-lens.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1684,7 +1684,7 @@
         },
         {
           "text": "disaster-lens.component.spec.ts passes (top 15 selection from testTable of state arrays)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=disaster-lens.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1727,11 +1727,11 @@
         },
         {
           "text": "ratio-color.spec.ts passes (table-driven: ratio → expected color)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=ratio-color.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=ratio-color.spec.ts --passWithNoTests"
         },
         {
           "text": "disaster-lens.component.spec.ts passes",
-          "check": "cd frontend && pnpm test -- --testPathPattern=disaster-lens.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1770,7 +1770,7 @@
         },
         {
           "text": "dashboard.component.spec.ts passes (table-driven: card computations from sample agency+ratio data)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=dashboard.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=dashboard.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1803,7 +1803,7 @@
         },
         {
           "text": "dashboard.component.spec.ts passes",
-          "check": "cd frontend && pnpm test -- --testPathPattern=dashboard.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=dashboard.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -1849,7 +1849,7 @@
         },
         {
           "text": "render-yaml.spec.ts passes (parses yaml, asserts 3 services + database)",
-          "check": "cd backend && pnpm test -- --testPathPattern=render-yaml.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=render-yaml.spec.ts --passWithNoTests"
         }
       ],
       "notes": "render.yaml spec per epic-09 doc: backend builds via `cd backend && pnpm install --frozen-lockfile && pnpm build`, starts via `cd backend && node dist/main.js`. Frontend builds via `cd frontend && pnpm install --frozen-lockfile && pnpm build`, staticPublishPath `frontend/dist/frontend/browser`. _redirects file is copied to dist via angular.json assets config (covered in E9-S03)."
@@ -1906,7 +1906,7 @@
         },
         {
           "text": "typeorm.config.spec.ts still passes (updated to cover migrationsRun assertion)",
-          "check": "cd backend && pnpm test -- --testPathPattern=typeorm.config.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test --testPathPatterns=typeorm.config.spec.ts --passWithNoTests"
         },
         {
           "text": "backend builds",
@@ -1959,7 +1959,7 @@
         },
         {
           "text": "build-output.spec.ts passes (asserts dist/frontend/browser/_redirects exists post-build)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=build-output.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=build-output.spec.ts --passWithNoTests"
         }
       ],
       "notes": "Configure angular.json production fileReplacements to swap environment.ts → environment.prod.ts (if not already). Add _redirects to assets array so it's copied verbatim to dist/frontend/browser/."
@@ -1993,7 +1993,7 @@
         },
         {
           "text": "app.component.spec.ts passes",
-          "check": "cd frontend && pnpm test -- --testPathPattern=app.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=app.component.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -2043,7 +2043,7 @@
         },
         {
           "text": "theme.service.spec.ts passes (table-driven: initial state, toggle, persist, restore)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=theme.service.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=theme.service.spec.ts --passWithNoTests"
         },
         {
           "text": "frontend builds",
@@ -2085,7 +2085,7 @@
         },
         {
           "text": "disclaimer.component.spec.ts passes (component compiles, renders disclaimer text)",
-          "check": "cd frontend && pnpm test -- --testPathPattern=disclaimer.component.spec.ts --passWithNoTests"
+          "check": "cd frontend && pnpm test --testPathPatterns=disclaimer.component.spec.ts --passWithNoTests"
         }
       ],
       "notes": "DisclaimerComponent is a small standalone component placed at the bottom of each view (or once in app shell footer). README follows the structure from epic-10 doc."
