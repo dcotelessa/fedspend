@@ -41,7 +41,7 @@
         },
         {
           "text": "app.module.spec.ts passes",
-          "check": "cd backend && pnpm test -- --testPathPattern=app.module.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test app.module.spec.ts"
         },
         {
           "text": "backend builds cleanly (pnpm build)",
