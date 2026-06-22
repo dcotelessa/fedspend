@@ -63,11 +63,13 @@ Research → Planning → Handoff → Build → QA-verify → QA-review → Repo
 - **Handoff:** `build-context.sh` produces a per-story context bundle
   (`.research/contexts/<STORY_ID>.json`) — only the files and regions the story
   touches. The model never sees the rest of the repo.
-- **Build:** model via **opencode** (revised from pi after E1-S01 — pi could not
-  drive local qwen models reliably through its tool schema). Runs in a per-story
-  git worktree at `../fedspend-build/<STORY_ID>/`. Tier ladder:
-  - T1 `ollama/qwen3-coder-next` via opencode (2 attempts) — strongest local
-  - T2 `ollama/gemma4:26b` via opencode (1 attempt) — alt local, MoE
+- **Build:** model via **pi + llama.cpp** (breakthrough E1-S04: Ollama's
+  abstraction layer was breaking qwen tool calls; llama.cpp with `--jinja` uses
+  the model's native chat template and produces perfect OpenAI-compatible
+  `tool_calls`). Runs in a per-story git worktree at
+  `../fedspend-build/<STORY_ID>/`. Tier ladder:
+  - T1 `llama.cpp/qwen3-coder:30b` via pi (2 attempts) — primary, native tools
+  - T2 `llama.cpp/qwen3-coder:30b` via Aider (1 attempt) — diff-based fallback
   - T3 `zai-coding-plan/glm-4.7` via opencode (1 attempt) — cloud, cheapest
   - T4 `zai-coding-plan/glm-5.1` via opencode (1 attempt)
   - T5 `zai-coding-plan/glm-5.2` via opencode (1 attempt) — matches thinking tier
@@ -326,24 +328,35 @@ export class AgencyService {
 - The model's word never ends a story. Disk reality does.
 
 ## Build Harness Stack
-- **Build (local tier):** Aider with `ollama_chat/<model>`. Diff-based editing
-  bypasses local-model tool-call weakness. File allowlist via `scope.files`
-  enforces closed-set story scope.
+- **llama-server:** `~/llama.cpp/build/bin/llama-server` — compiled with CUDA
+  13.1 (sm_120, Blackwell). Started with `--jinja` for native tool-call support.
+  Model files stored at `/usr/share/ollama/.ollama/models/blobs/` (GGUF format).
+  Run `~/start-llama.sh` to start the server on port 8080.
+- **Build (local tier, primary):** pi with `pi-llama-cpp` extension. Connects to
+  llama-server's OpenAI-compatible endpoint. Native tool calls work via Jinja
+  chat templates. `pi-safety-modes` catches dangerous operations.
+- **Build (local tier, fallback):** Aider with `--openai-api-base
+  http://127.0.0.1:8080/v1`. Diff-based editing for when tool-call mode fails.
 - **Build (cloud tier, escalation):** opencode with `zai-coding-plan/<model>`.
-  Tool-call paradigm works for cloud GLM models. Triggered when T1/T2 fail.
+  Triggered when T1/T2 fail.
 - **Thinking tier (planning, QA-review):** opencode running GLM-5.2 (this layer).
-- **Retired:** pi — proven unable to drive local qwen models; config archived to
-  `~/.pi.archive`. May revisit for future qwen variants with stronger tool-call
-  training (e.g., qwen3.6 series).
+- **Retired:** Ollama — its abstraction layer broke qwen tool-call formatting.
+  Stopped and disabled. GGUF files retained in its blob store for llama.cpp.
+  pi-json-tools — unneeded now that llama.cpp handles tool calls natively.
 
 ## Per-Model Test Status (for capability study)
 | Model | Size | Harness | Outcome |
 |-------|------|---------|---------|
-| qwen3-16gb | 12 GB | pi | FAIL (0 real tool calls) |
-| qwen3-coder:30b | 18 GB | pi | FAIL (read-only mode, no action) |
-| qwen3-coder-next | 51 GB | pi | FAIL (read_file hallucination) |
-| qwen3-coder-next | 51 GB | opencode | FAIL (explain-mode) |
-| qwen3-coder-next | 51 GB | Aider | **PASS** (E1-S02) |
+| qwen3-16gb | 12 GB | pi (Ollama) | FAIL (0 real tool calls) |
+| qwen3-coder:30b | 18 GB | pi (Ollama) | FAIL (read-only mode, no action) |
+| qwen3-coder-next | 51 GB | pi (Ollama) | FAIL (read_file hallucination) |
+| qwen3-coder-next | 51 GB | opencode (Ollama) | FAIL (explain-mode) |
+| qwen3-coder-next | 51 GB | Aider (Ollama) | **PASS** (E1-S02) |
 | glm-4.7 | cloud | pi | PASS (E1-S01) |
-| qwen3.6 35b | TBD | pi or Aider | pending test |
-| smaller qwen variants | TBD | Aider | pending test |
+| gemma4:26b | 17 GB | Aider (Ollama) | FAIL (E1-S03: configelseService typo) |
+| qwen3-coder:30b | 18 GB | Aider (Ollama) | FAIL (E1-S03: env pollution in spec) |
+| qwen3.6:35b | 23 GB | pi (Ollama) | FAIL (empty tool_code blocks) |
+| qwen3.6:35b | 23 GB | pi (Ollama + pi-json-tools) | FAIL (model couldn't self-correct to JSON) |
+| qwen3.6:35b | 23 GB | Aider (Ollama) | **PASS** (E1-S03) |
+| qwen3.6:35b | 23 GB | llama.cpp | FAIL (rope dimension_sections mismatch — pending fix) |
+| qwen3-coder:30b | 18 GB | **pi (llama.cpp + --jinja)** | **PASS** (E1-S04) — BREAKTHROUGH |

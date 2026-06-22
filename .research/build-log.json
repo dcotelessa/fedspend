@@ -71,6 +71,61 @@
       "elapsedSec": 240,
       "timestamp": "2026-06-22T02:46:45Z",
       "note": "BREAKTHROUGH. First PASS with local model. Aider (diff-based) succeeded where pi and opencode (tool-call-based) failed. Harness paradigm was the bottleneck, not the model."
+    },
+    {
+      "story": "E1-S03",
+      "tier": "T2 Aider/gemma4:26b (test 1 of LLM matrix)",
+      "result": "FAIL",
+      "criteriaPass": 5,
+      "criteriaFail": 2,
+      "errors": "configelseService typo (tokenization); TypeOrmModuleOptions imported from typeorm instead of @nestjs/typeorm",
+      "timestamp": "2026-06-22T04:29:08Z"
+    },
+    {
+      "story": "E1-S03",
+      "tier": "T-aider/qwen3-coder:30b (test 2 of LLM matrix)",
+      "result": "FAIL",
+      "criteriaPass": 5,
+      "criteriaFail": 2,
+      "errors": "process.env pollution between test rows (no cleanup); ConfigService not imported in app.module.ts inject:[]",
+      "timestamp": "2026-06-22T04:37:15Z"
+    },
+    {
+      "story": "E1-S03",
+      "tier": "pi/qwen3.6:35b (test 3 of LLM matrix)",
+      "result": "FAIL",
+      "criteriaPass": 0,
+      "criteriaFail": 6,
+      "errors": "0 real tool calls; emitted empty <tool_code> block — same explain-mode/tool-call paralysis as all qwen variants in pi. Model understood task in thinking but could not act.",
+      "timestamp": "2026-06-22T04:41:26Z"
+    },
+    {
+      "story": "E1-S03",
+      "tier": "aider/qwen3.6:35b (test 4 of LLM matrix)",
+      "result": "PASS",
+      "criteriaPass": 7,
+      "criteriaFail": 0,
+      "errors": "",
+      "timestamp": "2026-06-22T05:36:15Z"
+    },
+    {
+      "story": "E1-S03",
+      "tier": "pi/qwen3.6:35b + pi-json-tools (test 3b)",
+      "result": "FAIL",
+      "criteriaPass": 0,
+      "criteriaFail": 6,
+      "errors": "pi-json-tools extension detected malformed output and sent retry hints, but model could not self-correct to JSON format. Fell back to free-text output (ls -la).",
+      "timestamp": "2026-06-22T05:36:15Z"
+    },
+    {
+      "story": "E1-S04",
+      "tier": "pi/llama.cpp/qwen3-coder:30b",
+      "result": "PASS",
+      "criteriaPass": 9,
+      "criteriaFail": 0,
+      "errors": "",
+      "timestamp": "2026-06-22T06:42:57Z",
+      "note": "BREAKTHROUGH: pi+llama.cpp+--jinja produces native OpenAI tool calls. Ollama was the bottleneck, not the model."
     }
   ]
 }

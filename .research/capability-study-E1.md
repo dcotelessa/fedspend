@@ -2,58 +2,107 @@
 
 ## TL;DR (the big finding)
 
-**Local LLMs CAN do agent work — when paired with a diff-based harness.**
+**The bottleneck was the serving backend (Ollama), not the model or harness.**
 
-qwen3-coder-next failed identically across two tool-call-based harnesses (pi,
-opencode): it read context files correctly but then went into "explain mode"
-instead of invoking tools. With Aider (which uses SEARCH/REPLACE text blocks
-instead of tool calls), the same model completed E1-S02 first try.
+Three phases of discovery:
+1. **Phase 1 (E1-S01):** qwen models failed in pi+Ollama (tool-call paralysis)
+2. **Phase 2 (E1-S02/S03):** Aider bypassed Ollama's tool-call layer with diff-based editing — local models PASSED
+3. **Phase 3 (E1-S04):** Replaced Ollama with llama.cpp (`--jinja`) — pi+qwen now produces perfect native OpenAI tool calls
 
-The bottleneck was the **harness paradigm**, not the model.
+The root cause: **Ollama's abstraction layer broke qwen's native tool-call formatting.** llama.cpp with `--jinja` uses the model's embedded Jinja chat template, which handles tool-call syntax correctly.
 
 ## E1-S01 — NestJS scaffold (complex)
 
-- T1 qwen3-16gb: 0 real tool calls (pi)
-- T2 qwen3-coder:30b: 3 real reads, then explain-mode (pi)
-- T3 qwen3-coder-next: 1 real tool call (rejected on filePath vs path), then
-  reverted to run_shell_command hallucination (pi)
-- T4 zai-coding-plan/glm-4.7: PASS (pi, after harness bugs fixed)
-
-Scaffolding is uniquely hard: greenfield, CLI orchestration, multi-file
-generation. Even cloud-tier glm-4.7 needed 2 harness bugs fixed before
-succeeding.
+- T1 qwen3-16gb: 0 real tool calls (pi+Ollama)
+- T2 qwen3-coder:30b: 3 real reads, then explain-mode (pi+Ollama)
+- T3 qwen3-coder-next: 1 real tool call (rejected on filePath vs path), then reverted to run_shell_command hallucination (pi+Ollama)
+- T4 zai-coding-plan/glm-4.7: **PASS** (pi, after harness bugs fixed)
 
 ## E1-S02 — tsconfig edit + spec (simple)
 
-- T1 qwen3-coder-next via Aider: **PASS** (first local PASS)
-  - Same model that failed in pi AND opencode
+- T1 qwen3-coder-next via Aider+Ollama: **PASS** (first local PASS)
   - Aider's SEARCH/REPLACE paradigm bypassed the tool-call weakness
-  - Out-of-scope change caught: aider auto-added .aider* to .gitignore, reverted
-- T2/T3 not attempted — T1 succeeded
 
-## Recommended tier ladder (revised)
+## E1-S03 — TypeORM dual-DB config (medium)
 
-For each story type, pick the cheapest tier that can plausibly work:
+LLM matrix tested 4 combinations:
 
-| Story type | Recommended starting tier | Rationale |
-|------------|---------------------------|-----------|
-| Simple edits, single file | **T1 qwen3-coder-next via Aider** | Proven on E1-S02 |
-| Multi-file edits, entities, services | **T1 qwen3-coder-next via Aider** | Try local first; escalate on fail |
-| Greenfield scaffolding (CLI orchestration) | **T4 glm-4.7 via opencode/pi** | Local cannot do tool orchestration |
-| Sync pipeline (Fetch/Transform/Return) | **T1 qwen3-coder-next via Aider** | Try local; Aider handles code-heavy work well |
+| # | Model | Harness | Result | Failure mode |
+|---|-------|---------|--------|--------------|
+| 1 | gemma4:26b | Aider+Ollama | FAIL | configelseService typo + wrong import |
+| 2 | qwen3-coder:30b | Aider+Ollama | FAIL | env pollution in spec + missing import |
+| 3 | qwen3.6:35b | pi+Ollama | FAIL | empty tool_code blocks |
+| 3b | qwen3.6:35b | pi+Ollama+pi-json-tools | FAIL | model couldn't self-correct to JSON |
+| 4 | qwen3.6:35b | Aider+Ollama | **PASS** | all 7 criteria |
 
-## Harness comparison
+Key finding: qwen3.6:35b can code (Aider PASS) but cannot tool-call through Ollama+pi.
 
-| Harness | Paradigm | Local model support | E1 outcome |
-|---------|----------|---------------------|------------|
-| pi | Tool-call (JSON) | Ollama | FAILED with all qwen tiers |
-| opencode | Tool-call (JSON) | Ollama | FAILED with qwen3-coder-next (explain-mode) |
-| Aider | Diff-based (SEARCH/REPLACE) | Ollama | **PASSED with qwen3-coder-next** |
+## E1-S04 — 6 module scaffolds (repetitive)
 
-## Tooling fixes landed during E1-S01/E1-S02
+- T1 qwen3-coder:30b via **pi+llama.cpp**: **PASS** (9/9 criteria) — BREAKTHROUGH
+  - First pi+local-model PASS with native tool calls
+  - llama.cpp `--jinja` produces perfect OpenAI-compatible `tool_calls`
+  - pi-safety-modes correctly intercepted `rm` operation
+  - Inference: 71.8 tok/s (MoE, partial VRAM offload)
 
-1. pnpm-workspace.yaml: `allowBuilds` placeholder → proper `onlyBuildDependencies` + `allowBuilds` map
-2. AGENTS.md: `filePath` (opencode) vs `path` (pi) confusion resolved — opencode is the runtime
-3. plan.json criteria: `pnpm test -- --testPathPattern=X` (made jest treat all args as positional) → `--testPathPatterns=X`
-4. pi models.json: baseUrl `/api/paas/v4` (credit) → `/api/coding/paas/v4` (coding plan)
-5. Harness switch: pi → opencode → Aider (for local); opencode remains thinking tier
+## The Tool-Call Discovery (E1-S04)
+
+### The curl test that proved it
+
+```bash
+curl http://127.0.0.1:8080/v1/chat/completions \
+  -d '{"messages":[...],"tools":[...],"tool_choice":"auto"}'
+```
+
+Response:
+```json
+{
+  "finish_reason": "tool_calls",
+  "message": {
+    "tool_calls": [{
+      "function": {
+        "name": "read_file",
+        "arguments": "{\"path\":\"/tmp/test.txt\"}"
+      }
+    }]
+  }
+}
+```
+
+Perfect OpenAI format. The model always could do tool calls — Ollama was mangling the format.
+
+### Why llama.cpp works where Ollama didn't
+
+| Aspect | Ollama | llama.cpp (--jinja) |
+|--------|--------|-------------------|
+| Chat template | Modelfile template (may not match model) | Model's embedded Jinja template (native) |
+| Tool-call format | Ollama's own parsing layer | Native template → proper `tool_calls` array |
+| Overhead | Daemon + REST API + inference engine | Direct inference server |
+
+## Build infrastructure built during E1
+
+1. CUDA 13.1 installed (sm_120 Blackwell) + rsqrt noexcept patch for glibc compat
+2. llama.cpp compiled with `GGML_CUDA=ON` targeting sm_120 (`~/llama.cpp/`)
+3. `~/start-llama.sh` — starts llama-server with qwen3-coder:30b on port 8080
+4. pi-llama-cpp extension installed (auto-discovers models, thinking budgets)
+5. pi-safety-modes confirmed working (file delete interception)
+6. Ollama stopped + disabled (GGUF files retained in blob store)
+
+## Recommended tier ladder (final)
+
+| Tier | Harness | Model | When |
+|------|---------|-------|------|
+| T1 | pi+llama.cpp | qwen3-coder:30b | Primary — native tool calls, interactive |
+| T2 | Aider+llama.cpp | qwen3-coder:30b | Fallback — diff-based for tool-call failures |
+| T3 | opencode | glm-4.7 | Cloud escalation — cheapest |
+| T4 | opencode | glm-5.1 | Cloud — mid-tier |
+| T5 | opencode | glm-5.2 | Cloud — matches thinking tier |
+
+## Harness comparison (final)
+
+| Harness | Backend | Paradigm | Local model support | E1 outcome |
+|---------|---------|----------|---------------------|------------|
+| pi | llama.cpp | Tool-call (native Jinja) | qwen3-coder:30b | **PASS** (E1-S04) |
+| Aider | llama.cpp | Diff-based (SEARCH/REPLACE) | Any model | **PASS** (E1-S02, E1-S03) |
+| opencode | cloud | Tool-call (JSON) | GLM models | **PASS** (E1-S01) |
+| pi | ~~Ollama~~ | ~~Tool-call~~ | ~~qwen~~ | **RETIRED** — broke tool calls |

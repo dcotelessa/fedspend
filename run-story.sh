@@ -4,18 +4,18 @@
 #   extract → context-bundle → worktree → tier-ladder build → verify → merge
 #
 # Usage:
-#   ./run-story.sh E1-S03
+#   ./run-story.sh E1-S05
 #
-# Tier ladder (Aider-first for local, opencode for cloud):
-#   T1  ollama/qwen3-coder-next via Aider  (2 attempts) — proven on E1-S02
-#   T2  ollama/gemma4:26b via Aider        (1 attempt)  — alt local, MoE
-#   T3  ollama/<smaller-qwen> via Aider    (1 attempt)  — when added
-#   T4  zai-coding-plan/glm-4.7 via opencode (1 attempt) — cloud coding-plan
-#   T5  zai-coding-plan/glm-5.1 via opencode (1 attempt)
-#   T6  zai-coding-plan/glm-5.2 via opencode (1 attempt) — matches thinking tier
-#   T6 fail → stop, opencode thinking tier reviews, resume after human OK
+# Tier ladder (pi+llama.cpp primary, Aider fallback, opencode cloud):
+#   T1  llama.cpp/qwen3-coder:30b via pi     (2 attempts) — primary, native tools
+#   T2  llama.cpp/qwen3-coder:30b via Aider  (1 attempt)  — diff-based fallback
+#   T3  zai-coding-plan/glm-4.7 via opencode (1 attempt)  — cloud coding-plan
+#   T4  zai-coding-plan/glm-5.1 via opencode (1 attempt)
+#   T5  zai-coding-plan/glm-5.2 via opencode (1 attempt) — matches thinking tier
+#   T5 fail → stop, opencode thinking tier reviews, resume after human OK
 #
-# Dependencies: jq, bash 4+, aider (~/.local/bin/aider), opencode in PATH.
+# Dependencies: jq, bash 4+, pi (~/.pi), aider (~/.local/bin/aider), opencode.
+# llama-server must be running: ~/start-llama.sh
 # Run from repo root.
 
 set -u
@@ -31,14 +31,14 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # ── TIER LADDER ───────────────────────────────────────────────────────────────
 # Format: "T<n>|<harness>|<model_id>|<max_attempts>"
-#   harness = aider | opencode
+#   harness = pi | aider | opencode
 #   model_id is passed to the harness's --model flag
 TIER_LADDER=(
-  "T1|aider|ollama_chat/qwen3-coder-next|2"
-  "T2|aider|ollama_chat/gemma4:26b|1"
-  "T4|opencode|zai-coding-plan/glm-4.7|1"
-  "T5|opencode|zai-coding-plan/glm-5.1|1"
-  "T6|opencode|zai-coding-plan/glm-5.2|1"
+  "T1|pi|qwen3-coder:30b|2"
+  "T2|aider|qwen3-coder:30b|1"
+  "T3|opencode|zai-coding-plan/glm-4.7|1"
+  "T4|opencode|zai-coding-plan/glm-5.1|1"
+  "T5|opencode|zai-coding-plan/glm-5.2|1"
 )
 
 # ── ARGS ──────────────────────────────────────────────────────────────────────
@@ -60,6 +60,18 @@ rule()    { echo -e "${BOLD}─────────────────�
 # ── GUARDS ────────────────────────────────────────────────────────────────────
 [[ -f "$PLAN" ]] || { error "No $PLAN. Run Planout first."; exit 2; }
 command -v jq >/dev/null 2>&1 || { error "jq required."; exit 2; }
+
+# ── LLAMA-SERVER HEALTH CHECK ──────────────────────────────────────────────────
+check_llama_server() {
+  if ! curl -s "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+    warn "llama-server not running on port 8080."
+    echo "  Start it with: ~/start-llama.sh"
+    echo "  Continuing — cloud tiers (T3+) don't need it."
+    echo
+  else
+    success "llama-server healthy on port 8080."
+  fi
+}
 
 if [[ ! -f "$BUILD_LOG" ]]; then
   echo '{"runs":[]}' > "$BUILD_LOG"
@@ -187,6 +199,72 @@ build_context_bundle() {
 get_scope_files() {
   # Returns space-separated list of files from plan.json scope.files
   jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null
+}
+
+# ── PROMPT GENERATION (pi-style — for llama.cpp native tool calls) ───────────
+generate_prompt_pi() {
+  local model="$1"
+  local tier_num="$2"
+  local attempt_of_tier="$3"
+  local prior_failures="$4"
+  local wt="$5"
+
+  local title goal notes deps
+  title="$(jq -r '.title // "unknown"' "$STORY_TMP")"
+  goal="$(jq -r '.goal // "see scope"' "$STORY_TMP")"
+  notes="$(jq -r '.notes // ""' "$STORY_TMP")"
+  deps="$(jq -r '(.dependencies // []) | join(", ")' "$STORY_TMP")"
+
+  local files=""
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    if [[ -e "${wt}/${f}" ]]; then
+      files+="  - EXISTS (edit surgically): $f"$'\n'
+    else
+      files+="  - CREATE (new file): $f"$'\n'
+    fi
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+
+  local criteria
+  criteria="$(jq -r '(.acceptanceCriteria // []) | .[] | .text' "$STORY_TMP" 2>/dev/null | sed 's/^/  - [ ] /')"
+
+  local failure_block=""
+  if [[ -n "$prior_failures" ]]; then
+    failure_block="
+## Prior Attempt Failed — Fix These
+$prior_failures
+"
+  fi
+
+  cat > "$PROMPT_TMP" << PROMPT
+## Task: $STORY — $title [Tier $tier_num: $model via pi+llama.cpp, attempt $attempt_of_tier]
+
+## Goal
+$goal
+
+## Files (CLOSED SET)
+$files
+
+## Acceptance Criteria (ALL must pass)
+$criteria
+
+## Context Bundle
+Read .research/contexts/${STORY}.json for exact file contents + resolutions.
+Call: read({ path: ".research/contexts/${STORY}.json" })
+
+## Notes
+$notes
+$failure_block
+## Rules
+- Write the *.spec.ts file FIRST (RED), then implement (GREEN).
+- Money values are integers (cents). recoveryRatio is a float.
+- TypeScript only — no .js files. No comments in generated code.
+- Do not create files outside the listed set.
+- Do not ask clarifying questions.
+- Emit ===STORY_COMPLETE=== when done.
+PROMPT
+
+  success "Prompt written to $PROMPT_TMP"
 }
 
 # ── PROMPT GENERATION (Aider-style — no tool-call instructions) ──────────────
@@ -335,14 +413,24 @@ print_session_instructions() {
   echo "  Worktree: $wt"
   echo "  Branch:   $branch"
   echo
-  if [[ "$harness" == "aider" ]]; then
+  if [[ "$harness" == "pi" ]]; then
+    echo -e "${BOLD}1. Launch pi inside the worktree${RESET}"
+    echo
+    echo "   cd $wt"
+    echo "   pi @$PROMPT_TMP"
+    echo
+    echo -e "${BOLD}   Before pressing Enter: /models → select llama.cpp/$model${RESET}"
+    echo
+  elif [[ "$harness" == "aider" ]]; then
     echo -e "${BOLD}1. Launch Aider inside the worktree${RESET}"
     echo
     echo "   cd $wt"
-    echo "   aider --model $model --no-auto-commits --yes --message \"\$(cat $PROMPT_TMP)\" \\"
+    echo "   aider --model openai/$model \\"
+    echo "         --openai-api-base http://127.0.0.1:8080/v1 \\"
+    echo "         --openai-api-key dummy \\"
+    echo "         --no-auto-commits --yes \\"
+    echo "         --message \"\$(cat $PROMPT_TMP)\" \\"
     echo "         $scope_files"
-    echo
-    echo -e "${BOLD}   (or interactive: drop --message and paste prompt in TUI)${RESET}"
   else
     echo -e "${BOLD}1. Launch opencode inside the worktree${RESET}"
     echo
@@ -486,6 +574,15 @@ main() {
   check_dependencies
   extract_story
 
+  local needs_llama=false
+  for tier_entry in "${TIER_LADDER[@]}"; do
+    IFS='|' read -r _ harness _ _ <<< "$tier_entry"
+    [[ "$harness" == "pi" || "$harness" == "aider" ]] && needs_llama=true
+  done
+  if $needs_llama; then
+    check_llama_server
+  fi
+
   local wt; wt="$(provision_worktree)"
   local branch="build/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
 
@@ -504,7 +601,9 @@ main() {
       global_attempt=$((global_attempt+1))
       local start_sec; start_sec="$(date +%s)"
 
-      if [[ "$harness" == "aider" ]]; then
+      if [[ "$harness" == "pi" ]]; then
+        generate_prompt_pi "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
+      elif [[ "$harness" == "aider" ]]; then
         generate_prompt_aider "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
       else
         generate_prompt_opencode "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
@@ -546,7 +645,7 @@ main() {
   cat << EOF
 
 $(rule)
-$(error "$STORY EXHAUSTED all tiers. T6 (glm-5.2 via opencode) failed.")
+$(error "$STORY EXHAUSTED all tiers. T5 (glm-5.2 via opencode) failed.")
 
 Worktree preserved at: $wt
 Branch: $branch
