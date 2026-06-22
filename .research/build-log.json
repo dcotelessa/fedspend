@@ -145,6 +145,15 @@
       "criteriaFail": 0,
       "errors": "",
       "timestamp": "2026-06-22T17:12:17Z"
+    },
+    {
+      "story": "E1-S07",
+      "tier": "pi/llama.cpp/qwen3-coder:30b",
+      "result": "PASS",
+      "criteriaPass": 7,
+      "criteriaFail": 0,
+      "errors": "",
+      "timestamp": "2026-06-22T17:21:29Z"
     }
   ]
 }
