@@ -1,0 +1,154 @@
+{
+  "story": "E1-S04",
+  "epic": "E1",
+  "title": "Create 6 NestJS module scaffolds (agencies, spending, geography, disaster, sync, health)",
+  "goal": "Scaffold 6 feature modules with the right controller/service shape per module. agencies/spending/geography/disaster get module+controller+service+dto dir. sync gets module+service only (no controller). health gets module+controller only (no service). Register all 6 in AppModule. Prove registration with a spec.",
+  "notes": "Per resolution: sync module is module + service only (NO controller) — sync API endpoints belong to Epic 2. Per resolution: health module is module + controller only (NO service). Per resolution: empty dto/ directories must have a .gitkeep so git tracks them. Controllers and services are EMPTY SCAFFOLDS in this story — just the class with @Controller()/@Injectable() decorator and an empty body. No endpoints, no methods. They get implemented in Epic 3 (query API). The modules.spec.ts must assert each module class exists, is decorated with @Module, and (where applicable) registers its controller/provider.",
+  "dependencies": "E1-S01, E1-S03",
+  "acceptanceCriteria": [
+    {
+      "text": "all 6 module files exist",
+      "check": "for m in agencies spending geography disaster sync health; do test -f backend/src/$m/$m.module.ts || exit 1; done"
+    },
+    {
+      "text": "agencies, spending, geography, disaster each have controller + service",
+      "check": "for m in agencies spending geography disaster; do test -f backend/src/$m/$m.controller.ts && test -f backend/src/$m/$m.service.ts || exit 1; done"
+    },
+    {
+      "text": "sync has service, NO controller",
+      "check": "test -f backend/src/sync/sync.service.ts && ! test -f backend/src/sync/sync.controller.ts"
+    },
+    {
+      "text": "health has controller, NO service",
+      "check": "test -f backend/src/health/health.controller.ts && ! test -f backend/src/health/health.service.ts"
+    },
+    {
+      "text": "each dto/ directory has a .gitkeep",
+      "check": "for m in agencies spending geography disaster; do test -f backend/src/$m/dto/.gitkeep || exit 1; done"
+    },
+    {
+      "text": "all 6 modules registered in AppModule imports",
+      "check": "cd backend && grep -q \"AgenciesModule\" src/app.module.ts && grep -q \"SpendingModule\" src/app.module.ts && grep -q \"GeographyModule\" src/app.module.ts && grep -q \"DisasterModule\" src/app.module.ts && grep -q \"SyncModule\" src/app.module.ts && grep -q \"HealthModule\" src/app.module.ts"
+    },
+    {
+      "text": "modules.spec.ts passes",
+      "check": "cd backend && pnpm test --testPathPatterns=modules.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "backend builds",
+      "check": "cd backend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/app.module.ts",
+      "mode": "slice",
+      "start": 1,
+      "end": 15,
+      "reason": "imports block — add imports for the 6 feature modules",
+      "excerpt": "   1: import { Module } from '@nestjs/common';\n   2: import { ConfigModule, ConfigService } from '@nestjs/config';\n   3: import { TypeOrmModule } from '@nestjs/typeorm';\n   4: import { getTypeOrmConfig } from './config/typeorm.config';\n   5: \n   6: @Module({\n   7:   imports: [\n   8:     ConfigModule.forRoot(),\n   9:     TypeOrmModule.forRootAsync({\n  10:       inject: [ConfigService],\n  11:       useFactory: getTypeOrmConfig,\n  12:     }),\n  13:   ],\n  14:   controllers: [],\n  15:   providers: [],\n  16: })\n  17: export class AppModule {}"
+    },
+    {
+      "path": "backend/src/app.module.ts",
+      "mode": "slice",
+      "start": 17,
+      "end": 30,
+      "reason": "@Module imports array — register all 6 feature modules",
+      "excerpt": "  15:   providers: [],\n  16: })\n  17: export class AppModule {}"
+    }
+  ]
+}
