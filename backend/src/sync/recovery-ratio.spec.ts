@@ -40,6 +40,12 @@ describe('computeRecoveryRatio', () => {
       expected: 1.0,
     },
     {
+      name: 'both positive fed less than fema returns fraction under 1',
+      femaCents: 40000,
+      fedCents: 10000,
+      expected: 0.25,
+    },
+    {
       name: 'boundary fema 1 fed MAX_SAFE_INTEGER no overflow',
       femaCents: 1,
       fedCents: Number.MAX_SAFE_INTEGER,

@@ -1,7 +1,3 @@
-export interface DisasterRecoveryRatio {
-  ratio: number;
-}
-
 export function computeRecoveryRatio(
   femaCents: number,
   fedCents: number,
