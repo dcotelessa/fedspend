@@ -192,6 +192,11 @@ merge_and_cleanup_worktree() {
   local wt="$1"
   local branch="$2"
   info "Merging $branch → $(git rev-parse --abbrev-ref HEAD)..."
+  # build_context_bundle regenerates the per-story bundle in repo-root as
+  # untracked files; the branch also commits them, so a merge would abort with
+  # "untracked working tree files would be overwritten." Drop the transient
+  # copies — the merge brings the canonical committed versions back.
+  rm -f ".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md" 2>/dev/null || true
   if git merge --ff-only "$branch" >/dev/null 2>&1; then
     success "Merged."
   else
@@ -476,6 +481,10 @@ record_result() {
 }
 
 # ── COMMIT ON PASS ────────────────────────────────────────────────────────────
+# Stage ONLY the story's scope.files + the per-story context bundle. Never use
+# `git add -A` — the worktree also holds drift copies of build-log.json,
+# run-story.sh, plan.json etc. that must NOT enter the story commit (they would
+# entangle the subsequent merge with stale global state).
 commit_and_merge() {
   local model="$1"
   local tier_label="$2"
@@ -483,10 +492,17 @@ commit_and_merge() {
   local wt="$4"
   local branch="$5"
 
-  info "Committing in worktree..."
+  info "Committing story scope in worktree..."
   local model_short; model_short="$(echo "$model" | sed 's|.*/||')"
   local msg="$STORY PASS [$tier_label $model_short via $harness]"
-  if (cd "$wt" && git add -A && git commit -m "$msg" --no-verify) >/dev/null 2>&1; then
+
+  local scope_args=()
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && scope_args+=("$f")
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+  scope_args+=(".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md")
+
+  if (cd "$wt" && git add -- "${scope_args[@]}" 2>/dev/null && git commit -m "$msg" --no-verify) >/dev/null 2>&1; then
     success "Worktree commit: $msg"
   else
     warn "Nothing to commit in worktree (or commit failed)."
