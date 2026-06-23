@@ -491,11 +491,11 @@
         },
         {
           "text": "AWARD_TYPES has 5 groups (Contracts, Grants, Direct Payments, Loans, IDVs)",
-          "check": "cd backend && for g in 'Contracts' 'Grants' 'Direct Payments' 'Loans' 'IDVs'; do grep -q \"\\\"$g\\\"\" src/sync/sync.constants.ts || exit 1; done"
+          "check": "cd backend && for g in 'Contracts' 'Grants' 'Direct Payments' 'Loans' 'IDVs'; do grep -qE \"[\\\"']$g[\\\"']\" src/sync/sync.constants.ts || exit 1; done"
         },
         {
           "text": "DEF_GROUPS has 5 groups (COVID-19, Hurricane, Infrastructure, Wildfire, General)",
-          "check": "cd backend && for g in 'COVID-19' 'Hurricane' 'Infrastructure' 'Wildfire' 'General'; do grep -q \"\\\"$g\\\"\" src/sync/sync.constants.ts || exit 1; done"
+          "check": "cd backend && for g in 'COVID-19' 'Hurricane' 'Infrastructure' 'Wildfire' 'General'; do grep -qE \"[\\\"']$g[\\\"']\" src/sync/sync.constants.ts || exit 1; done"
         },
         {
           "text": "usa-spending.types.ts and openfema.types.ts exist",

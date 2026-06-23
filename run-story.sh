@@ -6,16 +6,24 @@
 # Usage:
 #   ./run-story.sh E1-S05
 #
-# Tier ladder (pi+llama.cpp primary, Aider fallback, opencode cloud):
-#   T1  llama.cpp/qwen3-coder:30b via pi     (2 attempts) — primary, native tools
-#   T2  llama.cpp/qwen3-coder:30b via Aider  (1 attempt)  — diff-based fallback
-#   T3  zai-coding-plan/glm-4.7 via opencode (1 attempt)  — cloud coding-plan
-#   T4  zai-coding-plan/glm-5.1 via opencode (1 attempt)
-#   T5  zai-coding-plan/glm-5.2 via opencode (1 attempt) — matches thinking tier
-#   T5 fail → stop, opencode thinking tier reviews, resume after human OK
+# Tier ladder is branched by story.build (read from plan.json). All tiers use pi:
 #
-# Dependencies: jq, bash 4+, pi (~/.pi), aider (~/.local/bin/aider), opencode.
-# llama-server must be running: ~/start-llama.sh
+#   BUILD-FAST (scaffolds, controllers, constants, config):
+#     T1  llama.cpp/qwen3-coder:30b via pi     (2 attempts) — local, native tools
+#     T2  zai-coding-plan/glm-4.7 via pi        (1 attempt)  — cloud coding-plan
+#     T3  zai-coding-plan/glm-5.2 via pi        (1 attempt)  — cloud thinking
+#
+#   BUILD-DEEP (services, orchestrators, pure logic):
+#     T1  llama.cpp/qwen3.6:35b via pi          (2 attempts) — local, thinking MoE
+#     T2  zai-coding-plan/glm-5.2 via pi        (1 attempt)  — cloud thinking
+#
+#   Final fail → stop, human reviews, resume after OK.
+#
+# Note: qwen3-coder-next (51 GB), Aider tiers, and opencode tiers were retired —
+# pi drives every tier (local via llama.cpp, cloud via zai-coding-plan provider).
+#
+# Dependencies: jq, bash 4+, pi (~/.pi).
+# Local tiers need llama-server running: ~/start-llama.sh (coder|thinking|flash)
 # Run from repo root.
 
 set -u
@@ -29,17 +37,22 @@ PROMPT_TMP="/tmp/fedspend-prompt.txt"
 VERIFY_OUT="/tmp/fedspend-verify.txt"
 export PATH="$HOME/.local/bin:$PATH"
 
-# ── TIER LADDER ───────────────────────────────────────────────────────────────
+# ── TIER LADDERS ──────────────────────────────────────────────────────────────
 # Format: "T<n>|<harness>|<model_id>|<max_attempts>"
-#   harness = pi | aider | opencode
+#   harness = pi | opencode
 #   model_id is passed to the harness's --model flag
-TIER_LADDER=(
+TIER_LADDER_FAST=(
   "T1|pi|qwen3-coder:30b|2"
-  "T2|aider|qwen3-coder:30b|1"
-  "T3|opencode|zai-coding-plan/glm-4.7|1"
-  "T4|opencode|zai-coding-plan/glm-5.1|1"
-  "T5|opencode|zai-coding-plan/glm-5.2|1"
+  "T2|pi|zai-coding-plan/glm-4.7|1"
+  "T3|pi|zai-coding-plan/glm-5.2|1"
 )
+
+TIER_LADDER_DEEP=(
+  "T1|pi|qwen3.6:35b|2"
+  "T2|pi|zai-coding-plan/glm-5.2|1"
+)
+
+TIER_LADDER=()
 
 # ── ARGS ──────────────────────────────────────────────────────────────────────
 STORY="${1:-}"
@@ -51,11 +64,11 @@ fi
 # ── COLOURS ───────────────────────────────────────────────────────────────────
 RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'
 CYAN='\033[36m'; BOLD='\033[1m'; RESET='\033[0m'
-info()    { echo -e "${CYAN}▶${RESET} $*"; }
-success() { echo -e "${GREEN}✓${RESET} $*"; }
-warn()    { echo -e "${YELLOW}⚠${RESET} $*"; }
-error()   { echo -e "${RED}✗${RESET} $*"; }
-rule()    { echo -e "${BOLD}──────────────────────────────────────────────────${RESET}"; }
+info()    { echo -e "${CYAN}▶${RESET} $*" >&2; }
+success() { echo -e "${GREEN}✓${RESET} $*" >&2; }
+warn()    { echo -e "${YELLOW}⚠${RESET} $*" >&2; }
+error()   { echo -e "${RED}✗${RESET} $*" >&2; }
+rule()    { echo -e "${BOLD}──────────────────────────────────────────────────${RESET}" >&2; }
 
 # ── GUARDS ────────────────────────────────────────────────────────────────────
 [[ -f "$PLAN" ]] || { error "No $PLAN. Run Planout first."; exit 2; }
@@ -129,6 +142,23 @@ extract_story() {
   success "Story extracted."
 }
 
+# ── TIER LADDER SELECTION ─────────────────────────────────────────────────────
+select_tier_ladder() {
+  local build_type
+  build_type="$(jq -r '.build // "BUILD-FAST"' "$STORY_TMP" 2>/dev/null)"
+
+  case "$build_type" in
+    BUILD-DEEP)
+      TIER_LADDER=("${TIER_LADDER_DEEP[@]}")
+      info "Build type: BUILD-DEEP → ladder: qwen3.6:35b → glm-5.2"
+      ;;
+    BUILD-FAST|*)
+      TIER_LADDER=("${TIER_LADDER_FAST[@]}")
+      info "Build type: BUILD-FAST → ladder: qwen3-coder:30b → glm-4.7 → glm-5.2"
+      ;;
+  esac
+}
+
 # ── WORKTREE PROVISIONING ────────────────────────────────────────────────────
 provision_worktree() {
   local wt="${WORKTREE_BASE}/${STORY}"
@@ -176,6 +206,18 @@ merge_and_cleanup_worktree() {
   success "Worktree + branch cleaned up."
 }
 
+# ── SYNC HARNESS FILES INTO WORKTREE ──────────────────────────────────────────
+# A worktree is a snapshot of the branch at creation time; plan.json drifts in
+# repo-root as we fix brittle acceptance checks. Sync the live plan.json into
+# the worktree so verify runs against current criteria. (verify2.sh is tracked
+# and stable; run-story.sh/build-context.sh aren't read inside the worktree.)
+sync_harness_to_worktree() {
+  local wt="$1"
+  info "Syncing plan.json into worktree..."
+  cp .research/plan.json "${wt}/.research/plan.json" 2>/dev/null || true
+  success "plan.json synced."
+}
+
 # ── CONTEXT BUNDLE ────────────────────────────────────────────────────────────
 build_context_bundle() {
   info "Building context bundle..."
@@ -193,12 +235,6 @@ build_context_bundle() {
   else
     warn "build-context.sh failed — proceeding without bundle."
   fi
-}
-
-# ── SCOPE.FILES LIST (for Aider file allowlist) ───────────────────────────────
-get_scope_files() {
-  # Returns space-separated list of files from plan.json scope.files
-  jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null
 }
 
 # ── PROMPT GENERATION (pi-style — for llama.cpp native tool calls) ───────────
@@ -237,7 +273,7 @@ $prior_failures
   fi
 
   cat > "$PROMPT_TMP" << PROMPT
-## Task: $STORY — $title [Tier $tier_num: $model via pi+llama.cpp, attempt $attempt_of_tier]
+## Task: $STORY — $title [Tier $tier_num: $model via pi, attempt $attempt_of_tier]
 
 ## Goal
 $goal
@@ -262,71 +298,6 @@ $failure_block
 - Do not create files outside the listed set.
 - Do not ask clarifying questions.
 - Emit ===STORY_COMPLETE=== when done.
-PROMPT
-
-  success "Prompt written to $PROMPT_TMP"
-}
-
-# ── PROMPT GENERATION (Aider-style — no tool-call instructions) ──────────────
-generate_prompt_aider() {
-  local model="$1"
-  local tier_num="$2"
-  local attempt_of_tier="$3"
-  local prior_failures="$4"
-  local wt="$5"
-
-  local title goal notes deps
-  title="$(jq -r '.title // "unknown"' "$STORY_TMP")"
-  goal="$(jq -r '.goal // "see scope"' "$STORY_TMP")"
-  notes="$(jq -r '.notes // ""' "$STORY_TMP")"
-  deps="$(jq -r '(.dependencies // []) | join(", ")' "$STORY_TMP")"
-
-  local criteria
-  criteria="$(jq -r '(.acceptanceCriteria // []) | .[] | .text' "$STORY_TMP" 2>/dev/null | sed 's/^/  - [ ] /')"
-
-  local failure_block=""
-  if [[ -n "$prior_failures" ]]; then
-    failure_block="
-## Prior Attempt Failed — Fix These
-The previous tier failed QA. These specific criteria were not met:
-$prior_failures
-
-Address each failed criterion explicitly. Do not re-implement what already
-passes — check what exists first, then fix only what failed.
-"
-  fi
-
-  local model_short; model_short="$(echo "$model" | sed 's|.*/||')"
-
-  cat > "$PROMPT_TMP" << PROMPT
-## Task: $STORY — $title [Tier $tier_num: $model_short via Aider, attempt $attempt_of_tier]
-
-## Goal
-$goal
-
-## Acceptance Criteria (ALL must pass before you finish)
-$criteria
-
-## Context Bundle
-A precomputed context bundle is at .research/contexts/${STORY}.json — read it
-to see exact current file contents, sliced regions for shared files, and any
-resolutions.
-
-## Notes / Known Risks
-$notes
-
-## Dependencies (already done — do not re-implement)
-$deps
-$failure_block
-## Rules
-- Work inside this repo only. The files in your allowlist are the CLOSED SET.
-- Write the *.spec.ts file FIRST. Run it. See RED. Then implement. Then GREEN.
-- Money values are integers (cents), never floats. recoveryRatio is a float.
-- TypeScript only, no .js files in backend.
-- No comments in generated code, ever.
-- Do not ask clarifying questions — the spec is complete.
-- Do not modify .gitignore or any file outside your allowlist.
-- When all acceptance criteria pass, you may stop. Emit a brief summary.
 PROMPT
 
   success "Prompt written to $PROMPT_TMP"
@@ -367,6 +338,8 @@ $prior_failures
 "
   fi
 
+  local model_short; model_short="$(echo "$model" | sed 's|.*/||')"
+
   cat > "$PROMPT_TMP" << PROMPT
 ## Task: $STORY — $title [Tier $tier_num: $model_short, attempt $attempt_of_tier]
 
@@ -401,10 +374,6 @@ print_session_instructions() {
   local wt="$5"
   local branch="build/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
 
-  local scope_files
-  scope_files="$(get_scope_files | tr '\n' ' ')"
-  scope_files="${scope_files% }"
-
   rule
   echo -e "${BOLD}SESSION — Tier $tier_num: $model via $harness (attempt $attempt_of_tier)${RESET}"
   rule
@@ -414,30 +383,41 @@ print_session_instructions() {
   echo "  Branch:   $branch"
   echo
   if [[ "$harness" == "pi" ]]; then
-    echo -e "${BOLD}1. Launch pi inside the worktree${RESET}"
+    case "$model" in
+      zai-coding-plan/*)
+        echo -e "${BOLD}0. Cloud model — no llama-server needed${RESET}"
+        echo
+        echo -e "${BOLD}1. Launch pi inside the worktree${RESET}"
+        echo
+        echo "   cd $wt"
+        echo "   pi @$PROMPT_TMP"
+        echo
+        echo -e "${BOLD}   Before pressing Enter: /models → select $model${RESET}"
+        ;;
+      *)
+        local start_arg="coder"
+        case "$model" in
+          *thinking*|qwen3.6*) start_arg="thinking" ;;
+          *flash*)             start_arg="flash" ;;
+        esac
+        echo -e "${BOLD}0. Ensure llama-server is running $model${RESET}"
+        echo
+        echo "   ~/start-llama.sh $start_arg"
+        echo
+        echo -e "${BOLD}1. Launch pi inside the worktree${RESET}"
+        echo
+        echo "   cd $wt"
+        echo "   pi @$PROMPT_TMP"
+        echo
+        echo -e "${BOLD}   Before pressing Enter: /models → select llama-server/$model${RESET}"
+        ;;
+    esac
     echo
-    echo "   cd $wt"
-    echo "   pi @$PROMPT_TMP"
-    echo
-    echo -e "${BOLD}   Before pressing Enter: /models → select llama.cpp/$model${RESET}"
-    echo
-  elif [[ "$harness" == "aider" ]]; then
-    echo -e "${BOLD}1. Launch Aider inside the worktree${RESET}"
-    echo
-    echo "   cd $wt"
-    echo "   aider --model openai/$model \\"
-    echo "         --openai-api-base http://127.0.0.1:8080/v1 \\"
-    echo "         --openai-api-key dummy \\"
-    echo "         --no-auto-commits --yes \\"
-    echo "         --message \"\$(cat $PROMPT_TMP)\" \\"
-    echo "         $scope_files"
   else
-    echo -e "${BOLD}1. Launch opencode inside the worktree${RESET}"
+    echo -e "${BOLD}1. Launch $harness inside the worktree${RESET}"
     echo
     echo "   cd $wt"
-    echo "   opencode run -m $model \"\$(cat $PROMPT_TMP)\""
-    echo
-    echo -e "${BOLD}   (or interactive: opencode -m $model, then paste prompt)${RESET}"
+    echo "   $harness run -m $model \"\$(cat $PROMPT_TMP)\""
   fi
   echo
   rule
@@ -573,11 +553,15 @@ main() {
 
   check_dependencies
   extract_story
+  select_tier_ladder
 
   local needs_llama=false
   for tier_entry in "${TIER_LADDER[@]}"; do
-    IFS='|' read -r _ harness _ _ <<< "$tier_entry"
-    [[ "$harness" == "pi" || "$harness" == "aider" ]] && needs_llama=true
+    IFS='|' read -r _ _ model _ <<< "$tier_entry"
+    case "$model" in
+      zai-coding-plan/*) ;;
+      *) needs_llama=true ;;
+    esac
   done
   if $needs_llama; then
     check_llama_server
@@ -586,6 +570,7 @@ main() {
   local wt; wt="$(provision_worktree)"
   local branch="build/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
 
+  sync_harness_to_worktree "$wt"
   build_context_bundle "$wt"
 
   local prior_failures=""
@@ -603,8 +588,6 @@ main() {
 
       if [[ "$harness" == "pi" ]]; then
         generate_prompt_pi "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
-      elif [[ "$harness" == "aider" ]]; then
-        generate_prompt_aider "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
       else
         generate_prompt_opencode "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
       fi
@@ -642,17 +625,17 @@ main() {
     done
   done
 
-  cat << EOF
+  rule
+  error "$STORY EXHAUSTED all tiers. Final tier failed."
 
-$(rule)
-$(error "$STORY EXHAUSTED all tiers. T5 (glm-5.2 via opencode) failed.")
+  cat << EOF
 
 Worktree preserved at: $wt
 Branch: $branch
 
 Options:
   1) Manual fix in worktree, then re-run verify inside it
-  2) opencode thinking tier reviews the failing criterion and proposes a fix
+  2) Thinking tier reviews the failing criterion and proposes a fix
   3) Abort — remove worktree + branch
 EOF
   read -rp "  Choice [1/2/3]: " choice

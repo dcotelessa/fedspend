@@ -163,6 +163,18 @@
       "criteriaFail": 0,
       "errors": "",
       "timestamp": "2026-06-22T17:34:39Z"
+    },
+    {
+      "story": "E2-S01",
+      "epic": "E2",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 166,
+      "timestamp": "2026-06-23T01:18:52Z"
     }
   ]
 }
