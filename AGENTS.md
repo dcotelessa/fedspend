@@ -77,13 +77,17 @@ Research → Planning → Handoff → Build → QA-verify → QA-review → Repo
 - **QA-verify:** `verify2.sh --guard` — deterministic, no model, the only thing
   that decides PASS/FAIL.
 - **QA-review:** `qa-review.sh <STORY>` — behavior-preserving refinement pass
-  on a PASSed story, driven by pi + qwen3.6:35b (local thinking). Runs in a
-  fresh worktree `../fedspend-qa/<STORY>/` on branch `qa/<STORY>`. The story's
-  `scope.files` are the CLOSED SET; the table-driven spec is the contract (may
-  add edge-case rows, never weakens existing assertions). After pi refines,
-  `verify2.sh --guard` re-checks every criterion; on PASS the full diff is
-  shown and merge waits on a human [y/N]. Manual invoke after a watched story
-  PASSes — not wired into run-story.sh.
+  on a PASSed story, driven by pi. Runs in a fresh worktree
+  `../fedspend-qa/<STORY>/` on branch `qa/<STORY>`. The QA model is **auto-picked
+  to be different + stronger than the builder** (cross-model review breaks the
+  self-review blind spot): built by `qwen3-coder:30b` → QA with `qwen3.6:35b`
+  (local thinking); built by `qwen3.6:35b` → QA with `zai-coding-plan/glm-5.2`
+  (cloud). Override with `--model <model>`. The story's `scope.files` are the
+  CLOSED SET; the table-driven spec is the contract (may add edge-case rows,
+  never weakens existing assertions). After pi refines, `verify2.sh --guard`
+  re-checks every criterion; on PASS the full diff is shown and merge waits on
+  a human [y/N]. Manual invoke after a watched story PASSes — not wired into
+  run-story.sh.
 - **Report:** per-epic `.research/capability-study-E<N>.md`.
 
 ## Skill 1: Boundary-First Schema Enforcement (`enforce_boundaries`)

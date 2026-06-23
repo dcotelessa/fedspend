@@ -10,7 +10,13 @@
 #   scope.files (behavior-preserving) → re-verify → PAUSE for human review of
 #   the diff → on approval, ff-merge qa/<STORY> → main.
 #
-# Model: qwen3.6:35b via pi (local thinking). Requires ~/start-llama.sh thinking.
+# Model: auto-picked to be DIFFERENT + STRONGER than the builder (cross-model
+# review breaks self-review blind spots). Reads the PASSing model from
+# build-log.json:
+#   built by qwen3-coder:30b → QA with qwen3.6:35b   (local thinking, free)
+#   built by qwen3.6:35b      → QA with zai-coding-plan/glm-5.2 (cloud thinker)
+# Override with: ./qa-review.sh <STORY> --model <model>
+# Cloud tiers skip the llama-server health check.
 #
 # The story's scope.files are the CLOSED SET. QA refactors within them only,
 # the existing table-driven spec is the contract (must stay green), and
@@ -27,12 +33,27 @@ WORKTREE_BASE="../fedspend-qa"
 STORY_TMP="/tmp/qa-story.json"
 PROMPT_TMP="/tmp/qa-prompt.txt"
 VERIFY_OUT="/tmp/qa-verify.txt"
-MODEL="qwen3.6:35b"
+MODEL_OVERRIDE=""
 export PATH="$HOME/.local/bin:$PATH"
 
-STORY="${1:-}"
+# ── ARG PARSING ───────────────────────────────────────────────────────────────
+# Usage: qa-review.sh <STORY> [--model <model>]
+STORY=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --model)
+      [[ $# -ge 2 ]] || { echo "--model requires a value" >&2; exit 2; }
+      MODEL_OVERRIDE="$2"; shift 2 ;;
+    -h|--help)
+      echo "Usage: $0 <STORY_ID> [--model <model>]   (e.g. ./qa-review.sh E2-S02)" >&2
+      exit 0 ;;
+    *)
+      [[ -z "$STORY" ]] || { echo "unexpected extra arg: $1" >&2; exit 2; }
+      STORY="$1"; shift ;;
+  esac
+done
 if [[ -z "$STORY" ]]; then
-  echo "Usage: $0 <STORY_ID>   (e.g. ./qa-review.sh E2-S02)" >&2
+  echo "Usage: $0 <STORY_ID> [--model <model>]   (e.g. ./qa-review.sh E2-S02)" >&2
   exit 2
 fi
 
@@ -67,19 +88,50 @@ if [[ "${pass_count:-0}" -eq 0 ]]; then
 fi
 success "$STORY has PASSed verify — eligible for QA."
 
-# llama-server must be running the thinking model (local QA tier).
-if ! curl -s "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
-  error "llama-server not running on port 8080."
-  echo "  Start it with: ~/start-llama.sh thinking" >&2
-  exit 1
+# ── RESOLVE QA MODEL (cross-model: different + stronger than the builder) ─────
+pick_qa_model() {
+  local builder="$1"
+  case "$builder" in
+    qwen3-coder:30b) echo "qwen3.6:35b" ;;           # local thinking, cross-model, free
+    qwen3.6:35b)     echo "zai-coding-plan/glm-5.2" ;; # cloud — breaks self-review
+    glm-4.7-flash)   echo "zai-coding-plan/glm-5.2" ;; # cloud — breaks self-review
+    *)               echo "zai-coding-plan/glm-5.2" ;; # default: strongest, different
+  esac
+}
+
+if [[ -n "$MODEL_OVERRIDE" ]]; then
+  MODEL="$MODEL_OVERRIDE"
+  info "QA model overridden: $MODEL"
+else
+  builder_model="$(jq -r --arg id "$STORY" \
+    '[.runs[] | select(.story==$id and .result=="PASS")] | sort_by(.timestamp) | last | .model // "unknown"' \
+    "$BUILD_LOG" 2>/dev/null)"
+  MODEL="$(pick_qa_model "$builder_model")"
+  info "Story built by $builder_model → QA with $MODEL (cross-model)"
 fi
-current_model="$(curl -s "http://127.0.0.1:8080/v1/models" 2>/dev/null \
-  | jq -r '.models[0].model // .data[0].id // "unknown"' 2>/dev/null)"
-if [[ "$current_model" != "$MODEL" ]]; then
-  warn "llama-server is running '$current_model', QA wants '$MODEL'."
-  echo "  Run: ~/start-llama.sh thinking" >&2
-  read -rp "  Continue anyway? [y/N] " ok
-  [[ "$ok" =~ ^[Yy]$ ]] || { error "Aborted."; exit 1; }
+
+is_cloud=false
+case "$MODEL" in
+  zai-coding-plan/*) is_cloud=true ;;
+esac
+
+# Local tiers need llama-server running the right model; cloud tiers don't.
+if ! $is_cloud; then
+  if ! curl -s "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+    error "llama-server not running on port 8080."
+    echo "  Start it with: ~/start-llama.sh thinking" >&2
+    exit 1
+  fi
+  current_model="$(curl -s "http://127.0.0.1:8080/v1/models" 2>/dev/null \
+    | jq -r '.models[0].model // .data[0].id // "unknown"' 2>/dev/null)"
+  if [[ "$current_model" != "$MODEL" ]]; then
+    warn "llama-server is running '$current_model', QA wants '$MODEL'."
+    echo "  Run: ~/start-llama.sh thinking" >&2
+    read -rp "  Continue anyway? [y/N] " ok
+    [[ "$ok" =~ ^[Yy]$ ]] || { error "Aborted."; exit 1; }
+  fi
+else
+  success "Cloud QA model ($MODEL) — no llama-server needed."
 fi
 
 # ── PROVISION QA WORKTREE ─────────────────────────────────────────────────────
@@ -186,12 +238,20 @@ print_session() {
   echo "  Worktree: $wt"
   echo "  Branch:   $branch"
   echo
+  if $is_cloud; then
+    echo -e "${BOLD}0. Cloud QA model — no llama-server needed${RESET}"
+  else
+    echo -e "${BOLD}0. Ensure llama-server is running $MODEL${RESET}"
+    echo
+    echo "   ~/start-llama.sh thinking"
+  fi
+  echo
   echo -e "${BOLD}1. Launch pi inside the QA worktree${RESET}"
   echo
   echo "   cd $wt"
   echo "   pi @$PROMPT_TMP"
   echo
-  echo -e "${BOLD}   Before pressing Enter: /models → select llama-server/$MODEL${RESET}"
+  echo -e "${BOLD}   Before pressing Enter: /models → select $MODEL${RESET}"
   echo
   echo "   pi will refine the scope.files in place, run the spec + build,"
   echo "   and emit ===QA_COMPLETE=== when done."
