@@ -13,6 +13,16 @@ describe('OpenFemaService.fetchDeclarationsByState', () => {
       }>;
       meta: { total: number; page: number; pageSize: number };
     };
+    mockPages?: Array<{
+      data: Array<{
+        incidentType: string;
+        state: string;
+        stateName: string;
+        declarationDate: string;
+        obligatedAmount: number;
+      }>;
+      meta: { total: number; page: number; pageSize: number };
+    }>;
     expected: Array<{
       stateCode: string;
       stateName: string;
@@ -222,6 +232,110 @@ describe('OpenFemaService.fetchDeclarationsByState', () => {
         },
       ],
     },
+    {
+      name: 'aggregates across multiple paginated API responses',
+      mockPages: [
+        {
+          data: [
+            {
+              incidentType: 'Wildfire',
+              state: 'CA',
+              stateName: 'California',
+              declarationDate: '2024-07-15',
+              obligatedAmount: 500000,
+            },
+          ],
+          meta: { total: 3, page: 1, pageSize: 2 },
+        },
+        {
+          data: [
+            {
+              incidentType: 'Flood',
+              state: 'CA',
+              stateName: 'California',
+              declarationDate: '2024-08-20',
+              obligatedAmount: 300000,
+            },
+            {
+              incidentType: 'Tornado',
+              state: 'TX',
+              stateName: 'Texas',
+              declarationDate: '2024-06-01',
+              obligatedAmount: 1000000,
+            },
+          ],
+          meta: { total: 3, page: 2, pageSize: 2 },
+        },
+      ],
+      expected: [
+        {
+          stateCode: 'CA',
+          stateName: 'California',
+          fiscalYear: 2024,
+          femaObligatedCents: 80000000,
+          declarationCount: 2,
+          dominantIncidentType: 'Flood',
+        },
+        {
+          stateCode: 'TX',
+          stateName: 'Texas',
+          fiscalYear: 2024,
+          femaObligatedCents: 100000000,
+          declarationCount: 1,
+          dominantIncidentType: 'Tornado',
+        },
+      ],
+    },
+    {
+      name: 'fractional dollar amounts convert to correct integer cents',
+      mockResponse: {
+        data: [
+          {
+            incidentType: 'Earthquake',
+            state: 'AK',
+            stateName: 'Alaska',
+            declarationDate: '2024-03-01',
+            obligatedAmount: 1234.56,
+          },
+        ],
+        meta: { total: 1, page: 1, pageSize: 100 },
+      },
+      expected: [
+        {
+          stateCode: 'AK',
+          stateName: 'Alaska',
+          fiscalYear: 2024,
+          femaObligatedCents: 123456,
+          declarationCount: 1,
+          dominantIncidentType: 'Earthquake',
+        },
+      ],
+    },
+    {
+      name: 'zero obligatedAmount produces zero cents',
+      mockResponse: {
+        data: [
+          {
+            incidentType: 'Wildfire',
+            state: 'NV',
+            stateName: 'Nevada',
+            declarationDate: '2024-01-15',
+            obligatedAmount: 0,
+          },
+        ],
+        meta: { total: 1, page: 1, pageSize: 100 },
+      },
+      expected: [
+        {
+          stateCode: 'NV',
+          stateName: 'Nevada',
+          fiscalYear: 2024,
+          femaObligatedCents: 0,
+          declarationCount: 1,
+          dominantIncidentType: 'Wildfire',
+        },
+      ],
+    },
   ];
 
   const mockFetch = jest.fn();
@@ -239,11 +353,29 @@ describe('OpenFemaService.fetchDeclarationsByState', () => {
     mockFetch.mockReset();
   });
 
-  it.each(testTable)('$name', async ({ mockResponse, expected }) => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockResponse),
-    });
+  it.each(testTable)('$name', async ({ mockResponse, mockPages, expected }) => {
+    if (mockPages) {
+      mockFetch.mockImplementation((url: string) => {
+        const pageMatch = url.match(/page=(\d+)/);
+        if (pageMatch) {
+          const page = parseInt(pageMatch[1]);
+          const pageData = mockPages![page - 1];
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(pageData),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockPages![0]),
+        });
+      });
+    } else {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+    }
 
     const service = new OpenFemaService();
     const result = await service.fetchDeclarationsByState();
