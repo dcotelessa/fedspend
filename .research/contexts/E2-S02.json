@@ -1,0 +1,138 @@
+{
+  "story": "E2-S02",
+  "epic": "E2",
+  "title": "UsaSpendingService — Fetch/Transform/Return deep module",
+  "goal": "Implement UsaSpendingService as ONE deep module that fetches from USASpending.gov, transforms raw rows into cents-integers, and returns typed entity-shaped objects. Methods: fetchAgencies(), fetchSpendingByAgency(agency, fiscalYear), fetchGeoSnapshots(agency, fiscalYear, scope), fetchDisasterSpending(defGroup). Private retry wrapper (3 attempts, exponential backoff). No upsert here — SyncService owns persistence.",
+  "notes": "Deep module per AGENTS.md Skill 3: ONE file, top-to-bottom legible. The Fetch (HTTP), Transform (raw dollars → cents), and Return (typed) steps stay together. Use global fetch() — no axios dependency. Mock fetch in the spec via jest.spyOn(global, 'fetch'). The spec testTable must cover: (a) raw dollar field 1234.56 → obligatedAmount 123456 cents, (b) pagination handled across multiple pages, (c) HTTP 500 then 200 → retry succeeds, (d) HTTP 500 thrice → throws after 3 attempts. Do NOT call the real USASpending API in unit tests — all fetches mocked.",
+  "dependencies": "E2-S01",
+  "acceptanceCriteria": [
+    {
+      "text": "usa-spending.service.ts exists with all 4 fetch methods",
+      "check": "cd backend && grep -q 'fetchAgencies' src/sync/usa-spending.service.ts && grep -q 'fetchSpendingByAgency' src/sync/usa-spending.service.ts && grep -q 'fetchGeoSnapshots' src/sync/usa-spending.service.ts && grep -q 'fetchDisasterSpending' src/sync/usa-spending.service.ts"
+    },
+    {
+      "text": "service transforms dollar amounts to integer cents",
+      "check": "cd backend && grep -qE '(\\* 100|Math.round.*100)' src/sync/usa-spending.service.ts"
+    },
+    {
+      "text": "retry logic present (3 attempts, exponential backoff)",
+      "check": "cd backend && grep -qE '(for.*attempts|retry|backoff|Math.pow.*2)' src/sync/usa-spending.service.ts"
+    },
+    {
+      "text": "UsaSpendingService registered in SyncModule providers",
+      "check": "cd backend && grep -q 'UsaSpendingService' src/sync/sync.module.ts"
+    },
+    {
+      "text": "usa-spending.service.spec.ts passes (table-driven: transform correctness per award type, transform correctness per geo scope, retry-then-success, retry-then-failure)",
+      "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "backend builds",
+      "check": "cd backend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/sync/sync.module.ts",
+      "mode": "slice",
+      "start": 1,
+      "end": 25,
+      "reason": "providers array — register UsaSpendingService",
+      "excerpt": "   1: import { Module } from '@nestjs/common';\n   2: import { SyncService } from './sync.service';\n   3: \n   4: @Module({\n   5:   providers: [SyncService],\n   6: })\n   7: export class SyncModule {}"
+    }
+  ]
+}
