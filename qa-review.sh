@@ -191,8 +191,12 @@ edge-case rows to a testTable (sharpening the matrix) but must NOT weaken or
 remove existing assertions, and must NOT change the public API or observable
 behavior.
 
-## Files (CLOSED SET — modify ONLY these)
+## Files (CLOSED SET — EDIT these existing files ONLY)
 $files
+You may ONLY edit the files listed above. Do NOT create new files. Do NOT
+delete or rename files. If you believe a new file is warranted, flag it in your
+final summary instead of creating it — file creation is a planning/story change,
+not a QA refinement.
 
 ## Review Dimensions (apply the AGENTS.md quality bar)
 - Naming: are identifiers intention-revealing? Rename where clearer.
@@ -209,8 +213,9 @@ $files
   in source.
 
 ## Constraints (hard)
-- Touch ONLY the files listed above. Anything else is a failure.
+- EDIT ONLY the files listed above. No creating, deleting, or renaming files.
 - Prefer surgical edits over rewrites. Refactor only what is clearly improved.
+- Behavior-preserving: the existing table-driven spec is the contract.
 - Keep the build green: \`cd backend && pnpm build\` must pass.
 - Keep tests green: \`cd backend && pnpm test --testPathPatterns=${spec_file##*/}\` must pass.
 
@@ -285,6 +290,25 @@ review_and_merge() {
   done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
 
   (cd "$wt" && git add -- "${scope_args[@]}" 2>/dev/null)
+
+  # Off-contract detection: QA must only EDIT scope.files (which are now staged
+  # as "M " — staged modification). Any other porcelain status — untracked (??),
+  # deletion (D), rename (R), or worktree modification of a non-scope file ( M) —
+  # means the model went beyond refinement. Those are NOT staged (won't merge)
+  # but the human must see them before approving.
+  local off_contract
+  off_contract="$(cd "$wt" && git status --porcelain \
+    | while IFS= read -r line; do
+        [[ "${line:0:2}" != "M " ]] && echo "$line"
+      done)"
+  if [[ -n "$off_contract" ]]; then
+    warn "QA introduced off-contract file ops (not staged, will NOT merge):"
+    echo "$off_contract" | sed 's/^/    /' >&2
+    echo "  These violate the EDIT-ONLY contract — the model created/deleted/" >&2
+    echo "  renamed/modified-non-scope files instead of refining in place." >&2
+    read -rp "  Proceed with merging scope-file edits anyway? [y/N]: " proceed
+    [[ "$proceed" =~ ^[Yy]$ ]] || { warn "Aborted — worktree preserved at $wt."; exit 0; }
+  fi
 
   if (cd "$wt" && git diff --cached --quiet); then
     warn "No changes staged — QA made no refinements within scope.files."
