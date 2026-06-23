@@ -520,7 +520,7 @@ update_capability_report() {
   local tier_distribution
   tier_distribution="$(jq -r --arg epic "$epic" '
     [.runs[] | select(.epic==$epic and .result=="PASS")]
-    | group_by(.tier)
+    | group_by(.tier + "/" + .harness + "/" + .model)
     | map({tier: .[0].tier, harness: .[0].harness, model: .[0].model, count: length})
     | map("  \( .tier) \( .harness)/\( .model): \( .count)")
     | join("\n")

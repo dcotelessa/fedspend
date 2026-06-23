@@ -5,7 +5,8 @@ Auto-updated after each story PASS. Source: `build-log.json`.
 ## Tier distribution (PASS only)
 
 ```
-  T1 pi/qwen3-coder:30b: 2
+  T1 pi/qwen3-coder:30b: 1
+  T1 pi/qwen3.6:35b: 1
 ```
 
 Total PASS in epic: **2**
