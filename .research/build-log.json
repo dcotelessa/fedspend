@@ -187,6 +187,30 @@
       "tierMaxAttempts": 2,
       "elapsedSec": 1024,
       "timestamp": "2026-06-23T02:23:50Z"
+    },
+    {
+      "story": "E2-S03",
+      "epic": "E2",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3.6:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 14260,
+      "timestamp": "2026-06-23T08:03:45Z"
+    },
+    {
+      "story": "E2-S04",
+      "epic": "E2",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3.6:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 287,
+      "timestamp": "2026-06-23T09:21:02Z"
     }
   ]
 }

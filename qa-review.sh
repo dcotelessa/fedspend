@@ -334,7 +334,10 @@ review_and_merge() {
       local msg="QA: $STORY refinements (behavior-preserving, verify green)"
       (cd "$wt" && git commit -m "$msg" --no-verify) >/dev/null 2>&1
       info "Merging $branch → main..."
-      rm -f ".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md" 2>/dev/null || true
+      for _ctx in ".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md"; do
+        [[ -f "$_ctx" ]] || continue
+        git ls-files --error-unmatch "$_ctx" >/dev/null 2>&1 || rm -f "$_ctx"
+      done
       if git merge --ff-only "$branch" >/dev/null 2>&1; then
         success "Merged."
       else

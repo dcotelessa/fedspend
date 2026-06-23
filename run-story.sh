@@ -195,8 +195,12 @@ merge_and_cleanup_worktree() {
   # build_context_bundle regenerates the per-story bundle in repo-root as
   # untracked files; the branch also commits them, so a merge would abort with
   # "untracked working tree files would be overwritten." Drop the transient
-  # copies — the merge brings the canonical committed versions back.
-  rm -f ".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md" 2>/dev/null || true
+  # UNTRACKED copies only — never delete tracked context files (QA runs hit this
+  # path with already-merged contexts that must persist).
+  for _ctx in ".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md"; do
+    [[ -f "$_ctx" ]] || continue
+    git ls-files --error-unmatch "$_ctx" >/dev/null 2>&1 || rm -f "$_ctx"
+  done
   if git merge --ff-only "$branch" >/dev/null 2>&1; then
     success "Merged."
   else
