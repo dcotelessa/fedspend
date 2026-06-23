@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+#
+# qa-review.sh — behavior-preserving QA refinement pass on a PASSed story.
+#
+# Usage:
+#   ./qa-review.sh E2-S02
+#
+# Pipeline:
+#   provision qa worktree → sync plan.json → generate QA prompt → pi refines
+#   scope.files (behavior-preserving) → re-verify → PAUSE for human review of
+#   the diff → on approval, ff-merge qa/<STORY> → main.
+#
+# Model: qwen3.6:35b via pi (local thinking). Requires ~/start-llama.sh thinking.
+#
+# The story's scope.files are the CLOSED SET. QA refactors within them only,
+# the existing table-driven spec is the contract (must stay green), and
+# verify2.sh --guard re-checks every acceptance criterion after refinement.
+#
+# Run from repo root. Dependencies: jq, bash 4+, pi.
+
+set -u
+
+# ── PATHS / CONFIG ────────────────────────────────────────────────────────────
+PLAN=".research/plan.json"
+BUILD_LOG=".research/build-log.json"
+WORKTREE_BASE="../fedspend-qa"
+STORY_TMP="/tmp/qa-story.json"
+PROMPT_TMP="/tmp/qa-prompt.txt"
+VERIFY_OUT="/tmp/qa-verify.txt"
+MODEL="qwen3.6:35b"
+export PATH="$HOME/.local/bin:$PATH"
+
+STORY="${1:-}"
+if [[ -z "$STORY" ]]; then
+  echo "Usage: $0 <STORY_ID>   (e.g. ./qa-review.sh E2-S02)" >&2
+  exit 2
+fi
+
+# ── COLOURS (all logs to stderr — never pollute captured stdout) ──────────────
+RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'
+CYAN='\033[36m'; BOLD='\033[1m'; RESET='\033[0m'
+info()    { echo -e "${CYAN}▶${RESET} $*" >&2; }
+success() { echo -e "${GREEN}✓${RESET} $*" >&2; }
+warn()    { echo -e "${YELLOW}⚠${RESET} $*" >&2; }
+error()   { echo -e "${RED}✗${RESET} $*" >&2; }
+rule()    { echo -e "${BOLD}──────────────────────────────────────────────────${RESET}" >&2; }
+
+# ── GUARDS ────────────────────────────────────────────────────────────────────
+[[ -f "$PLAN" ]]       || { error "No $PLAN."; exit 2; }
+command -v jq >/dev/null || { error "jq required."; exit 2; }
+
+story_json="$(jq --arg id "$STORY" '.stories[] | select(.id==$id)' "$PLAN" 2>/dev/null)"
+if [[ -z "$story_json" || "$story_json" == "null" ]]; then
+  error "Story $STORY not found in $PLAN."
+  jq -r '.stories[].id' "$PLAN" 2>/dev/null | sed 's/^/  /' >&2
+  exit 1
+fi
+echo "$story_json" > "$STORY_TMP"
+
+# QA only runs on stories that have PASSed verify.
+pass_count="$(jq -r --arg id "$STORY" \
+  '[.runs[] | select(.story==$id and .result=="PASS")] | length' \
+  "$BUILD_LOG" 2>/dev/null)"
+if [[ "${pass_count:-0}" -eq 0 ]]; then
+  error "$STORY has no PASS entry in $BUILD_LOG. QA reviews completed stories only."
+  exit 1
+fi
+success "$STORY has PASSed verify — eligible for QA."
+
+# llama-server must be running the thinking model (local QA tier).
+if ! curl -s "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+  error "llama-server not running on port 8080."
+  echo "  Start it with: ~/start-llama.sh thinking" >&2
+  exit 1
+fi
+current_model="$(curl -s "http://127.0.0.1:8080/v1/models" 2>/dev/null \
+  | jq -r '.models[0].model // .data[0].id // "unknown"' 2>/dev/null)"
+if [[ "$current_model" != "$MODEL" ]]; then
+  warn "llama-server is running '$current_model', QA wants '$MODEL'."
+  echo "  Run: ~/start-llama.sh thinking" >&2
+  read -rp "  Continue anyway? [y/N] " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || { error "Aborted."; exit 1; }
+fi
+
+# ── PROVISION QA WORKTREE ─────────────────────────────────────────────────────
+provision_worktree() {
+  local wt="${WORKTREE_BASE}/${STORY}"
+  local branch="qa/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
+  mkdir -p "$WORKTREE_BASE"
+
+  if git worktree list | grep -q "$wt"; then
+    info "QA worktree already exists at $wt — reusing."
+  else
+    info "Provisioning QA worktree at $wt on branch $branch..."
+    if git show-ref --verify --quiet "refs/heads/$branch"; then
+      git worktree add --detach "$wt" "$branch" >/dev/null 2>&1 || {
+        error "Failed to attach worktree to existing branch $branch."; exit 1; }
+    else
+      git worktree add -b "$branch" "$wt" HEAD >/dev/null 2>&1 || {
+        error "git worktree add failed."; exit 1; }
+    fi
+    (cd "$wt" && mise trust >/dev/null 2>&1 || true)
+    success "QA worktree ready (branched from $(git rev-parse --abbrev-ref HEAD))."
+  fi
+  echo "$wt"
+}
+
+# ── GENERATE QA PROMPT ────────────────────────────────────────────────────────
+# The prompt enforces: CLOSED SET = scope.files, behavior-preserving, AGENTS.md
+# quality bar, table-driven spec is the contract, no comments, emit QA_COMPLETE.
+generate_qa_prompt() {
+  local wt="$1"
+
+  local title goal notes
+  title="$(jq -r '.title // "unknown"' "$STORY_TMP")"
+  goal="$(jq -r '.goal // ""' "$STORY_TMP")"
+  notes="$(jq -r '.notes // ""' "$STORY_TMP")"
+
+  local spec_file
+  spec_file="$(jq -r '(.scope.files // []) | map(select(test("\\.spec\\.ts$")))[0] // ""' "$STORY_TMP")"
+
+  local files=""
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    if [[ -e "${wt}/${f}" ]]; then
+      files+="  - ${f}"$'\n'
+    else
+      files+="  - ${f}  (MISSING — flag this, do not create)"$'\n'
+    fi
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+
+  cat > "$PROMPT_TMP" << PROMPT
+## QA Refinement — $STORY — $title
+
+## Goal
+Behavior-preserving refinement of a story that already PASSes verify. The
+existing table-driven spec is the contract: it must stay green. You may ADD
+edge-case rows to a testTable (sharpening the matrix) but must NOT weaken or
+remove existing assertions, and must NOT change the public API or observable
+behavior.
+
+## Files (CLOSED SET — modify ONLY these)
+$files
+
+## Review Dimensions (apply the AGENTS.md quality bar)
+- Naming: are identifiers intention-revealing? Rename where clearer.
+- Dead code, unused imports, unreachable branches.
+- Duplication that can be collapsed WITHOUT introducing a shallow abstraction.
+- Shallow-abstraction smell: premature interfaces, micro-classes, one-impl
+  abstractions. Collapse them.
+- Module depth (Ousterhout): are Fetch → Transform → Return steps bundled into
+  one deep module, or fragmented across helpers? Consolidate.
+- Missing edge cases in the testTable — add rows, do not weaken existing ones.
+- Money = integer cents (never floats). recoveryRatio = dimensionless float.
+  Flag any violation.
+- No comments in code. Design intent lives in AGENTS.md and story notes, never
+  in source.
+
+## Constraints (hard)
+- Touch ONLY the files listed above. Anything else is a failure.
+- Prefer surgical edits over rewrites. Refactor only what is clearly improved.
+- Keep the build green: \`cd backend && pnpm build\` must pass.
+- Keep tests green: \`cd backend && pnpm test --testPathPatterns=${spec_file##*/}\` must pass.
+
+## Before finishing
+Run, in the worktree:
+  cd backend && pnpm test --testPathPatterns=${spec_file##*/} && pnpm build
+Both must succeed. Then emit exactly: ===QA_COMPLETE===
+
+## Story context (for reference, do not re-implement the feature)
+Goal: $goal
+Notes: $notes
+PROMPT
+
+  success "QA prompt written to $PROMPT_TMP"
+}
+
+# ── SESSION INSTRUCTIONS ──────────────────────────────────────────────────────
+print_session() {
+  local wt="$1"
+  local branch="qa/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
+  rule
+  echo -e "${BOLD}QA REVIEW — $STORY via pi ($MODEL)${RESET}"
+  rule
+  echo
+  echo "  Worktree: $wt"
+  echo "  Branch:   $branch"
+  echo
+  echo -e "${BOLD}1. Launch pi inside the QA worktree${RESET}"
+  echo
+  echo "   cd $wt"
+  echo "   pi @$PROMPT_TMP"
+  echo
+  echo -e "${BOLD}   Before pressing Enter: /models → select llama-server/$MODEL${RESET}"
+  echo
+  echo "   pi will refine the scope.files in place, run the spec + build,"
+  echo "   and emit ===QA_COMPLETE=== when done."
+  echo
+  rule
+  echo -e "${BOLD}2. When pi emits QA_COMPLETE, come back here and press Enter.${RESET}"
+  echo -e "${BOLD}   verify will re-check every acceptance criterion; you then review"
+  echo -e "${BOLD}   the diff and approve before merge.${RESET}"
+  rule
+}
+
+# ── VERIFY ────────────────────────────────────────────────────────────────────
+run_verify() {
+  local wt="$1"
+  info "Running verify2.sh --guard inside QA worktree..."
+  (cd "$wt" && bash ./verify2.sh "$STORY" --guard) 2>&1 | tee "$VERIFY_OUT"
+  return "${PIPESTATUS[0]}"
+}
+
+# ── DIFF + APPROVE + MERGE ────────────────────────────────────────────────────
+review_and_merge() {
+  local wt="$1"
+  local branch="qa/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
+  local base; base="$(git rev-parse HEAD)"
+
+  # Stage only scope.files in the worktree — never git add -A (would sweep
+  # build-log.json, run-story.sh, etc. into the QA commit).
+  local scope_args=()
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && scope_args+=("$f")
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+
+  (cd "$wt" && git add -- "${scope_args[@]}" 2>/dev/null)
+
+  if (cd "$wt" && git diff --cached --quiet); then
+    warn "No changes staged — QA made no refinements within scope.files."
+    echo "  Nothing to merge. Worktree preserved at $wt for inspection." >&2
+    exit 0
+  fi
+
+  echo
+  rule
+  echo -e "${BOLD}QA refinements (diff vs $STORY PASS):${RESET}"
+  rule
+  (cd "$wt" && git --no-pager diff --cached --stat)
+  echo
+  echo -e "${BOLD}Full diff:${RESET}"
+  (cd "$wt" && git --no-pager diff --cached)
+  echo
+  rule
+  echo -e "${BOLD}Commit + merge qa refinements into main?${RESET}"
+  read -rp "  [y/N/show-files]: " choice
+
+  case "$choice" in
+    [Yy]*)
+      local msg="QA: $STORY refinements (behavior-preserving, verify green)"
+      (cd "$wt" && git commit -m "$msg" --no-verify) >/dev/null 2>&1
+      info "Merging $branch → main..."
+      rm -f ".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md" 2>/dev/null || true
+      if git merge --ff-only "$branch" >/dev/null 2>&1; then
+        success "Merged."
+      else
+        warn "ff-only failed — regular merge."
+        git merge --no-edit "$branch" || {
+          error "Merge failed. Worktree preserved at $wt."; return 1; }
+      fi
+      git worktree remove "$wt" --force >/dev/null 2>&1
+      git branch -d "$branch" >/dev/null 2>&1
+      success "QA refinements merged. Worktree + branch cleaned up."
+      ;;
+    [Ss]*)
+      (cd "$wt" && git --no-pager diff --cached --name-only)
+      echo
+      read -rp "  Now merge? [y/N]: " choice2
+      [[ "$choice2" =~ ^[Yy]$ ]] || choice="n"
+      [[ "$choice" =~ ^[Yy]$ ]] || { warn "Aborted. Worktree preserved at $wt."; exit 0; }
+      ;;
+    *)
+      warn "Aborted — no merge. Worktree preserved at $wt for manual inspection."
+      echo "  Branch: $branch" >&2
+      echo "  Re-run: ./qa-review.sh $STORY (reuses the worktree)" >&2
+      exit 0
+      ;;
+  esac
+}
+
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+rule
+echo -e "${BOLD}qa-review.sh — $STORY${RESET}"
+rule
+echo
+
+wt="$(provision_worktree)"
+
+# Sync live plan.json so verify runs against current criteria.
+cp .research/plan.json "${wt}/.research/plan.json" 2>/dev/null || true
+
+generate_qa_prompt "$wt"
+print_session "$wt"
+
+read -rp "  Press Enter when pi emits QA_COMPLETE... " _
+
+echo
+rule
+if run_verify "$wt"; then
+  echo
+  success "$STORY still PASSes verify after QA refinement."
+  review_and_merge "$wt"
+else
+  echo
+  error "$STORY FAILED verify after QA refinement — the refinement changed behavior."
+  echo "  Worktree preserved at $wt for inspection." >&2
+  echo "  Options: fix in the worktree and re-run verify, or discard with:" >&2
+  echo "    git worktree remove $wt --force && git branch -D qa/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')" >&2
+  exit 1
+fi

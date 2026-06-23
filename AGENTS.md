@@ -76,9 +76,14 @@ Research → Planning → Handoff → Build → QA-verify → QA-review → Repo
   - T5 fail → stop, opencode thinking tier reviews, resume after human OK
 - **QA-verify:** `verify2.sh --guard` — deterministic, no model, the only thing
   that decides PASS/FAIL.
-- **QA-review:** opencode thinking tier (after 2–3 watched stories PASS) —
-  judgment pass on code that passed verify. Invoke via a fresh opencode
-  session with a `reviewer`-style prompt against the merged diff.
+- **QA-review:** `qa-review.sh <STORY>` — behavior-preserving refinement pass
+  on a PASSed story, driven by pi + qwen3.6:35b (local thinking). Runs in a
+  fresh worktree `../fedspend-qa/<STORY>/` on branch `qa/<STORY>`. The story's
+  `scope.files` are the CLOSED SET; the table-driven spec is the contract (may
+  add edge-case rows, never weakens existing assertions). After pi refines,
+  `verify2.sh --guard` re-checks every criterion; on PASS the full diff is
+  shown and merge waits on a human [y/N]. Manual invoke after a watched story
+  PASSes — not wired into run-story.sh.
 - **Report:** per-epic `.research/capability-study-E<N>.md`.
 
 ## Skill 1: Boundary-First Schema Enforcement (`enforce_boundaries`)
