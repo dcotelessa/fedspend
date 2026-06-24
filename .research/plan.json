@@ -1561,7 +1561,7 @@
       "acceptanceCriteria": [
         {
           "text": "AWARD_COLORS constant exists with 5 award types",
-          "check": "cd frontend && for t in Contracts Grants 'Direct Payments' Loans IDVs; do grep -q \"\\\"$t\\\"\" src/app/award-colors.ts || exit 1; done"
+          "check": "cd frontend && for t in Contracts Grants 'Direct Payments' Loans IDVs; do grep -qE \"['\\\"]$t['\\\"]\" src/app/award-colors.ts || exit 1; done"
         },
         {
           "text": "component has fiscalYearStart, fiscalYearEnd signals",
@@ -1985,7 +1985,7 @@
       "acceptanceCriteria": [
         {
           "text": "app.component.html has nav with routerLink to all 4 routes",
-          "check": "cd frontend && grep -q 'routerLink' src/app/app.component.html && for r '/' '/geography' '/agencies' '/disaster'; do grep -q \"\\\"$r\\\"\" src/app/app.component.html || exit 1; done"
+          "check": "cd frontend && grep -q 'routerLink' src/app/app.component.html && for r '/' '/geography' '/agencies' '/disaster'; do grep -qE \"['\\\"]$r['\\\"]\" src/app/app.component.html || exit 1; done"
         },
         {
           "text": "footer mentions USASpending.gov and OpenFEMA",
