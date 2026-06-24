@@ -223,6 +223,54 @@
       "tierMaxAttempts": 2,
       "elapsedSec": 1219,
       "timestamp": "2026-06-24T06:17:20Z"
+    },
+    {
+      "story": "E2-S06",
+      "epic": "E2",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 705,
+      "timestamp": "2026-06-24T17:36:18Z"
+    },
+    {
+      "story": "E2-S06",
+      "epic": "E2",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "FAIL",
+      "attemptOfTier": 2,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 116,
+      "timestamp": "2026-06-24T17:38:14Z"
+    },
+    {
+      "story": "E2-S06",
+      "epic": "E2",
+      "tier": "T2",
+      "harness": "pi",
+      "model": "zai-coding-plan/glm-4.7",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 105,
+      "timestamp": "2026-06-24T17:39:59Z"
+    },
+    {
+      "story": "E2-S06",
+      "epic": "E2",
+      "tier": "T3",
+      "harness": "pi",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 402,
+      "timestamp": "2026-06-24T17:46:41Z"
     }
   ]
 }
