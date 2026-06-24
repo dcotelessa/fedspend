@@ -86,6 +86,24 @@ if [[ "${pass_count:-0}" -eq 0 ]]; then
   error "$STORY has no PASS entry in $BUILD_LOG. QA reviews completed stories only."
   exit 1
 fi
+
+# Defense in depth: a build-log PASS doesn't guarantee the work was delivered —
+# if the build's commit/merge failed after verify, build-log holds a phantom PASS
+# but main lacks the scope.files. Confirm every scope.file is actually present
+# before branching a QA worktree from a main that would lack them.
+missing_files=""
+while IFS= read -r f; do
+  [[ -n "$f" ]] && [[ ! -f "$f" ]] && missing_files+="  - $f"$'\n'
+done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+if [[ -n "$missing_files" ]]; then
+  error "$STORY has a PASS in build-log but scope.files are missing on main:"
+  echo "$missing_files" >&2
+  echo "  The build's commit/merge likely failed after verify. Re-run:" >&2
+  echo "    ./run-story.sh $STORY" >&2
+  echo "  Do not run qa-review until the scope.files are actually on main." >&2
+  exit 1
+fi
+
 success "$STORY has PASSed verify — eligible for QA."
 
 # ── RESOLVE QA MODEL (cross-model: different + stronger than the builder) ─────

@@ -622,14 +622,27 @@ main() {
         local elapsed=$((end_sec - start_sec))
         echo
         success "$STORY PASSED at $tier_name ($model via $harness)."
-        record_result "PASS" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
-        commit_and_merge "$model" "$tier_name" "$harness" "$wt" "$branch"
-        update_capability_report
-        rule
-        echo
-        info "Next: ./run-story.sh <NEXT_STORY_ID>"
-        echo
-        exit 0
+        # Commit + merge FIRST. Only record PASS once the work is actually on
+        # main — if the merge fails, recording PASS would leave a phantom entry
+        # (build "PASSed" but no files delivered), which qa-review would then
+        # trust and run against a main missing the scope.files.
+        if commit_and_merge "$model" "$tier_name" "$harness" "$wt" "$branch"; then
+          record_result "PASS" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
+          update_capability_report
+          rule
+          echo
+          info "Next: ./run-story.sh <NEXT_STORY_ID>"
+          echo
+          exit 0
+        else
+          error "verify PASSed but commit/merge FAILED — PASS NOT recorded."
+          record_result "FAIL" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
+          echo
+          echo "  The build is preserved in worktree $wt (branch $branch)." >&2
+          echo "  Verify the merge issue, then either merge manually or re-run." >&2
+          echo "  Do NOT run qa-review until the scope.files are on main." >&2
+          exit 1
+        fi
       else
         local end_sec; end_sec="$(date +%s)"
         local elapsed=$((end_sec - start_sec))
