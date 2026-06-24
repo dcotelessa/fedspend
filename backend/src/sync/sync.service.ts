@@ -9,6 +9,7 @@ import { DisasterRecoveryRatio } from '../disaster/disaster-recovery-ratio.entit
 import { UsaSpendingService } from './usa-spending.service';
 import { OpenFemaService } from './openfema.service';
 import { computeRecoveryRatio } from './recovery-ratio';
+import { Cron } from '@nestjs/schedule';
 
 const SYNC_FISCAL_YEAR = 2024;
 const SYNC_DEF_GROUP = 'JF-3038';
@@ -163,6 +164,7 @@ export class SyncService {
     });
   }
 
+  @Cron('0 2 * * *')
   async syncAll(): Promise<void> {
     await this.syncAgenciesAndSpending();
     await this.syncGeography();

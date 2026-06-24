@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { getTypeOrmConfig } from './config/typeorm.config';
 import { AgenciesModule } from './agencies/agencies.module';
 import { SpendingModule } from './spending/spending.module';
@@ -16,6 +17,7 @@ import { HealthModule } from './health/health.module';
       inject: [ConfigService],
       useFactory: getTypeOrmConfig,
     }),
+    ScheduleModule.forRoot(),
     AgenciesModule,
     SpendingModule,
     GeographyModule,
