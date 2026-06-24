@@ -733,7 +733,7 @@
       "acceptanceCriteria": [
         {
           "text": "sync.controller.ts exists with all 5 endpoints",
-          "check": "cd backend && grep -qE '@Post.*sync[\\\"\\x27]*(/|\\x27|\\\"|$)' src/sync/sync.controller.ts && grep -q '/sync/agencies' src/sync/sync.controller.ts && grep -q '/sync/geography' src/sync/sync.controller.ts && grep -q '/sync/disaster' src/sync/sync.controller.ts && grep -q '@Get.*status' src/sync/sync.controller.ts"
+          "check": "cd backend && for m in syncAll syncAgenciesAndSpending syncGeography syncDisaster getStatus; do grep -q \"$m\" src/sync/sync.controller.ts || exit 1; done"
         },
         {
           "text": "SyncController registered in SyncModule controllers",
