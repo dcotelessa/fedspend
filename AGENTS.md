@@ -338,23 +338,29 @@ export class AgencyService {
 
 ## Build Harness Stack
 - **llama-server:** `~/llama.cpp/build/bin/llama-server` — compiled with CUDA
-  13.1 (sm_120, Blackwell). Started with `--jinja` for native tool-call support.
-  Run `~/start-llama.sh coder` (qwen3-coder:30b, 71.8 tok/s) or
-  `~/start-llama.sh thinking` (qwen3.6:35b, 59.0 tok/s).
-  Model paths:
-  - qwen3-coder:30b Q4_K_M: `/usr/share/ollama/.ollama/models/blobs/` (Ollama blob)
-  - qwen3.6:35b Q4_K_M: `~/models/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` (Unsloth GGUF)
-- **Build (local tier, primary):** pi with `pi-llama-cpp` extension. Connects to
-  llama-server's OpenAI-compatible endpoint. Native tool calls work via Jinja
-  chat templates. `pi-safety-modes` catches dangerous operations.
-- **Build (local tier, fallback):** Aider with `--openai-api-base
-  http://127.0.0.1:8080/v1`. Diff-based editing for when tool-call mode fails.
-- **Build (cloud tier, escalation):** opencode with `zai-coding-plan/<model>`.
-  Triggered when T1/T2 fail.
+  13.1 (sm_120, Blackwell). Started with `--jinja -c 131072 -np 1
+  --cache-type-k q8_0 --cache-type-v q8_0` (single 131k-context slot; q8 KV
+  cache halves memory so total vRAM is ~unchanged from the old 4×32k f16 layout).
+  All models live in `~/models/`; load via `~/start-llama.sh <alias>`:
+  - `coder`      → qwen3-coder-30b.gguf              (BUILD-FAST primary)
+  - `thinking`   → Qwen3.6-35B-A3B-UD-Q4_K_M.gguf    (BUILD-DEEP primary)
+  - `flash`      → GLM-4.7-Flash-UD-Q3_K_XL.gguf
+  - `gemma26`    → gemma4-26b.gguf                    (cross-family alt)
+  - `gemma31`    → gemma4-31b.gguf
+  - `tiny`       → qwen2.5-coder-1.5b.gguf            (instant-load triage)
+  - `qwen3-16gb` → qwen3-16gb.gguf                    (experimental)
+- **Build tiers (all via pi):** see run-story.sh tier ladder, branched by
+  `story.build` (BUILD-FAST vs BUILD-DEEP). pi-llama-cpp discovers the loaded
+  llama-server model dynamically — no static provider entry in models.json, so
+  whichever model is loaded appears exactly once in pi's picker with its real
+  context size. Cloud GLM models reach pi via the `zai-coding-plan` provider.
 - **Thinking tier (planning, QA-review):** opencode running GLM-5.2 (this layer).
-- **Retired:** Ollama — its abstraction layer broke qwen tool-call formatting.
-  Stopped and disabled. GGUF files retained in its blob store for llama.cpp.
-  pi-json-tools — unneeded now that llama.cpp handles tool calls natively.
+- **Removed:** Ollama — fully uninstalled (binary, systemd unit, 136 GB blob
+  store, ollama user). The keeper GGUFs were sha256-verified and migrated to
+  `~/models/`. The Ollama GGUF of qwen3.6:35b was defective (rope
+  dimension_sections mismatch) — the Unsloth GGUF is used instead. Also retired:
+  Aider tiers, opencode build tiers, pi-json-tools (llama.cpp handles native
+  tool calls via `--jinja`).
 
 ## Per-Model Test Status (for capability study)
 | Model | Size | Harness | Outcome |
