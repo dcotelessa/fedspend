@@ -6,10 +6,10 @@ Auto-updated after each story PASS. Source: `build-log.json`.
 
 ```
   T1 pi/qwen3-coder:30b: 1
-  T1 pi/qwen3.6:35b: 3
+  T1 pi/qwen3.6:35b: 4
 ```
 
-Total PASS in epic: **4**
+Total PASS in epic: **5**
 
 ## Full per-story history
 
@@ -23,4 +23,7 @@ Total PASS in epic: **4**
   - T1 pi/qwen3.6:35b: PASS
 
 ### E2-S04 — PASS
+  - T1 pi/qwen3.6:35b: PASS
+
+### E2-S05 — PASS
   - T1 pi/qwen3.6:35b: PASS
