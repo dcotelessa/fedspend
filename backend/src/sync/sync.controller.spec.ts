@@ -32,6 +32,8 @@ describe('SyncController', () => {
     expected: unknown;
   }
 
+  const emptyStatusMap = new Map<string, unknown>();
+
   const statusMap = new Map([
     [
       'agencies_and_spending',
@@ -84,28 +86,71 @@ describe('SyncController', () => {
       serviceReturn: statusMap,
       expected: statusMap,
     },
+    {
+      name: 'POST /sync passes a non-undefined service result through unchanged',
+      controllerMethod: 'syncAll',
+      serviceMethod: 'syncAll',
+      isAsync: true,
+      serviceReturn: { status: 'success', rows: 42 },
+      expected: { status: 'success', rows: 42 },
+    },
+    {
+      name: 'POST /sync/agencies passes a non-undefined service result through unchanged',
+      controllerMethod: 'syncAgenciesAndSpending',
+      serviceMethod: 'syncAgenciesAndSpending',
+      isAsync: true,
+      serviceReturn: { status: 'success', rows: 7 },
+      expected: { status: 'success', rows: 7 },
+    },
+    {
+      name: 'POST /sync/geography passes a non-undefined service result through unchanged',
+      controllerMethod: 'syncGeography',
+      serviceMethod: 'syncGeography',
+      isAsync: true,
+      serviceReturn: { status: 'success', rows: 50 },
+      expected: { status: 'success', rows: 50 },
+    },
+    {
+      name: 'POST /sync/disaster passes a non-undefined service result through unchanged',
+      controllerMethod: 'syncDisaster',
+      serviceMethod: 'syncDisaster',
+      isAsync: true,
+      serviceReturn: { status: 'success', rows: 3 },
+      expected: { status: 'success', rows: 3 },
+    },
+    {
+      name: 'GET /sync/status returns an empty map when nothing has synced yet',
+      controllerMethod: 'getStatus',
+      serviceMethod: 'getStatus',
+      isAsync: false,
+      serviceReturn: emptyStatusMap,
+      expected: emptyStatusMap,
+    },
   ];
 
-  it.each(testTable)('$name', async ({
-    controllerMethod,
-    serviceMethod,
-    isAsync,
-    serviceReturn,
-    expected,
-  }) => {
-    const mock = mockSyncService[serviceMethod];
-    if (isAsync) {
-      mock.mockResolvedValue(serviceReturn);
-    } else {
-      mock.mockReturnValue(serviceReturn);
-    }
+  it.each(testTable)(
+    '$name',
+    async ({
+      controllerMethod,
+      serviceMethod,
+      isAsync,
+      serviceReturn,
+      expected,
+    }) => {
+      const mock = mockSyncService[serviceMethod];
+      if (isAsync) {
+        mock.mockResolvedValue(serviceReturn);
+      } else {
+        mock.mockReturnValue(serviceReturn);
+      }
 
-    const result = isAsync
-      ? await (controller as any)[controllerMethod]()
-      : (controller as any)[controllerMethod]();
+      const result = isAsync
+        ? await (controller as any)[controllerMethod]()
+        : (controller as any)[controllerMethod]();
 
-    expect(mock).toHaveBeenCalledTimes(1);
-    expect(mock).toHaveBeenCalledWith();
-    expect(result).toEqual(expected);
-  });
+      expect(mock).toHaveBeenCalledTimes(1);
+      expect(mock).toHaveBeenCalledWith();
+      expect(result).toEqual(expected);
+    },
+  );
 });
