@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsWhere, ObjectLiteral } from 'typeorm';
 import { Agency } from '../agencies/agency.entity';
 import { SpendingRecord } from '../spending/spending-record.entity';
 import { GeoSpendingSnapshot } from '../geography/geo-spending-snapshot.entity';
@@ -10,9 +10,19 @@ import { UsaSpendingService } from './usa-spending.service';
 import { OpenFemaService } from './openfema.service';
 import { computeRecoveryRatio } from './recovery-ratio';
 
+const SYNC_FISCAL_YEAR = 2024;
+const SYNC_DEF_GROUP = 'JF-3038';
+
+const AGENCIES_AND_SPENDING = 'agencies_and_spending';
+const GEOGRAPHY = 'geography';
+const DISASTER = 'disaster';
+
+type SyncStatus = 'running' | 'success' | 'error';
+type SyncStatusEntry = { module: string; lastSyncAt: Date; status: SyncStatus };
+
 @Injectable()
 export class SyncService {
-  private statusMap = new Map<string, { module: string; lastSyncAt: Date; status: string }>();
+  private readonly statusMap = new Map<string, SyncStatusEntry>();
 
   constructor(
     @InjectRepository(Agency) private readonly agencyRepo: Repository<Agency>,
@@ -24,161 +34,120 @@ export class SyncService {
     private readonly femaService: OpenFemaService,
   ) {}
 
-  getStatus(): Map<string, { module: string; lastSyncAt: Date; status: string }> {
+  getStatus(): Map<string, SyncStatusEntry> {
     return this.statusMap;
   }
 
-  private async upsertAgency(agency: Agency): Promise<void> {
-    const existing = await this.agencyRepo.findOne({ where: { toptierCode: agency.toptierCode } });
-    if (existing) {
-      Object.assign(existing, agency);
-      await this.agencyRepo.save(existing);
-    } else {
-      await this.agencyRepo.save(agency);
+  private markStatus(module: string, status: SyncStatus): void {
+    this.statusMap.set(module, { module, lastSyncAt: new Date(), status });
+  }
+
+  private async runWithStatus(
+    module: string,
+    work: () => Promise<void>,
+  ): Promise<void> {
+    this.markStatus(module, 'running');
+    try {
+      await work();
+      this.markStatus(module, 'success');
+    } catch {
+      this.markStatus(module, 'error');
     }
   }
 
-  private async upsertSpending(record: SpendingRecord): Promise<void> {
-    const existing = await this.spendingRepo.findOne({
-      where: {
-        agencyId: record.agencyId,
-        fiscalYear: record.fiscalYear,
-        quarter: record.quarter,
-        awardTypeLabel: record.awardTypeLabel,
-      },
-    });
+  private async upsertBy<T extends ObjectLiteral>(
+    repo: Repository<T>,
+    match: FindOptionsWhere<T>,
+    entity: T,
+  ): Promise<void> {
+    const existing = await repo.findOne({ where: match });
     if (existing) {
-      Object.assign(existing, record);
-      await this.spendingRepo.save(existing);
+      Object.assign(existing, entity);
+      await repo.save(existing);
     } else {
-      await this.spendingRepo.save(record);
-    }
-  }
-
-  private async upsertGeo(snapshot: GeoSpendingSnapshot): Promise<void> {
-    const existing = await this.geoRepo.findOne({
-      where: {
-        stateCode: snapshot.stateCode,
-        fiscalYear: snapshot.fiscalYear,
-        agencyId: snapshot.agencyId,
-        scope: snapshot.scope,
-      },
-    });
-    if (existing) {
-      Object.assign(existing, snapshot);
-      await this.geoRepo.save(existing);
-    } else {
-      await this.geoRepo.save(snapshot);
-    }
-  }
-
-  private async upsertDisaster(record: DisasterFundingRecord): Promise<void> {
-    const existing = await this.disasterRepo.findOne({
-      where: { defGroup: record.defGroup, stateCode: record.stateCode },
-    });
-    if (existing) {
-      Object.assign(existing, record);
-      await this.disasterRepo.save(existing);
-    } else {
-      await this.disasterRepo.save(record);
+      await repo.save(entity);
     }
   }
 
   async syncAgenciesAndSpending(): Promise<void> {
-    this.statusMap.set('agencies_and_spending', {
-      module: 'agencies_and_spending',
-      lastSyncAt: new Date(),
-      status: 'running',
-    });
-    try {
+    await this.runWithStatus(AGENCIES_AND_SPENDING, async () => {
       const agenciesResult = await this.usaService.fetchAgencies();
       if (agenciesResult.status === 'success') {
         for (const agency of agenciesResult.agencies) {
-          await this.upsertAgency(agency);
+          await this.upsertBy(
+            this.agencyRepo,
+            { toptierCode: agency.toptierCode },
+            agency,
+          );
         }
       }
 
       const spendingResult = await this.usaService.fetchSpendingByAgency({
         agency: '',
-        fiscalYear: 2024,
+        fiscalYear: SYNC_FISCAL_YEAR,
       });
       if (spendingResult.status === 'success') {
         for (const record of spendingResult.rows) {
-          await this.upsertSpending(record);
+          await this.upsertBy(
+            this.spendingRepo,
+            {
+              agencyId: record.agencyId,
+              fiscalYear: record.fiscalYear,
+              quarter: record.quarter,
+              awardTypeLabel: record.awardTypeLabel,
+            },
+            record,
+          );
         }
       }
-
-      this.statusMap.set('agencies_and_spending', {
-        module: 'agencies_and_spending',
-        lastSyncAt: new Date(),
-        status: 'success',
-      });
-    } catch {
-      this.statusMap.set('agencies_and_spending', {
-        module: 'agencies_and_spending',
-        lastSyncAt: new Date(),
-        status: 'error',
-      });
-    }
+    });
   }
 
   async syncGeography(): Promise<void> {
-    this.statusMap.set('geography', {
-      module: 'geography',
-      lastSyncAt: new Date(),
-      status: 'running',
-    });
-    try {
+    await this.runWithStatus(GEOGRAPHY, async () => {
       const geoResult = await this.usaService.fetchGeoSnapshots({
         agency: '',
-        fiscalYear: 2024,
+        fiscalYear: SYNC_FISCAL_YEAR,
         scope: 'recipient',
       });
       if (geoResult.status === 'success') {
         for (const snapshot of geoResult.rows) {
-          await this.upsertGeo(snapshot);
+          await this.upsertBy(
+            this.geoRepo,
+            {
+              stateCode: snapshot.stateCode,
+              fiscalYear: snapshot.fiscalYear,
+              agencyId: snapshot.agencyId,
+              scope: snapshot.scope,
+            },
+            snapshot,
+          );
         }
       }
-      this.statusMap.set('geography', {
-        module: 'geography',
-        lastSyncAt: new Date(),
-        status: 'success',
-      });
-    } catch {
-      this.statusMap.set('geography', {
-        module: 'geography',
-        lastSyncAt: new Date(),
-        status: 'error',
-      });
-    }
+    });
   }
 
   async syncDisaster(): Promise<void> {
-    this.statusMap.set('disaster', {
-      module: 'disaster',
-      lastSyncAt: new Date(),
-      status: 'running',
-    });
-    try {
-      const disasterResult = await this.usaService.fetchDisasterSpending('JF-3038');
+    await this.runWithStatus(DISASTER, async () => {
+      const disasterResult = await this.usaService.fetchDisasterSpending(SYNC_DEF_GROUP);
+      const fedSpendingByState = new Map<string, number>();
       if (disasterResult.status === 'success') {
         for (const record of disasterResult.rows) {
-          await this.upsertDisaster(record);
+          await this.upsertBy(
+            this.disasterRepo,
+            { defGroup: record.defGroup, stateCode: record.stateCode },
+            record,
+          );
+          fedSpendingByState.set(
+            record.stateCode,
+            (fedSpendingByState.get(record.stateCode) ?? 0) + record.obligatedAmount,
+          );
         }
       }
 
       const femaDeclarations = await this.femaService.fetchDeclarationsByState();
-
-      const usaByState = new Map<string, number>();
-      if (disasterResult.status === 'success') {
-        for (const record of disasterResult.rows) {
-          const existing = usaByState.get(record.stateCode) ?? 0;
-          usaByState.set(record.stateCode, existing + record.obligatedAmount);
-        }
-      }
-
       for (const decl of femaDeclarations) {
-        const fedSpending = usaByState.get(decl.stateCode) ?? 0;
+        const fedSpending = fedSpendingByState.get(decl.stateCode) ?? 0;
         const ratio = computeRecoveryRatio(decl.femaObligatedCents, fedSpending);
         await this.ratioRepo.save({
           stateCode: decl.stateCode,
@@ -191,19 +160,7 @@ export class SyncService {
           dominantIncidentType: decl.dominantIncidentType,
         });
       }
-
-      this.statusMap.set('disaster', {
-        module: 'disaster',
-        lastSyncAt: new Date(),
-        status: 'success',
-      });
-    } catch {
-      this.statusMap.set('disaster', {
-        module: 'disaster',
-        lastSyncAt: new Date(),
-        status: 'error',
-      });
-    }
+    });
   }
 
   async syncAll(): Promise<void> {

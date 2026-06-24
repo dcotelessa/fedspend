@@ -100,7 +100,7 @@ describe('SyncService', () => {
       },
     },
     {
-      name: 'syncDisaster stores recovery ratio correctly',
+      name: 'syncDisaster stores recovery ratio when no federal spending exists for the state',
       method: 'syncDisaster',
       disasterFetchResult: { status: 'success', rows: [] },
       femaFetchResult: [
@@ -109,7 +109,26 @@ describe('SyncService', () => {
       findOneReturns: {},
       expectedSaveCalls: [{ repoName: 'ratio', count: 1 }],
       expectedRepoData: {
-        ratio: [{ stateCode: 'CA', recoveryRatio: 0 }],
+        ratio: [{ stateCode: 'CA', recoveryRatio: 0, fedSpendingObligated: 0, femaObligated: 5000 }],
+      },
+    },
+    {
+      name: 'syncDisaster aggregates federal spending per state and computes the recovery ratio',
+      method: 'syncDisaster',
+      disasterFetchResult: { status: 'success', rows: [
+        { id: 0, defGroup: 'JF-3038', defCodes: 'JF-3038', stateCode: 'CA', stateName: 'California', obligatedAmount: 10000, outlayAmount: 8000, awardCount: 5, perCapita: 0, population: 0 }
+      ]},
+      femaFetchResult: [
+        { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }
+      ],
+      findOneReturns: { DisasterFundingRecord: null },
+      expectedSaveCalls: [
+        { repoName: 'disaster', count: 1 },
+        { repoName: 'ratio', count: 1 },
+      ],
+      expectedRepoData: {
+        disaster: [{ defGroup: 'JF-3038', stateCode: 'CA' }],
+        ratio: [{ stateCode: 'CA', recoveryRatio: 2, fedSpendingObligated: 10000, femaObligated: 5000 }],
       },
     },
     {
@@ -184,7 +203,6 @@ describe('SyncService', () => {
   });
 
   it.each(testTable)('$name', async ({
-    name,
     method,
     agencyFetchResult,
     spendingFetchResult,
