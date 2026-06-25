@@ -74,6 +74,12 @@ describe('AgenciesService', () => {
           { id: 1, name: 'Agency A', totalCents: 300000 },
         ],
       },
+      {
+        name: 'returns empty data list when no agencies exist',
+        agencies: [],
+        spendingByAgency: {},
+        expected: [],
+      },
     ];
 
     it.each(testTable)('$name', async ({ agencies, spendingByAgency, currentFy, expected }) => {
@@ -165,6 +171,30 @@ describe('AgenciesService', () => {
         expectedCurrent: 100000,
         expectedPrior: 50000,
         expectedYoy: 100,
+      },
+      {
+        name: 'returns negative YoY when current total decreased from prior',
+        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },
+        currentRecords: [
+          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 50000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,
+        ],
+        priorRecords: [
+          { id: 2, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,
+        ],
+        expectedCurrent: 50000,
+        expectedPrior: 100000,
+        expectedYoy: -50,
+      },
+      {
+        name: 'returns -100% YoY when current total is zero with nonzero prior',
+        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },
+        currentRecords: [],
+        priorRecords: [
+          { id: 2, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 80000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,
+        ],
+        expectedCurrent: 0,
+        expectedPrior: 80000,
+        expectedYoy: -100,
       },
     ];
 

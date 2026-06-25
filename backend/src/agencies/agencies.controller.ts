@@ -1,6 +1,7 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { AgenciesService } from './agencies.service';
-import { ApiResponse } from '@shared/interfaces';
+import { ApiResponse, AgencySummary } from '@shared/interfaces';
+import { SpendingRecord } from '../spending/spending-record.entity';
 
 @Controller('agencies')
 export class AgenciesController {
@@ -12,12 +13,12 @@ export class AgenciesController {
   }
 
   @Get(':id/summary')
-  summary(@Param('id') id: string): Promise<any> {
+  summary(@Param('id') id: string): Promise<AgencySummary | null> {
     return this.agenciesService.findSummary(Number(id));
   }
 
   @Get(':id/spotlight')
-  spotlight(@Param('id') id: string): Promise<any> {
+  spotlight(@Param('id') id: string): Promise<SpendingRecord[] | null> {
     return this.agenciesService.findSpotlight(Number(id));
   }
 }

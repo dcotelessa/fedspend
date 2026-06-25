@@ -17,7 +17,7 @@ export class AgenciesService {
   ) {}
 
   async findAllWithTotals(): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
-    const currentFy = this.configService.get<number>('currentFy') ?? 2026;
+    const currentFy = this.currentFiscalYear();
     const agencies = await this.agencyRepo.find();
     const records = await Promise.all(
       agencies.map(a =>
@@ -38,7 +38,7 @@ export class AgenciesService {
   async findSummary(agencyId: number): Promise<AgencySummary | null> {
     const agency = await this.agencyRepo.findOne({ where: { id: agencyId } });
     if (!agency) return null;
-    const currentFy = this.configService.get<number>('currentFy') ?? 2026;
+    const currentFy = this.currentFiscalYear();
     const priorFy = currentFy - 1;
     const currentRecords = await this.spendingRepo.find({ where: { agencyId, fiscalYear: currentFy } });
     const priorRecords = await this.spendingRepo.find({ where: { agencyId, fiscalYear: priorFy } });
@@ -70,5 +70,9 @@ export class AgenciesService {
       }
     }
     return Array.from(groups.values());
+  }
+
+  private currentFiscalYear(): number {
+    return this.configService.get<number>('currentFy') ?? 2026;
   }
 }
