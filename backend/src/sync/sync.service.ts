@@ -35,8 +35,8 @@ export class SyncService {
     private readonly femaService: OpenFemaService,
   ) {}
 
-  getStatus(): Map<string, SyncStatusEntry> {
-    return this.statusMap;
+  getStatus(): { [module: string]: SyncStatusEntry } {
+    return Object.fromEntries(this.statusMap);
   }
 
   private markStatus(module: string, status: SyncStatus): void {
