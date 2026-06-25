@@ -1,10 +1,5 @@
 import { IsInt, IsOptional, IsEnum, Min, Max } from 'class-validator';
-
-export enum ScopeEnum {
-  state = 'state',
-  county = 'county',
-  congressional = 'congressional',
-}
+import { ScopeEnum } from '../../common/pagination.dto';
 
 export class GeographyQueryDto {
   @IsInt()

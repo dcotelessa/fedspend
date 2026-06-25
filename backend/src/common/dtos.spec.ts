@@ -1,22 +1,9 @@
 import { validate } from 'class-validator';
-import { 
-  PaginationDto 
-} from '../common/pagination.dto';
-import { 
-  GeographyQueryDto, 
-  ScopeEnum as GeographyScopeEnum 
-} from '../geography/dto/geography-query.dto';
-import { 
-  AgencySpotlightQueryDto, 
-  ScopeEnum as AgencyScopeEnum 
-} from '../agencies/dto/agency-spotlight-query.dto';
-import { 
-  DisasterStatesQueryDto, 
-  DefGroupEnum 
-} from '../disaster/dto/disaster-states-query.dto';
-import { 
-  DisasterRatiosQueryDto 
-} from '../disaster/dto/disaster-ratios-query.dto';
+import { PaginationDto, ScopeEnum } from '../common/pagination.dto';
+import { GeographyQueryDto } from '../geography/dto/geography-query.dto';
+import { AgencySpotlightQueryDto } from '../agencies/dto/agency-spotlight-query.dto';
+import { DisasterStatesQueryDto, DefGroupEnum } from '../disaster/dto/disaster-states-query.dto';
+import { DisasterRatiosQueryDto } from '../disaster/dto/disaster-ratios-query.dto';
 
 describe('DTOs Validation', () => {
   interface TestCase {
@@ -24,6 +11,17 @@ describe('DTOs Validation', () => {
     input: any;
     expectedValid: boolean;
   }
+
+  const run = async (Dto: any, table: TestCase[]) => {
+    for (const { name, input, expectedValid } of table) {
+      it(name, async () => {
+        const dto = new Dto();
+        Object.assign(dto, input);
+        const errors = await validate(dto);
+        expect(errors.length > 0).toBe(!expectedValid);
+      });
+    }
+  };
 
   describe('PaginationDto', () => {
     const testTable: TestCase[] = [
@@ -38,6 +36,21 @@ describe('DTOs Validation', () => {
         expectedValid: true,
       },
       {
+        name: 'accepts page=1 minimum',
+        input: { page: 1 },
+        expectedValid: true,
+      },
+      {
+        name: 'accepts pageSize=1 minimum',
+        input: { pageSize: 1 },
+        expectedValid: true,
+      },
+      {
+        name: 'accepts pageSize=100 maximum',
+        input: { pageSize: 100 },
+        expectedValid: true,
+      },
+      {
         name: 'rejects page below 1',
         input: { page: 0 },
         expectedValid: false,
@@ -47,84 +60,78 @@ describe('DTOs Validation', () => {
         input: { pageSize: 101 },
         expectedValid: false,
       },
+      {
+        name: 'rejects pageSize of 0',
+        input: { pageSize: 0 },
+        expectedValid: false,
+      },
     ];
 
-    testTable.forEach(({ name, input, expectedValid }) => {
-      it(name, async () => {
-        const dto = new PaginationDto();
-        Object.assign(dto, input);
-        const errors = await validate(dto);
-        expect(errors.length > 0).toBe(!expectedValid);
-      });
-    });
+    run(PaginationDto, testTable);
   });
 
-  describe('GeographyQueryDto', () => {
+  describe('GeographyQueryDto + AgencySpotlightQueryDto', () => {
     const testTable: TestCase[] = [
       {
         name: 'accepts valid fiscalYear and scope',
-        input: { fiscalYear: 2024, scope: GeographyScopeEnum.state },
+        input: { fiscalYear: 2024, scope: ScopeEnum.state },
+        expectedValid: true,
+      },
+      {
+        name: 'accepts scope=county',
+        input: { fiscalYear: 2024, scope: ScopeEnum.county },
+        expectedValid: true,
+      },
+      {
+        name: 'accepts scope=congressional',
+        input: { fiscalYear: 2024, scope: ScopeEnum.congressional },
         expectedValid: true,
       },
       {
         name: 'rejects fiscalYear below 2020',
-        input: { fiscalYear: 2019, scope: GeographyScopeEnum.state },
+        input: { fiscalYear: 2019, scope: ScopeEnum.state },
         expectedValid: false,
       },
       {
         name: 'rejects fiscalYear above 2024',
-        input: { fiscalYear: 2025, scope: GeographyScopeEnum.state },
+        input: { fiscalYear: 2025, scope: ScopeEnum.state },
         expectedValid: false,
       },
       {
-        name: 'accepts default values',
+        name: 'rejects fiscalYear as string',
+        input: { fiscalYear: '2024', scope: ScopeEnum.state },
+        expectedValid: false,
+      },
+      {
+        name: 'rejects empty object (scope required)',
         input: {},
-        expectedValid: true,
+        expectedValid: false,
+      },
+      {
+        name: 'rejects missing scope (required)',
+        input: { fiscalYear: 2024 },
+        expectedValid: false,
+      },
+      {
+        name: 'rejects invalid scope value',
+        input: { fiscalYear: 2024, scope: 'invalid' },
+        expectedValid: false,
       },
     ];
 
-    testTable.forEach(({ name, input, expectedValid }) => {
-      it(name, async () => {
-        const dto = new GeographyQueryDto();
-        Object.assign(dto, input);
-        const errors = await validate(dto);
-        expect(errors.length > 0).toBe(!expectedValid);
-      });
-    });
-  });
+    const runFor = async (Dto: any, dtoName: string) => {
+      for (const { name, input, expectedValid } of testTable) {
+        it(`${dtoName} - ${name}`, async () => {
+          const dto = new Dto();
+          Object.assign(dto, input);
+          const errors = await validate(dto);
+          expect(errors.length > 0).toBe(!expectedValid);
+        });
+      }
+    };
 
-  describe('AgencySpotlightQueryDto', () => {
-    const testTable: TestCase[] = [
-      {
-        name: 'accepts valid fiscalYear and scope',
-        input: { fiscalYear: 2024, scope: AgencyScopeEnum.state },
-        expectedValid: true,
-      },
-      {
-        name: 'rejects fiscalYear below 2020',
-        input: { fiscalYear: 2019, scope: AgencyScopeEnum.state },
-        expectedValid: false,
-      },
-      {
-        name: 'rejects fiscalYear above 2024',
-        input: { fiscalYear: 2025, scope: AgencyScopeEnum.state },
-        expectedValid: false,
-      },
-      {
-        name: 'accepts default values',
-        input: {},
-        expectedValid: true,
-      },
-    ];
-
-    testTable.forEach(({ name, input, expectedValid }) => {
-      it(name, async () => {
-        const dto = new AgencySpotlightQueryDto();
-        Object.assign(dto, input);
-        const errors = await validate(dto);
-        expect(errors.length > 0).toBe(!expectedValid);
-      });
-    });
+    runFor(GeographyQueryDto, 'GeographyQueryDto');
+    runFor(AgencySpotlightQueryDto, 'AgencySpotlightQueryDto');
   });
 
   describe('DisasterStatesQueryDto', () => {
@@ -132,6 +139,11 @@ describe('DTOs Validation', () => {
       {
         name: 'accepts valid fiscalYear and defGroup',
         input: { fiscalYear: 2024, defGroup: DefGroupEnum.wildfire },
+        expectedValid: true,
+      },
+      {
+        name: 'accepts defGroup=flood',
+        input: { fiscalYear: 2024, defGroup: DefGroupEnum.flood },
         expectedValid: true,
       },
       {
@@ -145,20 +157,28 @@ describe('DTOs Validation', () => {
         expectedValid: false,
       },
       {
-        name: 'accepts default values',
+        name: 'rejects fiscalYear as string',
+        input: { fiscalYear: '2024', defGroup: DefGroupEnum.wildfire },
+        expectedValid: false,
+      },
+      {
+        name: 'rejects empty object (defGroup required)',
         input: {},
-        expectedValid: true,
+        expectedValid: false,
+      },
+      {
+        name: 'rejects missing defGroup (required)',
+        input: { fiscalYear: 2024 },
+        expectedValid: false,
+      },
+      {
+        name: 'rejects invalid defGroup value',
+        input: { fiscalYear: 2024, defGroup: 'invalid' },
+        expectedValid: false,
       },
     ];
 
-    testTable.forEach(({ name, input, expectedValid }) => {
-      it(name, async () => {
-        const dto = new DisasterStatesQueryDto();
-        Object.assign(dto, input);
-        const errors = await validate(dto);
-        expect(errors.length > 0).toBe(!expectedValid);
-      });
-    });
+    run(DisasterStatesQueryDto, testTable);
   });
 
   describe('DisasterRatiosQueryDto', () => {
@@ -183,15 +203,13 @@ describe('DTOs Validation', () => {
         input: {},
         expectedValid: true,
       },
+      {
+        name: 'rejects fiscalYear as string',
+        input: { fiscalYear: '2024' },
+        expectedValid: false,
+      },
     ];
 
-    testTable.forEach(({ name, input, expectedValid }) => {
-      it(name, async () => {
-        const dto = new DisasterRatiosQueryDto();
-        Object.assign(dto, input);
-        const errors = await validate(dto);
-        expect(errors.length > 0).toBe(!expectedValid);
-      });
-    });
+    run(DisasterRatiosQueryDto, testTable);
   });
 });
