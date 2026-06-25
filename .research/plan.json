@@ -870,7 +870,7 @@
         },
         {
           "text": "DTOs use class-validator decorators (@IsInt, @IsOptional, @IsEnum, @Min, @Max)",
-          "check": "cd backend && grep -lhE '@Is(Int|Optional|Enum|String)' src/**/*.dto.ts src/common/*.dto.ts | wc -l | grep -q 5"
+          "check": "cd backend && for f in src/agencies/dto/agency-spotlight-query.dto.ts src/geography/dto/geography-query.dto.ts src/disaster/dto/disaster-states-query.dto.ts src/disaster/dto/disaster-ratios-query.dto.ts src/common/pagination.dto.ts; do grep -qE '@Is(Int|Optional|Enum|String)' \"$f\" || exit 1; done"
         },
         {
           "text": "dtos.spec.ts passes (table-driven: each DTO accepts valid input, rejects invalid)",
