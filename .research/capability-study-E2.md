@@ -5,12 +5,12 @@ Auto-updated after each story PASS. Source: `build-log.json`.
 ## Tier distribution (PASS only)
 
 ```
-  T1 pi/qwen3-coder:30b: 2
+  T1 pi/qwen3-coder:30b: 3
   T1 pi/qwen3.6:35b: 4
   T3 pi/zai-coding-plan/glm-5.2: 1
 ```
 
-Total PASS in epic: **7**
+Total PASS in epic: **8**
 
 ## Full per-story history
 
@@ -36,4 +36,7 @@ Total PASS in epic: **7**
   - T3 pi/zai-coding-plan/glm-5.2: PASS
 
 ### E2-S07 — PASS
+  - T1 pi/qwen3-coder:30b: PASS
+
+### E2-S08 — PASS
   - T1 pi/qwen3-coder:30b: PASS

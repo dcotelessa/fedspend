@@ -16,7 +16,7 @@
     },
     {
       "text": "sync e2e spec passes (POST /sync with mocked upstreams → rows in 5 tables)",
-      "check": "cd backend && pnpm test --testPathPatterns=sync-e2e.spec.ts --passWithNoTests"
+      "check": "cd backend && pnpm test:e2e --testPathPatterns=sync"
     }
   ],
   "resolutions": [
