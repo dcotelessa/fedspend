@@ -1,4 +1,74 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Agency } from './agency.entity';
+import { SpendingRecord } from '../spending/spending-record.entity';
+import { ApiResponse, AgencySummary } from '@shared/interfaces';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class AgenciesService {}
+export class AgenciesService {
+  constructor(
+    @InjectRepository(Agency)
+    private readonly agencyRepo: Repository<Agency>,
+    @InjectRepository(SpendingRecord)
+    private readonly spendingRepo: Repository<SpendingRecord>,
+    private readonly configService: ConfigService,
+  ) {}
+
+  async findAllWithTotals(): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
+    const currentFy = this.configService.get<number>('currentFy') ?? 2026;
+    const agencies = await this.agencyRepo.find();
+    const records = await Promise.all(
+      agencies.map(a =>
+        this.spendingRepo.find({ where: { agencyId: a.id, fiscalYear: currentFy } }),
+      ),
+    );
+    const data = agencies.map((a, i) => ({
+      id: a.id,
+      name: a.name,
+      totalCents: records[i].reduce((s, r) => s + r.obligatedAmount, 0),
+    }));
+    return {
+      data,
+      meta: { total: data.length, page: 1, pageSize: 6 },
+    };
+  }
+
+  async findSummary(agencyId: number): Promise<AgencySummary | null> {
+    const agency = await this.agencyRepo.findOne({ where: { id: agencyId } });
+    if (!agency) return null;
+    const currentFy = this.configService.get<number>('currentFy') ?? 2026;
+    const priorFy = currentFy - 1;
+    const currentRecords = await this.spendingRepo.find({ where: { agencyId, fiscalYear: currentFy } });
+    const priorRecords = await this.spendingRepo.find({ where: { agencyId, fiscalYear: priorFy } });
+    const currentTotal = currentRecords.reduce((s, r) => s + r.obligatedAmount, 0);
+    const priorTotal = priorRecords.reduce((s, r) => s + r.obligatedAmount, 0);
+    const yoyChange = priorTotal === 0 ? 0 : (currentTotal - priorTotal) / priorTotal * 100;
+    return {
+      agency: { id: agency.id, name: agency.name, abbreviation: agency.abbreviation, toptierCode: agency.toptierCode },
+      currentFyTotal: currentTotal,
+      priorFyTotal: priorTotal,
+      yoyChange,
+    };
+  }
+
+  async findSpotlight(agencyId: number): Promise<SpendingRecord[] | null> {
+    const agency = await this.agencyRepo.findOne({ where: { id: agencyId } });
+    if (!agency) return null;
+    const records = await this.spendingRepo.find({ where: { agencyId } });
+    const groups = new Map<string, SpendingRecord>();
+    for (const r of records) {
+      const key = `${r.fiscalYear}-${r.awardTypeLabel}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.obligatedAmount += r.obligatedAmount;
+        existing.outlayAmount += r.outlayAmount;
+        existing.awardCount += r.awardCount;
+      } else {
+        groups.set(key, { ...r } as SpendingRecord);
+      }
+    }
+    return Array.from(groups.values());
+  }
+}
