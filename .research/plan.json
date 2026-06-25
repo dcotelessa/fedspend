@@ -823,7 +823,7 @@
       ],
       "scope": {
         "files": [
-          "backend/test/sync-e2e.spec.ts"
+          "backend/test/sync.e2e-spec.ts"
         ],
         "regions": []
       },
@@ -838,7 +838,7 @@
         },
         {
           "text": "sync e2e spec passes (POST /sync with mocked upstreams → rows in 5 tables)",
-          "check": "cd backend && pnpm test --testPathPatterns=sync-e2e.spec.ts --passWithNoTests"
+          "check": "cd backend && pnpm test:e2e --testPathPatterns=sync"
         }
       ],
       "notes": "Use Test.createTestingModule({imports:[AppModule]}).overrideProvider(UsaSpendingService).useValue(mockUsa) etc. Then supertest POST /sync and inspect the (in-memory or sqlite) DB. Assert: 6 Agency rows, at least 1 SpendingRecord per FY per agency, GeoSpendingSnapshots for sampled states, DisasterFundingRecords per DEF group, DisasterRecoveryRatios with computed values. Verify NO real HTTP was issued by checking the mocks received the expected calls. This spec's scope is just the e2e file; it may edit prior files only to close wiring gaps surfaced by the run."

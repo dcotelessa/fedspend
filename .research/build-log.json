@@ -271,6 +271,18 @@
       "tierMaxAttempts": 1,
       "elapsedSec": 402,
       "timestamp": "2026-06-24T17:46:41Z"
+    },
+    {
+      "story": "E2-S07",
+      "epic": "E2",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 496,
+      "timestamp": "2026-06-24T23:03:35Z"
     }
   ]
 }
