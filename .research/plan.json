@@ -1058,7 +1058,7 @@
       ],
       "scope": {
         "files": [
-          "backend/test/query-e2e.spec.ts",
+          "backend/test/query.e2e-spec.ts",
           "backend/test/seed.ts"
         ],
         "regions": []
@@ -1069,8 +1069,8 @@
           "check": "cd backend && pnpm test --testPathPatterns='src/.*spec.ts'"
         },
         {
-          "text": "query-e2e.spec.ts passes (every endpoint exercised with seed data)",
-          "check": "cd backend && pnpm test --testPathPatterns=query-e2e.spec.ts --passWithNoTests"
+          "text": "query e2e spec passes (every endpoint exercised with seed data)",
+          "check": "cd backend && pnpm test:e2e --testPathPatterns=query"
         },
         {
           "text": "backend builds",
