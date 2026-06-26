@@ -1,0 +1,131 @@
+{
+  "story": "E4-S02",
+  "epic": "E4",
+  "title": "5 routes with placeholder standalone components",
+  "goal": "Create 5 standalone placeholder components (DashboardComponent, GeographicViewComponent, AgencyListComponent, AgencySpotlightComponent, DisasterLensComponent) and define the 5 routes in frontend/src/app/app.routes.ts. The Angular 20 scaffold already wires provideRouter via app.config.ts — do NOT add a second router provider and do NOT edit main.ts. Verify all 5 route->component mappings via a table-driven routing spec.",
+  "notes": "Angular 20 standalone components. CRITICAL — the scaffold ALREADY wires routing: app.config.ts has providers: [provideBrowserGlobalErrorListeners(), provideZoneChangeDetection({eventCoalescing:true}), provideRouter(routes)] importing `routes` from './app.routes', and main.ts does bootstrapApplication(App, appConfig). So: DO NOT create a separate routes.ts; DO NOT add a second provideRouter anywhere (double-provisioning breaks the router at runtime); DO NOT edit main.ts or app.config.ts. Your ONLY routing change is populating frontend/src/app/app.routes.ts (replace `export const routes: Routes = [];`). Tasks: (1) Create 5 standalone placeholder components, each in <name>.component.ts exporting class <Name>Component — DashboardComponent (dashboard), GeographicViewComponent (geographic-view), AgencyListComponent (agency-list), AgencySpotlightComponent (agency-spotlight), DisasterLensComponent (disaster-lens). Components are standalone BY DEFAULT in Angular 20 (omit the `standalone` flag). Each @Component: selector 'app-<name>', templateUrl '<name>.component.html', and the .component.html contains a single <h1>heading</h1>. No imports needed for placeholders. (2) In app.routes.ts define: { path: '', component: DashboardComponent }, { path: 'geography', component: GeographicViewComponent }, { path: 'agencies', component: AgencyListComponent }, { path: 'agencies/:id', component: AgencySpotlightComponent }, { path: 'disaster', component: DisasterLensComponent } — import each component, use single-quoted path strings, eager `component:` mapping. (3) routes.spec.ts: TABLE-DRIVEN — import `routes` from './app.routes' and all 5 component classes; build a testTable of {path, expectedComponent} rows; for each row, find the route in `routes` with that path and assert route.component === expectedComponent. No RouterTestingModule/harness needed — assert directly on the routes array. The root component class is `App` (Angular 20 renamed it from AppComponent), referenced only by main.ts — leave it alone.",
+  "dependencies": "E4-S01",
+  "acceptanceCriteria": [
+    {
+      "text": "5 component files exist",
+      "check": "for c in dashboard/dashboard geographic-view/geographic-view agency-list/agency-list agency-spotlight/agency-spotlight disaster-lens/disaster-lens; do test -f frontend/src/app/$c.component.ts || exit 1; done"
+    },
+    {
+      "text": "app.routes.ts defines >=5 routes (/, /geography, /agencies, /agencies/:id, /disaster)",
+      "check": "cd frontend && node -e \"const s=require('fs').readFileSync('src/app/app.routes.ts','utf8');const m=s.match(/path:/g);process.exit(m&&m.length>=5?0:1)\""
+    },
+    {
+      "text": "router is provided via app.config.ts (scaffold wiring intact)",
+      "check": "cd frontend && grep -q provideRouter src/app/app.config.ts"
+    },
+    {
+      "text": "routes.spec.ts passes (table-driven: each path navigates to the right component)",
+      "check": "cd frontend && pnpm test --testPathPatterns=routes.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "frontend builds",
+      "check": "cd frontend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/app.routes.ts",
+      "mode": "full",
+      "contents": "import { Routes } from '@angular/router';\n\nexport const routes: Routes = [];\n"
+    }
+  ]
+}
