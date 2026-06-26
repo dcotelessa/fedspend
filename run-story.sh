@@ -671,7 +671,7 @@ main() {
       else
         generate_prompt_opencode "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
       fi
-      print_session_instructions "$harness" "$model" "$tier_num" "$aot" "$wt" "$branch" "$thinking"
+      print_session_instructions "$harness" "$model" "$tier_num" "$aot" "$wt" "$thinking"
 
       read -rp "  Press Enter when the harness signals done... " _
 
