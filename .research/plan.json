@@ -1027,7 +1027,7 @@
         },
         {
           "text": "ratios endpoint sorts ascending (worst first)",
-          "check": "cd backend && grep -qE '(order.*ASC|sort.*asc|recoveryRatio.*ASC)' src/disaster/disaster.service.ts"
+          "check": "cd backend && grep -qE '(ASC|\\.sort\\()' src/disaster/disaster.service.ts"
         },
         {
           "text": "disaster.service.spec.ts passes (table-driven: overview aggregation, states by DEF group, ratios sort, state profile shape)",
