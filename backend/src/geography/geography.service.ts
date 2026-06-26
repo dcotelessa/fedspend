@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { FindOptionsWhere, IsNull, Repository } from 'typeorm';
 import { GeoSpendingSnapshot } from './geo-spending-snapshot.entity';
 
 export interface QueryStatesInput {
@@ -17,7 +17,7 @@ export class GeographyService {
   ) {}
 
   async queryStates(input: QueryStatesInput): Promise<GeoSpendingSnapshot[]> {
-    const where: Record<string, number | string | null | ReturnType<typeof IsNull>> = {};
+    const where: FindOptionsWhere<GeoSpendingSnapshot> = {};
 
     if (input.fiscalYear !== undefined) {
       where.fiscalYear = input.fiscalYear;

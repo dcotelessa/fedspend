@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, IsNull, Repository } from 'typeorm';
 import { GeographyService } from './geography.service';
 import { GeoSpendingSnapshot } from './geo-spending-snapshot.entity';
 
@@ -31,6 +31,7 @@ describe('GeographyService', () => {
     repoReturn: GeoSpendingSnapshot[];
     expectedCount: number;
     expectedOrder?: number[];
+    expectedWhere: FindOptionsWhere<GeoSpendingSnapshot>;
   }
 
   const queryStatesTestTable: QueryStatesTestCase[] = [
@@ -64,6 +65,7 @@ describe('GeographyService', () => {
         } as GeoSpendingSnapshot,
       ],
       expectedCount: 2,
+      expectedWhere: { fiscalYear: 2024, agencyId: IsNull() },
     },
     {
       name: 'filters by fiscalYear and agencyId',
@@ -83,6 +85,7 @@ describe('GeographyService', () => {
         } as GeoSpendingSnapshot,
       ],
       expectedCount: 1,
+      expectedWhere: { fiscalYear: 2024, agencyId: 2 },
     },
     {
       name: 'filters by fiscalYear and scope',
@@ -102,6 +105,7 @@ describe('GeographyService', () => {
         } as GeoSpendingSnapshot,
       ],
       expectedCount: 1,
+      expectedWhere: { fiscalYear: 2024, agencyId: IsNull(), scope: 'county' },
     },
     {
       name: 'nullable agencyId returns all rows with null agencyId',
@@ -121,6 +125,7 @@ describe('GeographyService', () => {
         } as GeoSpendingSnapshot,
       ],
       expectedCount: 1,
+      expectedWhere: { fiscalYear: 2024, agencyId: IsNull() },
     },
     {
       name: 'sorted by obligatedAmount descending',
@@ -165,29 +170,37 @@ describe('GeographyService', () => {
       ],
       expectedCount: 3,
       expectedOrder: [1200000, 700000, 300000],
+      expectedWhere: { fiscalYear: 2024, agencyId: IsNull() },
     },
     {
       name: 'returns empty array when no matches',
       input: { fiscalYear: 2024, agencyId: 99 },
       repoReturn: [],
       expectedCount: 0,
+      expectedWhere: { fiscalYear: 2024, agencyId: 99 },
     },
   ];
 
-  it.each(queryStatesTestTable)('$name', async ({ input, repoReturn, expectedCount, expectedOrder }) => {
-    jest.spyOn(repo, 'find').mockResolvedValue(repoReturn);
+  it.each(queryStatesTestTable)(
+    '$name',
+    async ({ input, repoReturn, expectedCount, expectedOrder, expectedWhere }) => {
+      jest.spyOn(repo, 'find').mockResolvedValue(repoReturn);
 
-    const result = await service.queryStates(input);
+      const result = await service.queryStates(input);
 
-    expect(result).toHaveLength(expectedCount);
-    expect(repo.find).toHaveBeenCalled();
+      expect(result).toHaveLength(expectedCount);
+      expect(repo.find).toHaveBeenCalledWith({
+        where: expectedWhere,
+        order: { obligatedAmount: 'DESC' },
+      });
 
-    if (expectedOrder) {
-      for (let i = 0; i < result.length; i++) {
-        expect(result[i].obligatedAmount).toBe(expectedOrder[i]);
+      if (expectedOrder) {
+        for (let i = 0; i < result.length; i++) {
+          expect(result[i].obligatedAmount).toBe(expectedOrder[i]);
+        }
       }
-    }
-  });
+    },
+  );
 
   interface GetStateDetailTestCase {
     name: string;
@@ -283,15 +296,21 @@ describe('GeographyService', () => {
     },
   ];
 
-  it.each(getStateDetailTestTable)('$name', async ({ stateCode, repoReturn, expectedCount, expectedYears }) => {
-    jest.spyOn(repo, 'find').mockResolvedValue(repoReturn);
+  it.each(getStateDetailTestTable)(
+    '$name',
+    async ({ stateCode, repoReturn, expectedCount, expectedYears }) => {
+      jest.spyOn(repo, 'find').mockResolvedValue(repoReturn);
 
-    const result = await service.getStateDetail(stateCode);
+      const result = await service.getStateDetail(stateCode);
 
-    expect(result).toHaveLength(expectedCount);
-    expect(repo.find).toHaveBeenCalled();
+      expect(result).toHaveLength(expectedCount);
+      expect(repo.find).toHaveBeenCalledWith({
+        where: { stateCode },
+        order: { fiscalYear: 'DESC' },
+      });
 
-    const actualYears = result.map(r => r.fiscalYear).sort();
-    expect(actualYears).toEqual(expectedYears);
-  });
+      const actualYears = result.map((r) => r.fiscalYear).sort();
+      expect(actualYears).toEqual(expectedYears);
+    },
+  );
 });

@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { GeographyService } from './geography.service';
+import { GeographyService, QueryStatesInput } from './geography.service';
+import { GeoSpendingSnapshot } from './geo-spending-snapshot.entity';
 
 @Controller('geography')
 export class GeographyController {
@@ -10,16 +11,12 @@ export class GeographyController {
     @Query('fiscalYear') fiscalYear?: number,
     @Query('agencyId') agencyId?: number,
     @Query('scope') scope?: string,
-  ): Promise<any[]> {
-    const params: Record<string, any> = {};
-    if (fiscalYear !== undefined) params.fiscalYear = fiscalYear;
-    if (agencyId !== undefined) params.agencyId = agencyId;
-    if (scope !== undefined) params.scope = scope;
-    return this.geographyService.queryStates(params);
+  ): Promise<GeoSpendingSnapshot[]> {
+    return this.geographyService.queryStates({ fiscalYear, agencyId, scope });
   }
 
   @Get('state/:code')
-  getStateDetail(@Param('code') code: string): Promise<any[]> {
+  getStateDetail(@Param('code') code: string): Promise<GeoSpendingSnapshot[]> {
     return this.geographyService.getStateDetail(code);
   }
 }
