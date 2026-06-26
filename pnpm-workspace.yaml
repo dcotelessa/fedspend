@@ -1,7 +1,12 @@
 packages:
   - 'backend'
+  - 'frontend'
 allowBuilds:
+  '@parcel/watcher': set this to true or false
   better-sqlite3: true
+  esbuild: set this to true or false
+  lmdb: set this to true or false
+  msgpackr-extract: set this to true or false
   unrs-resolver: true
 onlyBuildDependencies:
   - '@nestjs/core'
