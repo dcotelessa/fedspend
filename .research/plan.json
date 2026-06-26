@@ -1134,7 +1134,7 @@
       "id": "E4-S02",
       "epic": "E4",
       "title": "5 routes with placeholder standalone components",
-      "goal": "Create 5 standalone components (DashboardComponent, GeographicViewComponent, AgencyListComponent, AgencySpotlightComponent, DisasterLensComponent) and wire routes via provideRouter in main.ts. Each component is a placeholder with just a heading. Verify all 5 routes render via a routing spec.",
+      "goal": "Create 5 standalone placeholder components (DashboardComponent, GeographicViewComponent, AgencyListComponent, AgencySpotlightComponent, DisasterLensComponent) and define the 5 routes in frontend/src/app/app.routes.ts. The Angular 20 scaffold already wires provideRouter via app.config.ts — do NOT add a second router provider and do NOT edit main.ts. Verify all 5 route->component mappings via a table-driven routing spec.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E4-S01"
@@ -1151,18 +1151,10 @@
           "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
           "frontend/src/app/disaster-lens/disaster-lens.component.ts",
           "frontend/src/app/disaster-lens/disaster-lens.component.html",
-          "frontend/src/app/routes.ts",
-          "frontend/src/main.ts",
+          "frontend/src/app/app.routes.ts",
           "frontend/src/app/routes.spec.ts"
         ],
-        "regions": [
-          {
-            "file": "frontend/src/main.ts",
-            "start": 1,
-            "end": 20,
-            "reason": "bootstrapApplication — add provideRouter(routes) to providers"
-          }
-        ]
+        "regions": []
       },
       "acceptanceCriteria": [
         {
@@ -1170,12 +1162,12 @@
           "check": "for c in dashboard/dashboard geographic-view/geographic-view agency-list/agency-list agency-spotlight/agency-spotlight disaster-lens/disaster-lens; do test -f frontend/src/app/$c.component.ts || exit 1; done"
         },
         {
-          "text": "routes.ts exports 5 routes (/, /geography, /agencies, /agencies/:id, /disaster)",
-          "check": "cd frontend && grep -qE \"path.*['\\\"]\\$['\\\"]|path.*['\\\"]geography['\\\"]|path.*['\\\"]agencies['\\\"]|path.*['\\\"]disaster['\\\"]\" src/app/routes.ts"
+          "text": "app.routes.ts defines >=5 routes (/, /geography, /agencies, /agencies/:id, /disaster)",
+          "check": "cd frontend && node -e \"const s=require('fs').readFileSync('src/app/app.routes.ts','utf8');const m=s.match(/path:/g);process.exit(m&&m.length>=5?0:1)\""
         },
         {
-          "text": "main.ts uses provideRouter(routes)",
-          "check": "cd frontend && grep -q 'provideRouter' src/main.ts"
+          "text": "router is provided via app.config.ts (scaffold wiring intact)",
+          "check": "cd frontend && grep -q provideRouter src/app/app.config.ts"
         },
         {
           "text": "routes.spec.ts passes (table-driven: each path navigates to the right component)",
@@ -1186,7 +1178,7 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Use standalone components (Angular 17 default). routes.ts exports `routes: Routes[]` array. main.ts: bootstrapApplication(AppComponent, {providers: [provideRouter(routes), provideHttpClient(), provideAnimations()]})."
+      "notes": "Angular 20 standalone components. CRITICAL — the scaffold ALREADY wires routing: app.config.ts has providers: [provideBrowserGlobalErrorListeners(), provideZoneChangeDetection({eventCoalescing:true}), provideRouter(routes)] importing `routes` from './app.routes', and main.ts does bootstrapApplication(App, appConfig). So: DO NOT create a separate routes.ts; DO NOT add a second provideRouter anywhere (double-provisioning breaks the router at runtime); DO NOT edit main.ts or app.config.ts. Your ONLY routing change is populating frontend/src/app/app.routes.ts (replace `export const routes: Routes = [];`). Tasks: (1) Create 5 standalone placeholder components, each in <name>.component.ts exporting class <Name>Component — DashboardComponent (dashboard), GeographicViewComponent (geographic-view), AgencyListComponent (agency-list), AgencySpotlightComponent (agency-spotlight), DisasterLensComponent (disaster-lens). Components are standalone BY DEFAULT in Angular 20 (omit the `standalone` flag). Each @Component: selector 'app-<name>', templateUrl '<name>.component.html', and the .component.html contains a single <h1>heading</h1>. No imports needed for placeholders. (2) In app.routes.ts define: { path: '', component: DashboardComponent }, { path: 'geography', component: GeographicViewComponent }, { path: 'agencies', component: AgencyListComponent }, { path: 'agencies/:id', component: AgencySpotlightComponent }, { path: 'disaster', component: DisasterLensComponent } — import each component, use single-quoted path strings, eager `component:` mapping. (3) routes.spec.ts: TABLE-DRIVEN — import `routes` from './app.routes' and all 5 component classes; build a testTable of {path, expectedComponent} rows; for each row, find the route in `routes` with that path and assert route.component === expectedComponent. No RouterTestingModule/harness needed — assert directly on the routes array. The root component class is `App` (Angular 20 renamed it from AppComponent), referenced only by main.ts — leave it alone."
     },
     {
       "id": "E4-S03",
