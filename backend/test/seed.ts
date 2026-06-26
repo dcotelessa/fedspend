@@ -1,4 +1,4 @@
-import { DataSource, Repository } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { Agency } from '../src/agencies/agency.entity';
 import { SpendingRecord } from '../src/spending/spending-record.entity';
 import { GeoSpendingSnapshot } from '../src/geography/geo-spending-snapshot.entity';
