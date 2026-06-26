@@ -42,17 +42,33 @@ export PATH="$HOME/.local/bin:$PATH"
 #   harness = pi | opencode
 #   model_id is passed to the harness's --model flag
 TIER_LADDER_FAST=(
-  "T1|pi|qwen3-coder:30b|2"
-  "T2|pi|zai-coding-plan/glm-4.7|1"
-  "T3|pi|zai-coding-plan/glm-5.2|1"
+  "T1|pi|qwen3-coder:30b|2|medium"
+  "T2|pi|zai-coding-plan/glm-4.7|1|medium"
+  "T3|pi|zai-coding-plan/glm-5.2|1|medium"
 )
 
 TIER_LADDER_DEEP=(
-  "T1|pi|qwen3.6:35b|2"
-  "T2|pi|zai-coding-plan/glm-5.2|1"
+  "T1|pi|qwen3.6:35b|3|medium"
+  "T2|pi|zai-coding-plan/glm-5.2|1|medium"
 )
 
 TIER_LADDER=()
+
+# ── THINKING ESCALATION ───────────────────────────────────────────────────────
+# Levels (pi-llama-cpp budgets): off=disable, minimal=1024, low=2048,
+# medium=8192, high=16384, xhigh=uncapped. Only meaningfully affects thinking
+# models (qwen3.6:35b); harmless no-op on qwen3-coder:30b (thinking=0 template)
+# and on cloud tiers. On a local-tier verify failure, the next attempt bumps one
+# level (capped at xhigh) — free local reasoning-budget retries before cloud.
+THINKING_LEVELS=(off minimal low medium high xhigh)
+
+escalate_thinking() {
+  local base="$1" step="$2" idx=0 i
+  for i in "${!THINKING_LEVELS[@]}"; do [[ "${THINKING_LEVELS[$i]}" == "$base" ]] && idx=$i; done
+  local target=$((idx + step))
+  (( target > 5 )) && target=5
+  echo "${THINKING_LEVELS[$target]}"
+}
 
 # ── ARGS ──────────────────────────────────────────────────────────────────────
 STORY="${1:-}"
@@ -150,13 +166,29 @@ select_tier_ladder() {
   case "$build_type" in
     BUILD-DEEP)
       TIER_LADDER=("${TIER_LADDER_DEEP[@]}")
-      info "Build type: BUILD-DEEP → ladder: qwen3.6:35b → glm-5.2"
+      info "Build type: BUILD-DEEP → ladder: qwen3.6:35b (medium→high→xhigh) → glm-5.2"
       ;;
     BUILD-FAST|*)
       TIER_LADDER=("${TIER_LADDER_FAST[@]}")
       info "Build type: BUILD-FAST → ladder: qwen3-coder:30b → glm-4.7 → glm-5.2"
       ;;
   esac
+
+  # Per-story override on T1 (the local tier): optional .model and/or .thinking
+  # fields in plan.json. The knob for future experiments (e.g. BUILD-FAST with
+  # qwen3.6:35b@low instead of coder). Defaults unchanged when absent.
+  local om ot
+  om="$(jq -r '.model // empty' "$STORY_TMP" 2>/dev/null)"
+  ot="$(jq -r '.thinking // empty' "$STORY_TMP" 2>/dev/null)"
+  if [[ -n "$om" || -n "$ot" ]]; then
+    local t1="${TIER_LADDER[0]}"
+    local tn h m ma bt
+    IFS='|' read -r tn h m ma bt <<< "$t1"
+    [[ -n "$om" ]] && m="$om"
+    [[ -n "$ot" ]] && bt="$ot"
+    TIER_LADDER[0]="${tn}|${h}|${m}|${ma}|${bt}"
+    info "Per-story override → T1: model=$m thinking=$bt"
+  fi
 }
 
 # ── WORKTREE PROVISIONING ────────────────────────────────────────────────────
@@ -253,6 +285,7 @@ generate_prompt_pi() {
   local attempt_of_tier="$3"
   local prior_failures="$4"
   local wt="$5"
+  local thinking="$6"
 
   local title goal notes deps
   title="$(jq -r '.title // "unknown"' "$STORY_TMP")"
@@ -282,7 +315,7 @@ $prior_failures
   fi
 
   cat > "$PROMPT_TMP" << PROMPT
-## Task: $STORY — $title [Tier $tier_num: $model via pi, attempt $attempt_of_tier]
+## Task: $STORY — $title [Tier $tier_num: $model via pi, attempt $attempt_of_tier, thinking: $thinking]
 
 ## Goal
 $goal
@@ -382,9 +415,10 @@ print_session_instructions() {
   local attempt_of_tier="$4"
   local wt="$5"
   local branch="build/$(echo "$STORY" | tr '[:upper:]' '[:lower:]')"
+  local thinking="$6"
 
   rule
-  echo -e "${BOLD}SESSION — Tier $tier_num: $model via $harness (attempt $attempt_of_tier)${RESET}"
+  echo -e "${BOLD}SESSION — Tier $tier_num: $model via $harness (attempt $attempt_of_tier, thinking: ${thinking:-medium})${RESET}"
   rule
   echo
   echo "  Story:    $STORY"
@@ -392,6 +426,7 @@ print_session_instructions() {
   echo "  Branch:   $branch"
   echo
   if [[ "$harness" == "pi" ]]; then
+    local pi_launch="pi --model $model --thinking ${thinking:-medium} @$PROMPT_TMP"
     case "$model" in
       zai-coding-plan/*)
         echo -e "${BOLD}0. Cloud model — no llama-server needed${RESET}"
@@ -399,9 +434,7 @@ print_session_instructions() {
         echo -e "${BOLD}1. Launch pi inside the worktree${RESET}"
         echo
         echo "   cd $wt"
-        echo "   pi @$PROMPT_TMP"
-        echo
-        echo -e "${BOLD}   Before pressing Enter: /models → select $model${RESET}"
+        echo "   $pi_launch"
         ;;
       *)
         local start_arg="coder"
@@ -416,11 +449,11 @@ print_session_instructions() {
         echo -e "${BOLD}1. Launch pi inside the worktree${RESET}"
         echo
         echo "   cd $wt"
-        echo "   pi @$PROMPT_TMP"
-        echo
-        echo -e "${BOLD}   Before pressing Enter: /models → select llama-server/$model${RESET}"
+        echo "   $pi_launch"
         ;;
     esac
+    echo
+    echo -e "${BOLD}   (model + thinking auto-selected — no /models step needed)${RESET}"
     echo
   else
     echo -e "${BOLD}1. Launch $harness inside the worktree${RESET}"
@@ -455,6 +488,7 @@ record_result() {
   local attempt_of_tier="$5"
   local tier_max="$6"
   local elapsed_sec="$7"
+  local thinking="${8:-medium}"
 
   local epic; epic="$(echo "$STORY" | grep -oE '^E[0-9]+')"
   local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -469,11 +503,12 @@ record_result() {
      --argjson attemptOfTier "$attempt_of_tier" \
      --argjson tierMax "$tier_max" \
      --argjson elapsedSec "$elapsed_sec" \
+     --arg thinking "$thinking" \
      --arg ts "$ts" \
      '.runs += [{
        story:$story, epic:$epic, tier:$tier, harness:$harness, model:$model,
        result:$result, attemptOfTier:$attemptOfTier, tierMaxAttempts:$tierMax,
-       elapsedSec:$elapsedSec, timestamp:$ts
+       elapsedSec:$elapsedSec, thinking:$thinking, timestamp:$ts
      }]' \
      "$BUILD_LOG" > "$tmp" && mv "$tmp" "$BUILD_LOG"
 
@@ -597,21 +632,22 @@ main() {
   local global_attempt=0
 
   for tier_entry in "${TIER_LADDER[@]}"; do
-    local tier_name harness model tier_max
-    IFS='|' read -r tier_name harness model tier_max <<< "$tier_entry"
+    local tier_name harness model tier_max base_thinking
+    IFS='|' read -r tier_name harness model tier_max base_thinking <<< "$tier_entry"
     local tier_num="${tier_name#T}"
 
     local aot
     for ((aot=1; aot<=tier_max; aot++)); do
       global_attempt=$((global_attempt+1))
       local start_sec; start_sec="$(date +%s)"
+      local thinking; thinking="$(escalate_thinking "${base_thinking:-medium}" "$((aot-1))")"
 
       if [[ "$harness" == "pi" ]]; then
-        generate_prompt_pi "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
+        generate_prompt_pi "$model" "$tier_num" "$aot" "$prior_failures" "$wt" "$thinking"
       else
         generate_prompt_opencode "$model" "$tier_num" "$aot" "$prior_failures" "$wt"
       fi
-      print_session_instructions "$harness" "$model" "$tier_num" "$aot" "$wt" "$branch"
+      print_session_instructions "$harness" "$model" "$tier_num" "$aot" "$wt" "$branch" "$thinking"
 
       read -rp "  Press Enter when the harness signals done... " _
 
@@ -627,7 +663,7 @@ main() {
         # (build "PASSed" but no files delivered), which qa-review would then
         # trust and run against a main missing the scope.files.
         if commit_and_merge "$model" "$tier_name" "$harness" "$wt" "$branch"; then
-          record_result "PASS" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
+          record_result "PASS" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed" "$thinking"
           update_capability_report
           rule
           echo
@@ -636,7 +672,7 @@ main() {
           exit 0
         else
           error "verify PASSed but commit/merge FAILED — PASS NOT recorded."
-          record_result "FAIL" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
+          record_result "FAIL" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed" "$thinking"
           echo
           echo "  The build is preserved in worktree $wt (branch $branch)." >&2
           echo "  Verify the merge issue, then either merge manually or re-run." >&2
@@ -646,7 +682,7 @@ main() {
       else
         local end_sec; end_sec="$(date +%s)"
         local elapsed=$((end_sec - start_sec))
-        record_result "FAIL" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed"
+        record_result "FAIL" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed" "$thinking"
         prior_failures="$(extract_failures)"
         echo
         error "$STORY FAILED at $tier_name ($model via $harness), attempt $aot."

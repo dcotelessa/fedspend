@@ -67,13 +67,18 @@ Research → Planning → Handoff → Build → QA-verify → QA-review → Repo
   abstraction layer was breaking qwen tool calls; llama.cpp with `--jinja` uses
   the model's native chat template and produces perfect OpenAI-compatible
   `tool_calls`). Runs in a per-story git worktree at
-  `../fedspend-build/<STORY_ID>/`. Tier ladder:
-  - T1 `llama.cpp/qwen3-coder:30b` via pi (2 attempts) — primary, native tools
-  - T2 `llama.cpp/qwen3-coder:30b` via Aider (1 attempt) — diff-based fallback
-  - T3 `zai-coding-plan/glm-4.7` via opencode (1 attempt) — cloud, cheapest
-  - T4 `zai-coding-plan/glm-5.1` via opencode (1 attempt)
-  - T5 `zai-coding-plan/glm-5.2` via opencode (1 attempt) — matches thinking tier
-  - T5 fail → stop, opencode thinking tier reviews, resume after human OK
+  `../fedspend-build/<STORY_ID>/`. Tier ladder (all via pi, branched by
+  `story.build`; thinking escalates within local tiers before cloud):
+  - BUILD-FAST: T1 `qwen3-coder:30b` (medium→high, 2) → T2 `glm-4.7` (1) → T3 `glm-5.2` (1)
+  - BUILD-DEEP: T1 `qwen3.6:35b` (medium→high→xhigh, 3) → T2 `glm-5.2` (1)
+  - Per-story override: optional `.model` + `.thinking` fields in plan.json
+    override T1 (the knob for model/thinking experiments).
+  - Note: `qwen3-coder:30b` reports `thinking=0` (no reasoning template) —
+    `--thinking` is a harmless no-op on it; the level only meaningfully affects
+    `qwen3.6:35b`. Cloud tiers ignore it (events.ts skips non-llama-cpp).
+  - Final fail → stop, thinking tier reviews, resume after human OK
+  - pi is launched with `--model` + `--thinking` flags (auto-selected, no
+    manual `/models` step).
 - **QA-verify:** `verify2.sh --guard` — deterministic, no model, the only thing
   that decides PASS/FAIL.
 - **QA-review:** `qa-review.sh <STORY>` — behavior-preserving refinement pass

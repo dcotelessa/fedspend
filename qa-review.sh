@@ -272,9 +272,9 @@ print_session() {
   echo -e "${BOLD}1. Launch pi inside the QA worktree${RESET}"
   echo
   echo "   cd $wt"
-  echo "   pi @$PROMPT_TMP"
+  echo "   pi --model $MODEL --thinking medium @$PROMPT_TMP"
   echo
-  echo -e "${BOLD}   Before pressing Enter: /models → select $MODEL${RESET}"
+  echo -e "${BOLD}   (model auto-selected — no /models step needed)${RESET}"
   echo
   echo "   pi will refine the scope.files in place, run the spec + build,"
   echo "   and emit ===QA_COMPLETE=== when done."
