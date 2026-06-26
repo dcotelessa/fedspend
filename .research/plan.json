@@ -1082,8 +1082,8 @@
     {
       "id": "E4-S01",
       "epic": "E4",
-      "title": "Scaffold Angular 17 app + install Material, ng2-charts, jest-preset-angular",
-      "goal": "Run `npx @angular/cli new frontend --style=scss --routing=true --ssr=false --package-manager=pnpm`. Install @angular/material, @angular/cdk, ng2-charts, chart.js. Swap Karma for jest-preset-angular. Add @shared/* path alias. Verify with a sanity spec.",
+      "title": "Scaffold Angular 20 app + install Material, ng2-charts, jest-preset-angular",
+      "goal": "Run `npx --yes @angular/cli@20 new frontend --style=scss --ssr=false --skip-git --skip-install --package-manager=pnpm --defaults`. Add 'frontend' to pnpm-workspace.yaml, then `pnpm install` at repo root. Install @angular/material, @angular/cdk, ng2-charts, chart.js. Swap Karma for jest-preset-angular (jest@^30, jsdom@^26). Add @shared/* path alias. Verify with a sanity spec.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E1-S08"
@@ -1097,9 +1097,14 @@
           "frontend/src/main.ts",
           "frontend/jest.config.js",
           "frontend/setup-jest.ts",
-          "frontend/src/app/app.spec.ts"
+          "frontend/src/app/app.spec.ts",
+          "pnpm-workspace.yaml"
         ],
-        "regions": []
+        "regions": [],
+        "commitAllUnder": [
+          "frontend",
+          "pnpm-lock.yaml"
+        ]
       },
       "acceptanceCriteria": [
         {
@@ -1123,7 +1128,7 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Remove karma.conf.js and the karma-related devDeps. Configure jest-preset-angular per its docs: add preset to jest.config.js, set transform to jest-preset-angular, set setupFilesAfterEnv to setup-jest.ts. The Angular 17 standalone API is the default — use it (no NgModules). app.spec.ts asserts the root AppComponent compiles."
+      "notes": "Use the Angular 20 standalone API (default — no NgModules). ng new flags: --skip-git (avoid a nested repo inside the build worktree), --skip-install (this is a pnpm workspace; register 'frontend' in pnpm-workspace.yaml then run `pnpm install` at the REPO ROOT so the single root pnpm-lock.yaml covers both backend and frontend). Add runtime deps to the frontend workspace package with `pnpm add --filter frontend @angular/material @angular/cdk ng2-charts chart.js`, and devDeps with `pnpm add -D --filter frontend jest-preset-angular jest @types/jest jsdom` (jest-preset-angular@latest requires Angular >=20, jest ^30, jsdom ^26). Remove karma.conf.js and the karma-related devDeps (karma, karma-chrome-launcher, karma-coverage, karma-jasmine, jasmine-core) and remove the 'test' builder entry in angular.json; set the frontend package.json 'test' script to jest. jest.config.js: preset 'jest-preset-angular', setupFilesAfterEnv ['<rootDir>/setup-jest.ts'], testEnvironment 'jsdom'. setup-jest.ts: `import 'jest-preset-angular/setup-jest';`. tsconfig.spec.json compilerOptions.types: ['jest','node']. Add to frontend/tsconfig.json compilerOptions.paths: \"@shared/*\": [\"../shared/*\"] (no baseUrl needed under TS5). app.spec.ts asserts the root AppComponent compiles. The whole frontend/ tree is committed via scope.commitAllUnder (you create it with the CLI); the root pnpm-lock.yaml is also auto-staged."
     },
     {
       "id": "E4-S02",

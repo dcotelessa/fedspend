@@ -314,6 +314,12 @@ $prior_failures
 "
   fi
 
+  local scaffold=""
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    scaffold+="  - SCAFFOLD (create/populate whole path, e.g. via CLI): $p"$'\n'
+  done < <(jq -r '(.scope.commitAllUnder // []) | .[]' "$STORY_TMP" 2>/dev/null)
+
   cat > "$PROMPT_TMP" << PROMPT
 ## Task: $STORY — $title [Tier $tier_num: $model via pi, attempt $attempt_of_tier, thinking: $thinking]
 
@@ -321,7 +327,7 @@ $prior_failures
 $goal
 
 ## Files (CLOSED SET)
-$files
+$files$scaffold
 
 ## Acceptance Criteria (ALL must pass)
 $criteria
@@ -382,6 +388,12 @@ $prior_failures
 
   local model_short; model_short="$(echo "$model" | sed 's|.*/||')"
 
+  local scaffold=""
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    scaffold+="  - SCAFFOLD (create/populate whole path, e.g. via CLI): $p"$'\n'
+  done < <(jq -r '(.scope.commitAllUnder // []) | .[]' "$STORY_TMP" 2>/dev/null)
+
   cat > "$PROMPT_TMP" << PROMPT
 ## Task: $STORY — $title [Tier $tier_num: $model_short, attempt $attempt_of_tier]
 
@@ -389,7 +401,7 @@ $prior_failures
 $goal
 
 ## Files (CLOSED SET)
-$files
+$files$scaffold
 
 ## Acceptance Criteria
 $criteria
@@ -539,6 +551,18 @@ commit_and_merge() {
   while IFS= read -r f; do
     [[ -n "$f" ]] && scope_args+=("$f")
   done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+  # Scaffold stories: stage whole generated dirs (e.g. frontend/) + auto-
+  # updated files (e.g. pnpm-lock.yaml) listed in scope.commitAllUnder. The
+  # repo .gitignore auto-excludes node_modules/dist under them. Missing paths
+  # are skipped so a typo can't abort the whole scope-file commit.
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    if [[ ! -e "${wt}/${p}" ]]; then
+      warn "commitAllUnder path missing, skipping: $p"
+      continue
+    fi
+    scope_args+=("$p")
+  done < <(jq -r '(.scope.commitAllUnder // []) | .[]' "$STORY_TMP" 2>/dev/null)
   scope_args+=(".research/contexts/${STORY}.json" ".research/contexts/${STORY}.md")
 
   if (cd "$wt" && git add -- "${scope_args[@]}" 2>/dev/null && git commit -m "$msg" --no-verify) >/dev/null 2>&1; then

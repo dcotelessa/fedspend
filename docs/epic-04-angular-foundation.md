@@ -2,15 +2,20 @@
 
 ## Goal
 
-Scaffold the Angular 17 standalone app with Angular Material, ng2-charts, shared services, interceptors, and routing.
+Scaffold the Angular 20 standalone app with Angular Material, ng2-charts, shared services, interceptors, and routing.
 
 ## Scaffold
 
+This repo is a pnpm workspace (`pnpm-workspace.yaml` lists `backend`). The
+frontend joins the same workspace and installs at the repo root, so the single
+`pnpm-lock.yaml` covers both packages.
+
 ```bash
 cd fedspend/
-npx @angular/cli new frontend --style=scss --routing=true --ssr=false --package-manager=pnpm
-cd frontend/
-pnpm add @angular/material @angular/cdk ng2-charts chart.js
+npx --yes @angular/cli@20 new frontend --style=scss --ssr=false --skip-git --skip-install --package-manager=pnpm --defaults
+# register frontend in pnpm-workspace.yaml, then install at repo root:
+pnpm install
+pnpm add --filter frontend @angular/material @angular/cdk ng2-charts chart.js
 ```
 
 ## Routes
