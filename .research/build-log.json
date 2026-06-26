@@ -418,6 +418,19 @@
       "elapsedSec": 900,
       "thinking": "medium",
       "timestamp": "2026-06-26T19:52:57Z"
+    },
+    {
+      "story": "E4-S02",
+      "epic": "E4",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 288,
+      "thinking": "medium",
+      "timestamp": "2026-06-26T20:19:40Z"
     }
   ]
 }
