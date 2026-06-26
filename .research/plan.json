@@ -1113,7 +1113,7 @@
         },
         {
           "text": "tsconfig.json has @shared/* path alias",
-          "check": "cd frontend && jq -e '.compilerOptions.paths.\"@shared/*\" == [\"../shared/*\"]' tsconfig.json >/dev/null"
+          "check": "cd frontend && jq -e '.compilerOptions.paths.\"@shared/*\" == [\"../shared/*\"]' <(grep -vE '^[[:space:]]*/\\*' tsconfig.json) >/dev/null"
         },
         {
           "text": "Karma removed, jest configured (jest.config.js + setup-jest.ts)",
