@@ -38,9 +38,7 @@ export class DisasterService {
 
     const ratioByState = new Map<string, number>();
     for (const r of ratioRows) {
-      if (!ratioByState.has(r.stateCode) || r.fiscalYear > 0) {
-        ratioByState.set(r.stateCode, r.recoveryRatio);
-      }
+      ratioByState.set(r.stateCode, r.recoveryRatio);
     }
 
     const groups = new Map<string, DisasterFundingRecord[]>();
@@ -86,7 +84,7 @@ export class DisasterService {
   }
 
   async queryStates(params: QueryStatesParams): Promise<DisasterFundingRecord[]> {
-    const { defGroup, fiscalYear } = params;
+    const { defGroup } = params;
     const where: Record<string, string | number> = {};
     if (defGroup) {
       where.defGroup = defGroup;
@@ -101,12 +99,8 @@ export class DisasterService {
     if (fiscalYear) {
       where.fiscalYear = fiscalYear;
     }
-    let rows = await this.ratioRepo.find({
-      where,
-      order: { recoveryRatio: 'ASC' },
-    });
-    rows = rows.sort((a, b) => a.recoveryRatio - b.recoveryRatio);
-    return rows;
+    const rows = await this.ratioRepo.find({ where });
+    return rows.sort((a, b) => a.recoveryRatio - b.recoveryRatio);
   }
 
   async getStateProfile(stateCode: string): Promise<{

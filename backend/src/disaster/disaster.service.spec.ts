@@ -22,7 +22,6 @@ describe('DisasterService', () => {
     name: string;
     fundingRows: Partial<DisasterFundingRecord>[];
     defGroup: string;
-    fiscalYear?: number;
     expectedIds: number[];
     expectedOrder: 'desc' | 'asc';
   }
@@ -106,6 +105,12 @@ describe('DisasterService', () => {
         },
       ],
     },
+    {
+      name: 'returns empty overview when no funding or ratio rows exist',
+      fundingRows: [],
+      ratioRows: [],
+      expected: [],
+    },
   ];
 
   const testStates: StatesTestCase[] = [
@@ -178,6 +183,22 @@ describe('DisasterService', () => {
           { recoveryRatio: 1.0, femaObligated: 50000, fedSpendingObligated: 50000, declarationCount: 1 },
         ],
         declarationCount: 2,
+      },
+    },
+    {
+      name: 'returns profile for state with funding but no ratio rows',
+      fundingRows: [
+        { id: 1, defGroup: 'CA', stateCode: 'TX', stateName: 'Texas', obligatedAmount: 80000, awardCount: 4, perCapita: 300, population: 250 },
+      ],
+      ratioRows: [],
+      stateCode: 'TX',
+      expectedProfileShape: {
+        stateCode: 'TX',
+        stateName: 'Texas',
+        totalObligated: 80000,
+        totalAwardCount: 4,
+        ratios: [],
+        declarationCount: 0,
       },
     },
     {
@@ -254,12 +275,7 @@ describe('DisasterService', () => {
     if (expectedProfileShape === null) {
       expect(result).toBeNull();
     } else {
-      expect(result).toMatchObject(expectedProfileShape);
-      expect(result.stateCode).toBe(expectedProfileShape.stateCode);
-      expect(result.stateName).toBe(expectedProfileShape.stateName);
-      expect(result.totalObligated).toBe(expectedProfileShape.totalObligated);
-      expect(result.totalAwardCount).toBe(expectedProfileShape.totalAwardCount);
-      expect(result.declarationCount).toBe(expectedProfileShape.declarationCount);
+      expect(result).toEqual(expectedProfileShape);
     }
   });
 });
