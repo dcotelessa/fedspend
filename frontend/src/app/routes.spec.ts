@@ -45,4 +45,14 @@ describe('App Routes', () => {
     expect(route).toBeDefined();
     expect(route?.component).toBe(expectedComponent);
   });
+
+  it('has exactly 5 route definitions', () => {
+    expect(routes).toHaveLength(5);
+  });
+
+  it('has no duplicate paths', () => {
+    const paths = routes.map(r => r.path);
+    const unique = new Set(paths);
+    expect(unique.size).toBe(paths.length);
+  });
 });
