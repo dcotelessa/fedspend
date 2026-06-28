@@ -21,12 +21,27 @@ export interface AgencyWithTotal {
 export interface DisasterStateProfile {
   stateCode: string;
   stateName: string;
-  [key: string]: unknown;
+  totalObligated: number;
+  totalAwardCount: number;
+  ratios: Array<{
+    recoveryRatio: number;
+    femaObligated: number;
+    fedSpendingObligated: number;
+    declarationCount: number;
+  }>;
+  declarationCount: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
+
+  private toParams(params: object): HttpParams {
+    return Object.entries(params).reduce<HttpParams>(
+      (acc, [key, value]) => (value === undefined ? acc : acc.set(key, String(value))),
+      new HttpParams(),
+    );
+  }
 
   getAgencies(): Observable<AgencyWithTotal[]> {
     return this.http.get<{ data: AgencyWithTotal[] }>(`${environment.apiUrl}/agencies`).pipe(
@@ -48,17 +63,10 @@ export class ApiService {
   }
 
   getGeographyStates(params: { fiscalYear?: number; agencyId?: number; scope?: string }): Observable<GeoSpendingSnapshot[]> {
-    let httpParams = new HttpParams();
-    if (params.fiscalYear !== undefined) {
-      httpParams = httpParams.set('fiscalYear', String(params.fiscalYear));
-    }
-    if (params.agencyId !== undefined) {
-      httpParams = httpParams.set('agencyId', String(params.agencyId));
-    }
-    if (params.scope !== undefined) {
-      httpParams = httpParams.set('scope', params.scope);
-    }
-    return this.http.get<GeoSpendingSnapshot[]>(`${environment.apiUrl}/geography/states`, { params: httpParams }).pipe(
+    return this.http.get<GeoSpendingSnapshot[]>(
+      `${environment.apiUrl}/geography/states`,
+      { params: this.toParams(params) },
+    ).pipe(
       catchError(() => of([] as GeoSpendingSnapshot[])),
     );
   }
@@ -76,24 +84,19 @@ export class ApiService {
   }
 
   getDisasterStates(params: { defGroup?: string; fiscalYear?: number }): Observable<DisasterFundingRecord[]> {
-    let httpParams = new HttpParams();
-    if (params.defGroup !== undefined) {
-      httpParams = httpParams.set('defGroup', params.defGroup);
-    }
-    if (params.fiscalYear !== undefined) {
-      httpParams = httpParams.set('fiscalYear', String(params.fiscalYear));
-    }
-    return this.http.get<DisasterFundingRecord[]>(`${environment.apiUrl}/disaster/states`, { params: httpParams }).pipe(
+    return this.http.get<DisasterFundingRecord[]>(
+      `${environment.apiUrl}/disaster/states`,
+      { params: this.toParams(params) },
+    ).pipe(
       catchError(() => of([] as DisasterFundingRecord[])),
     );
   }
 
   getDisasterRecoveryRatios(params: { fiscalYear?: number }): Observable<DisasterRecoveryRatio[]> {
-    let httpParams = new HttpParams();
-    if (params.fiscalYear !== undefined) {
-      httpParams = httpParams.set('fiscalYear', String(params.fiscalYear));
-    }
-    return this.http.get<DisasterRecoveryRatio[]>(`${environment.apiUrl}/disaster/recovery-ratios`, { params: httpParams }).pipe(
+    return this.http.get<DisasterRecoveryRatio[]>(
+      `${environment.apiUrl}/disaster/recovery-ratios`,
+      { params: this.toParams(params) },
+    ).pipe(
       catchError(() => of([] as DisasterRecoveryRatio[])),
     );
   }
