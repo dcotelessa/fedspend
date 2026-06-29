@@ -523,6 +523,19 @@
       "thinking": "high",
       "timestamp": "2026-06-29T03:49:00Z",
       "note": "Scope-leakage: builder created bar-chart.component.css in worktree (untracked), not in scope.files. Re-verify gate caught it. Removed dangling styleUrls reference."
+    },
+    {
+      "story": "E4-S06",
+      "epic": "E4",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 168,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T03:59:40Z"
     }
   ]
 }

@@ -7,11 +7,11 @@ Auto-updated after each story PASS. Source: `build-log.json`.
 ```
   RESCUE opencode/zai-coding-plan/glm-5.2: 1
   RESCUE planning/opencode/glm-5.2: 1
-  T1 pi/qwen3-coder:30b: 1
+  T1 pi/qwen3-coder:30b: 2
   T1 pi/qwen3.6:35b: 2
 ```
 
-Total PASS in epic: **5**
+Total PASS in epic: **6**
 
 ## Full per-story history
 
@@ -35,3 +35,6 @@ Total PASS in epic: **5**
   - T2 pi/zai-coding-plan/glm-4.7: FAIL
   - T3 pi/zai-coding-plan/glm-5.2: FAIL
   - RESCUE planning/opencode/glm-5.2: PASS
+
+### E4-S06 — PASS
+  - T1 pi/qwen3-coder:30b: PASS
