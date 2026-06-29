@@ -240,6 +240,15 @@ describe('AgencySpotlightComponent', () => {
       currentFy: 2024,
       expectedInsight: 'In FY2024, NASA spent 33.3% on Direct Payments.',
     },
+    {
+      name: 'breaks ties by keeping first-encountered award type',
+      records: [
+        { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 500000, outlayAmount: 0, awardCount: 4 },
+        { id: 2, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 500000, outlayAmount: 0, awardCount: 5 },
+      ],
+      currentFy: 2024,
+      expectedInsight: 'In FY2024, NASA spent 50.0% on Grants.',
+    },
   ];
 
   describe('computeInsight', () => {

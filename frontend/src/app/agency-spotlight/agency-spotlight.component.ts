@@ -3,9 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatOptionModule } from '@angular/material/core';
-import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
-import { MatCell, MatCellDef, MatHeaderCell, MatHeaderCellDef, MatHeaderRow, MatHeaderRowDef, MatRow, MatRowDef } from '@angular/material/table';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
@@ -28,7 +26,7 @@ interface TableDataRow {
   selector: 'app-agency-spotlight',
   templateUrl: './agency-spotlight.component.html',
   standalone: true,
-  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatOptionModule, MatInputModule, MatTableModule, MatCell, MatCellDef, MatHeaderCell, MatHeaderCellDef, MatHeaderRow, MatHeaderRowDef, MatRow, MatRowDef],
+  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatOptionModule, MatTableModule],
 })
 export class AgencySpotlightComponent implements OnInit {
   readonly route = inject(ActivatedRoute);
@@ -148,22 +146,29 @@ export class AgencySpotlightComponent implements OnInit {
     }
   }
 
-  private computeInsight(): string {
-    if (!this.agency || !this.currentRecords.length) {
-      return 'No data available for the selected fiscal year.';
-    }
-
-    const fyRecords = this.currentRecords.filter(r => r.fiscalYear === this.fiscalYearEnd);
-    if (fyRecords.length === 0) {
-      return 'No data available for the selected fiscal year.';
-    }
-
+  private aggregateAwardTypesForYear(records: SpendingRecord[], fiscalYear: number): {
+    sumsByType: Map<string, number>;
+    countsByType: Map<string, number>;
+    total: number;
+  } {
     const sumsByType = new Map<string, number>();
-    for (const r of fyRecords) {
+    const countsByType = new Map<string, number>();
+    let total = 0;
+    for (const r of records) {
+      if (r.fiscalYear !== fiscalYear) continue;
       sumsByType.set(r.awardTypeLabel, (sumsByType.get(r.awardTypeLabel) ?? 0) + r.obligatedAmount);
+      countsByType.set(r.awardTypeLabel, (countsByType.get(r.awardTypeLabel) ?? 0) + r.awardCount);
+      total += r.obligatedAmount;
+    }
+    return { sumsByType, countsByType, total };
+  }
+
+  private computeInsight(): string {
+    if (!this.agency) {
+      return 'No data available for the selected fiscal year.';
     }
 
-    const total = fyRecords.reduce((s, r) => s + r.obligatedAmount, 0);
+    const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);
     if (total === 0) {
       return 'No data available for the selected fiscal year.';
     }
@@ -183,29 +188,14 @@ export class AgencySpotlightComponent implements OnInit {
   }
 
   private buildTableData(): TableDataRow[] {
-    const fyRecords = this.currentRecords.filter(r => r.fiscalYear === this.fiscalYearEnd);
-
-    if (fyRecords.length === 0) return [];
-
-    const sumsByType = new Map<string, { obligated: number; count: number }>();
-    for (const r of fyRecords) {
-      let entry = sumsByType.get(r.awardTypeLabel);
-      if (!entry) {
-        entry = { obligated: 0, count: 0 };
-        sumsByType.set(r.awardTypeLabel, entry);
-      }
-      entry.obligated += r.obligatedAmount;
-      entry.count += r.awardCount;
-    }
-
-    const total = fyRecords.reduce((s, r) => s + r.obligatedAmount, 0);
+    const { sumsByType, countsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);
 
     return Array.from(sumsByType.entries())
-      .map(([awardType, { obligated, count }]) => ({
+      .map(([awardType, obligated]) => ({
         awardType,
         obligatedAmount: obligated,
         percentageOfTotal: total > 0 ? Math.round(obligated / total * 1000) / 10 : 0,
-        awardCount: count,
+        awardCount: countsByType.get(awardType) ?? 0,
       }))
       .sort((a, b) => b.obligatedAmount - a.obligatedAmount);
   }
