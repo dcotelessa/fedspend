@@ -536,6 +536,33 @@
       "elapsedSec": 168,
       "thinking": "medium",
       "timestamp": "2026-06-29T03:59:40Z"
+    },
+    {
+      "story": "E5-S01",
+      "epic": "E5",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 339,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T06:40:42Z"
+    },
+    {
+      "story": "E5-S01",
+      "epic": "E5",
+      "tier": "RESCUE",
+      "harness": "planning",
+      "model": "opencode/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 0,
+      "thinking": "high",
+      "timestamp": "2026-06-29T06:44:00Z",
+      "note": "ornith:9b T1 PASS in worktree. Scope-leakage: added GeographyQuery to shared/interfaces/index.ts (not in scope.files). Re-verify gate caught it. Type added on main."
     }
   ]
 }
