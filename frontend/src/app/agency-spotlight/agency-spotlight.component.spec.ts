@@ -1,7 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, convertToParamMap } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 
 import { AgencySpotlightComponent } from './agency-spotlight.component';
@@ -18,12 +17,12 @@ interface TestCase {
   expectedLabels: string[];
   expectedDatasetCount: number;
   expectedAwardTypes: string[];
+  expectedData: { [awardType: string]: number[] };
 }
 
 describe('AgencySpotlightComponent', () => {
   let component: AgencySpotlightComponent;
   let fixture: ComponentFixture<AgencySpotlightComponent>;
-  let httpMock: HttpClient;
   let apiService: ApiService;
 
   const testTable: TestCase[] = [
@@ -41,6 +40,7 @@ describe('AgencySpotlightComponent', () => {
       expectedLabels: ['2022', '2023'],
       expectedDatasetCount: 2,
       expectedAwardTypes: ['Contracts', 'Grants'],
+      expectedData: { Contracts: [100000, 150000], Grants: [200000, 250000] },
     },
     {
       name: 'filters records by fiscal year range',
@@ -56,6 +56,7 @@ describe('AgencySpotlightComponent', () => {
       expectedLabels: ['2020', '2024'],
       expectedDatasetCount: 1,
       expectedAwardTypes: ['Contracts'],
+      expectedData: { Contracts: [200000, 300000] },
     },
     {
       name: 'aggregates multiple quarters into same fiscal year bucket',
@@ -70,6 +71,7 @@ describe('AgencySpotlightComponent', () => {
       expectedLabels: ['2022'],
       expectedDatasetCount: 1,
       expectedAwardTypes: ['Contracts'],
+      expectedData: { Contracts: [150000] },
     },
     {
       name: 'handles empty record set',
@@ -80,6 +82,38 @@ describe('AgencySpotlightComponent', () => {
       expectedLabels: [],
       expectedDatasetCount: 0,
       expectedAwardTypes: [],
+      expectedData: {},
+    },
+    {
+      name: 'fills missing award-type buckets within a year with zero',
+      id: 5,
+      records: [
+        { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
+        { id: 2, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 50000, outlayAmount: 0, awardCount: 2 },
+        { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 80000, outlayAmount: 0, awardCount: 1 },
+      ],
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedLabels: ['2022', '2023'],
+      expectedDatasetCount: 2,
+      expectedAwardTypes: ['Contracts', 'Grants'],
+      expectedData: { Contracts: [100000, 50000], Grants: [0, 80000] },
+    },
+    {
+      name: 'sorts years and award types regardless of input order',
+      id: 6,
+      records: [
+        { id: 1, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 30000, outlayAmount: 0, awardCount: 1 },
+        { id: 2, agencyId: 1, fiscalYear: 2021, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 10000, outlayAmount: 0, awardCount: 1 },
+        { id: 3, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 20000, outlayAmount: 0, awardCount: 1 },
+        { id: 4, agencyId: 1, fiscalYear: 2021, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 40000, outlayAmount: 0, awardCount: 1 },
+      ],
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedLabels: ['2021', '2022', '2023'],
+      expectedDatasetCount: 2,
+      expectedAwardTypes: ['Contracts', 'Grants'],
+      expectedData: { Contracts: [10000, 0, 0], Grants: [40000, 20000, 30000] },
     },
   ];
 
@@ -94,7 +128,6 @@ describe('AgencySpotlightComponent', () => {
 
     fixture = TestBed.createComponent(AgencySpotlightComponent);
     component = fixture.componentInstance;
-    httpMock = TestBed.inject(HttpClient);
     apiService = TestBed.inject(ApiService);
   });
 
@@ -104,7 +137,7 @@ describe('AgencySpotlightComponent', () => {
 
   function setupRoute(id: number) {
     const paramMap = convertToParamMap({ id: String(id) });
-    (component as any).routeParam = {
+    (component as any).route = {
       paramMap: {
         subscribe: jest.fn().mockImplementation((fn: (val: any) => void) => {
           fn(paramMap);
@@ -118,7 +151,7 @@ describe('AgencySpotlightComponent', () => {
       .mockReturnValueOnce(of(records));
   }
 
-  it.each(testTable)('$name', ({ id, records, fiscalYearStart, fiscalYearEnd, expectedLabels, expectedDatasetCount, expectedAwardTypes }) => {
+  it.each(testTable)('$name', ({ id, records, fiscalYearStart, fiscalYearEnd, expectedLabels, expectedDatasetCount, expectedAwardTypes, expectedData }) => {
     setupRoute(id);
     flushService(id, records);
 
@@ -133,6 +166,12 @@ describe('AgencySpotlightComponent', () => {
     if (expectedAwardTypes.length > 0) {
       const datasetLabels = component.chartData.datasets.map(d => d.label);
       expect(datasetLabels).toEqual(expect.arrayContaining(expectedAwardTypes));
+    }
+
+    for (const [awardType, expectedValues] of Object.entries(expectedData)) {
+      const dataset = component.chartData.datasets.find(d => d.label === awardType);
+      expect(dataset).toBeDefined();
+      expect(dataset!.data).toEqual(expectedValues);
     }
   });
 

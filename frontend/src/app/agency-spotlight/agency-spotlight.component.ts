@@ -4,16 +4,11 @@ import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
-import { AWARD_COLORS } from '../award-colors';
 import { AgencySummary, SpendingRecord } from '@shared/interfaces';
 
 interface ChartData {
   labels: string[];
   datasets: ChartDataset[];
-}
-
-interface AwardTypeSum {
-  [awardType: string]: number;
 }
 
 @Component({
@@ -23,7 +18,7 @@ interface AwardTypeSum {
   imports: [CurrencyFormatPipe, BarChartComponent, FormsModule],
 })
 export class AgencySpotlightComponent implements OnInit {
-  readonly routeParam = inject(ActivatedRoute);
+  readonly route = inject(ActivatedRoute);
   readonly apiService = inject(ApiService);
 
   agency: AgencySummary | null = null;
@@ -37,7 +32,7 @@ export class AgencySpotlightComponent implements OnInit {
   chartData: ChartData = { labels: [], datasets: [] };
 
   ngOnInit() {
-    this.routeParam.paramMap.subscribe(params => {
+    this.route.paramMap.subscribe(params => {
       const id = params.get('id');
       if (id) {
         this.apiService.getAgencySpotlight(Number(id)).subscribe({
@@ -64,34 +59,35 @@ export class AgencySpotlightComponent implements OnInit {
   private currentRecords: SpendingRecord[] = [];
 
   private buildStackedChartFromRecords(records: SpendingRecord[]): void {
-    const filtered = records.filter(
+    const inRange = records.filter(
       r => r.fiscalYear >= this.fiscalYearStart && r.fiscalYear <= this.fiscalYearEnd,
     );
 
-    const yearSet = new Set<number>();
-    const awardTypeSet = new Set<string>();
+    const years = new Set<number>();
+    const sumsByAwardType = new Map<string, Map<number, number>>();
+    for (const record of inRange) {
+      years.add(record.fiscalYear);
+      let sumsByYear = sumsByAwardType.get(record.awardTypeLabel);
+      if (!sumsByYear) {
+        sumsByYear = new Map<number, number>();
+        sumsByAwardType.set(record.awardTypeLabel, sumsByYear);
+      }
+      sumsByYear.set(
+        record.fiscalYear,
+        (sumsByYear.get(record.fiscalYear) ?? 0) + record.obligatedAmount,
+      );
+    }
 
-    filtered.forEach(record => {
-      yearSet.add(record.fiscalYear);
-      awardTypeSet.add(record.awardTypeLabel);
-    });
-
-    const sortedYears = Array.from(yearSet).sort((a, b) => a - b);
-    const sortedAwardTypes = Array.from(awardTypeSet).sort();
-
-    this.chartData.datasets = sortedAwardTypes.map(awardType => {
-      const sums = sortedYears.map(year => {
-        return filtered
-          .filter(r => r.fiscalYear === year && r.awardTypeLabel === awardType)
-          .reduce((sum, r) => sum + r.obligatedAmount, 0);
-      });
-
-      return {
-        label: awardType,
-        data: sums,
-      };
-    });
+    const sortedYears = Array.from(years).sort((a, b) => a - b);
+    const sortedAwardTypes = Array.from(sumsByAwardType.keys()).sort();
 
     this.chartData.labels = sortedYears.map(String);
+    this.chartData.datasets = sortedAwardTypes.map(awardType => {
+      const sumsByYear = sumsByAwardType.get(awardType)!;
+      return {
+        label: awardType,
+        data: sortedYears.map(year => sumsByYear.get(year) ?? 0),
+      };
+    });
   }
 }
