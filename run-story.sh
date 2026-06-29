@@ -572,7 +572,7 @@ commit_and_merge() {
   fi
 
   local leaked
-  leaked="$(cd "$wt" && git diff --name-only HEAD 2>/dev/null | grep -vE '^\.research/' || true)"
+  leaked="$(cd "$wt" && { git diff --name-only HEAD; git ls-files --others --exclude-standard; } 2>/dev/null | grep -vE '^\.research/' | sort -u || true)"
   if [[ -n "$leaked" ]]; then
     warn "Scope-leakage: builder modified files outside scope.files (not committed):"
     while IFS= read -r f; do
