@@ -1,13 +1,30 @@
-@if (!loading && agency) {
-  <div class="agency-spotlight">
-    <h1>{{ agency.agency.name }}</h1>
-    <p class="abbreviation">{{ agency.agency.abbreviation }}</p>
-    <p class="total">
-      Total Obligated: {{ agency.currentFyTotal | currencyFormat }}
-    </p>
-    <span class="badge badge-{{ badgeColor }}">{{ badgeText }}</span>
-  </div>
-}
+<div class="agency-spotlight-header">
+  <h1>{{ agency?.agency?.name }}</h1>
+  <p class="abbreviation">{{ agency?.agency?.abbreviation }}</p>
+  <p class="total">
+    Total Obligated: {{ agency?.currentFyTotal | currencyFormat }}
+  </p>
+  <span class="badge badge-{{ badgeColor }}">{{ badgeText }}</span>
+</div>
+
+<div class="fy-range-selector">
+  <label>
+    From:
+    <select [(ngModel)]="fiscalYearStart" (change)="onRangeChange()">
+      @for (year of availableYears; track year) {
+        <option [value]="year">{{ year }}</option>
+      }
+    </select>
+  </label>
+  <label>
+    To:
+    <select [(ngModel)]="fiscalYearEnd" (change)="onRangeChange()">
+      @for (year of availableYears; track year) {
+        <option [value]="year">{{ year }}</option>
+      }
+    </select>
+  </label>
+</div>
 
 @if (loading) {
   <div class="loading">Loading agency data...</div>
@@ -15,4 +32,13 @@
 
 @if (error) {
   <div class="error">{{ error }}</div>
+}
+
+@if (chartData.datasets.length > 0 && !loading) {
+  <app-bar-chart
+    [labels]="chartData.labels"
+    [datasets]="chartData.datasets"
+    title="Spending by Fiscal Year"
+    [horizontal]="false">
+  </app-bar-chart>
 }

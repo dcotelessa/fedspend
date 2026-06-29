@@ -85,3 +85,8 @@ export interface GeographyQuery {
   fiscalYear: number;
   scope: 'recipient' | 'performance';
 }
+
+export interface AgencySpotlightQuery {
+  fiscalYearStart: number;
+  fiscalYearEnd: number;
+}

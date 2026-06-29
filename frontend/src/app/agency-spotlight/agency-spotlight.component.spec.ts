@@ -6,14 +6,18 @@ import { of } from 'rxjs';
 
 import { AgencySpotlightComponent } from './agency-spotlight.component';
 import { ApiService } from '../api.service';
-import { AgencySummary } from '@shared/interfaces';
+import { AWARD_COLORS } from '../award-colors';
+import { SpendingRecord } from '@shared/interfaces';
 
 interface TestCase {
   name: string;
   id: number;
-  summary: AgencySummary | null;
-  error?: { status: number };
-  expectedBadge: 'Green' | 'Red' | 'Neutral' | '';
+  records: SpendingRecord[];
+  fiscalYearStart: number;
+  fiscalYearEnd: number;
+  expectedLabels: string[];
+  expectedDatasetCount: number;
+  expectedAwardTypes: string[];
 }
 
 describe('AgencySpotlightComponent', () => {
@@ -24,54 +28,58 @@ describe('AgencySpotlightComponent', () => {
 
   const testTable: TestCase[] = [
     {
-      name: 'positive YoY change displays green badge',
+      name: 'builds stacked dataset grouped by fiscal year across award types',
       id: 1,
-      summary: {
-        agency: { id: 1, name: 'Test Agency', abbreviation: 'TA', toptierCode: '01' },
-        currentFyTotal: 10000000,
-        priorFyTotal: 8000000,
-        yoyChange: 0.25,
-      },
-      expectedBadge: 'Green',
+      records: [
+        { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
+        { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 200000, outlayAmount: 0, awardCount: 3 },
+        { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 7 },
+        { id: 4, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 250000, outlayAmount: 0, awardCount: 4 },
+      ],
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedLabels: ['2022', '2023'],
+      expectedDatasetCount: 2,
+      expectedAwardTypes: ['Contracts', 'Grants'],
     },
     {
-      name: 'negative YoY change displays red badge',
+      name: 'filters records by fiscal year range',
       id: 2,
-      summary: {
-        agency: { id: 2, name: 'Failing Agency', abbreviation: 'FA', toptierCode: '02' },
-        currentFyTotal: 5000000,
-        priorFyTotal: 8000000,
-        yoyChange: -0.375,
-      },
-      expectedBadge: 'Red',
+      records: [
+        { id: 1, agencyId: 1, fiscalYear: 2019, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
+        { id: 2, agencyId: 1, fiscalYear: 2020, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 200000, outlayAmount: 0, awardCount: 3 },
+        { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 300000, outlayAmount: 0, awardCount: 7 },
+        { id: 4, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 400000, outlayAmount: 0, awardCount: 4 },
+      ],
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedLabels: ['2020', '2024'],
+      expectedDatasetCount: 1,
+      expectedAwardTypes: ['Contracts'],
     },
     {
-      name: 'zero YoY change displays neutral badge',
+      name: 'aggregates multiple quarters into same fiscal year bucket',
       id: 3,
-      summary: {
-        agency: { id: 3, name: 'Same Agency', abbreviation: 'SA', toptierCode: '03' },
-        currentFyTotal: 6000000,
-        priorFyTotal: 6000000,
-        yoyChange: 0,
-      },
-      expectedBadge: 'Neutral',
+      records: [
+        { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 50000, outlayAmount: 0, awardCount: 2 },
+        { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 2, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 75000, outlayAmount: 0, awardCount: 3 },
+        { id: 3, agencyId: 1, fiscalYear: 2022, quarter: 3, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 25000, outlayAmount: 0, awardCount: 1 },
+      ],
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedLabels: ['2022'],
+      expectedDatasetCount: 1,
+      expectedAwardTypes: ['Contracts'],
     },
     {
-      name: 'missing prior year displays neutral badge',
+      name: 'handles empty record set',
       id: 4,
-      summary: {
-        agency: { id: 4, name: 'New Agency', abbreviation: 'NA', toptierCode: '04' },
-        currentFyTotal: 1000000,
-        priorFyTotal: 0,
-        yoyChange: 0,
-      },
-      expectedBadge: 'Neutral',
-    },
-    {
-      name: 'null summary renders empty state',
-      id: 99,
-      summary: null,
-      expectedBadge: '',
+      records: [],
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedLabels: [],
+      expectedDatasetCount: 0,
+      expectedAwardTypes: [],
     },
   ];
 
@@ -96,7 +104,7 @@ describe('AgencySpotlightComponent', () => {
 
   function setupRoute(id: number) {
     const paramMap = convertToParamMap({ id: String(id) });
-    component.routeParam = {
+    (component as any).routeParam = {
       paramMap: {
         subscribe: jest.fn().mockImplementation((fn: (val: any) => void) => {
           fn(paramMap);
@@ -105,19 +113,36 @@ describe('AgencySpotlightComponent', () => {
     } as any;
   }
 
-  function flushService(id: number, summary: AgencySummary | null, error?: { status: number }) {
-    jest.spyOn(apiService, 'getAgencySummary')
-      .mockReturnValueOnce(error ? Promise.reject(error) : of(summary));
+  function flushService(id: number, records: SpendingRecord[] | null) {
+    jest.spyOn(apiService, 'getAgencySpotlight')
+      .mockReturnValueOnce(of(records));
   }
 
-  it.each(testTable)('$name', ({ id, summary, error, expectedBadge }) => {
+  it.each(testTable)('$name', ({ id, records, fiscalYearStart, fiscalYearEnd, expectedLabels, expectedDatasetCount, expectedAwardTypes }) => {
     setupRoute(id);
-    flushService(id, summary, error);
+    flushService(id, records);
 
     (component as any).ngOnInit();
 
-    expect(component.agency).toEqual(summary);
-    expect(component.badgeColor).toBe(expectedBadge);
+    expect(component.fiscalYearStart).toBe(fiscalYearStart);
+    expect(component.fiscalYearEnd).toBe(fiscalYearEnd);
     expect(component.loading).toBe(false);
+    expect(component.chartData.labels).toEqual(expectedLabels);
+    expect(component.chartData.datasets.length).toBe(expectedDatasetCount);
+
+    if (expectedAwardTypes.length > 0) {
+      const datasetLabels = component.chartData.datasets.map(d => d.label);
+      expect(datasetLabels).toEqual(expect.arrayContaining(expectedAwardTypes));
+    }
+  });
+
+  describe('AWARD_COLORS', () => {
+    const awardTypes = ['Contracts', 'Grants', 'Direct Payments', 'Loans', 'IDVs'];
+
+    it.each(awardTypes)('has a color for $awardType', (awardType: string) => {
+      expect(AWARD_COLORS[awardType]).toBeDefined();
+      expect(typeof AWARD_COLORS[awardType]).toBe('string');
+      expect(AWARD_COLORS[awardType].length).toBeGreaterThan(0);
+    });
   });
 });
