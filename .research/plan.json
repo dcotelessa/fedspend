@@ -1226,7 +1226,7 @@
       "id": "E4-S04",
       "epic": "E4",
       "title": "LoadingService + LoadingInterceptor + ErrorInterceptor",
-      "goal": "LoadingService exposes `loading$: WritableSignal<boolean>`. LoadingInterceptor increments/decrements a counter on every HTTP request, sets loading$ true when >0. ErrorInterceptor catches non-2xx, shows mat-snack-bar with the error message, does NOT retry. Wire both via provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])).",
+      "goal": "LoadingService exposes `loading$: WritableSignal<boolean>`. LoadingInterceptor increments/decrements a counter on every HTTP request, sets loading$ true when >0. ErrorInterceptor catches non-2xx, shows mat-snack-bar with the error message, does NOT retry (re-throws so downstream catchError fallbacks still fire). Wire both via provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])) in app.config.ts, and add provideAnimationsAsync() so MatSnackBar works at runtime.",
       "build": "BUILD-DEEP",
       "dependencies": [
         "E4-S03"
@@ -1238,16 +1238,9 @@
           "frontend/src/app/error.interceptor.ts",
           "frontend/src/app/loading.service.spec.ts",
           "frontend/src/app/interceptors.spec.ts",
-          "frontend/src/main.ts"
+          "frontend/src/app/app.config.ts"
         ],
-        "regions": [
-          {
-            "file": "frontend/src/main.ts",
-            "start": 1,
-            "end": 25,
-            "reason": "providers — replace provideHttpClient() with provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor]))"
-          }
-        ]
+        "regions": []
       },
       "acceptanceCriteria": [
         {
@@ -1263,8 +1256,12 @@
           "check": "cd frontend && grep -qE '(MatSnackBar|snack_bar|snackbar|open\\()' src/app/error.interceptor.ts"
         },
         {
-          "text": "main.ts registers both interceptors via withInterceptors([...])",
-          "check": "cd frontend && grep -q 'withInterceptors' src/main.ts"
+          "text": "app.config.ts registers both interceptors via withInterceptors([...])",
+          "check": "cd frontend && grep -q 'withInterceptors' src/app/app.config.ts"
+        },
+        {
+          "text": "app.config.ts provides animations (MatSnackBar requires it at runtime)",
+          "check": "cd frontend && grep -qE 'provideAnimations' src/app/app.config.ts"
         },
         {
           "text": "loading.service.spec.ts + interceptors.spec.ts pass",
@@ -1275,7 +1272,7 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Interceptors are functional (Angular 17 style), not classes. LoadingService is @Injectable({providedIn:'root'}). Counter is private; only loading$ is public. ErrorInterceptor reads error.status + error.message and shows snack-bar with duration 5000."
+      "notes": "Angular 20. CRITICAL: providers go in app.config.ts, NOT main.ts. main.ts just does bootstrapApplication(App, appConfig) — do NOT edit it. In app.config.ts add to the EXISTING providers array: provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])) AND provideAnimationsAsync() (import from @angular/platform-browser/animations/async — MatSnackBar needs animations at runtime; without it, opening a snack-bar throws). Keep the existing provideRouter(routes), provideBrowserGlobalErrorListeners(), and provideZoneChangeDetection. Interceptors are FUNCTIONAL (HttpInterceptorFn from @angular/common/http), NOT classes. LoadingService (@Injectable({providedIn:'root'})): a private counter field, increment()/decrement() methods, and readonly loading$ = signal(false) as a WritableSignal<boolean> (signal from @angular/core). decrement clamps counter at >=0; both methods call loading$.set(this.counter > 0). Only loading$ and increment/decrement are public. LoadingInterceptor (HttpInterceptorFn): inject(LoadingService), call increment() before forwarding, return next(req).pipe(finalize(() => loadingSvc.decrement())) so the counter decrements on BOTH success and error. ErrorInterceptor (HttpInterceptorFn): inject(MatSnackBar), return next(req).pipe(catchError((error: HttpErrorResponse) => { const msg = error.status ? error.status + ': ' + error.message : 'Network error'; snackBar.open(msg, 'Dismiss', { duration: 5000 }); return throwError(() => error); })) — RE-THROW after showing the snack-bar so the ApiService catchError fallbacks still fire (the service still returns [] / null to its subscribers); do NOT swallow. Specs: loading.service.spec.ts TABLE-DRIVEN over a testTable of {operations, expectedLoading} rows asserting loading$() after increment/decrement sequences. interceptors.spec.ts: TestBed with provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])) + provideHttpClientTesting, HttpTestingController; for LoadingInterceptor assert the LoadingService counter/loading$ toggles around a flushed request; for ErrorInterceptor spy on MatSnackBar.open (inject MatSnackBar, jest.spyOn) and assert open() is called with the message AND the error re-throws (subscribe with error handler). No comments in code."
     },
     {
       "id": "E4-S05",
