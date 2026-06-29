@@ -624,6 +624,87 @@ update_capability_report() {
   success "Capability report updated."
 }
 
+# ── QA RECOMMENDATION ─────────────────────────────────────────────────────────
+# Deterministic post-PASS hint: is a behavior-preserving QA pass worth running?
+# Replaces the "ask the thinking tier" step with a data-driven recommendation.
+# Weighs cleanup surface (build type, diff volume) AND verification value
+# (contract/HTTP drift risk — the E4-S03 /api lesson; tier struggle). Advisory
+# only — the human still decides whether to run ./qa-review.sh.
+recommend_qa() {
+  local tier_name="$1" aot="$2"
+  local build_type score=0 rationale=""
+  build_type="$(jq -r '.build // "BUILD-FAST"' "$STORY_TMP")"
+
+  if [[ "$build_type" == "BUILD-DEEP" ]]; then
+    score=$((score+2)); rationale+="  - BUILD-DEEP (+2): service/logic refinement surface\n"
+  else
+    rationale+="  - BUILD-FAST (+0): scaffold/config\n"
+  fi
+
+  local struggle=0 note="T1 attempt 1 (+0): clean first try"
+  case "$tier_name" in
+    T1) [[ "${aot:-1}" -gt 1 ]] && { struggle=1; note="T1 attempt $aot (+1): some struggle"; } ;;
+    T2) struggle=2; note="T2 escalation (+2): weaker tier failed first" ;;
+    T3|RESCUE) struggle=3; note="$tier_name (+3): rough/rescued code" ;;
+  esac
+  score=$((score+struggle)); rationale+="  - $note\n"
+
+  local contract=0 f
+  while IFS= read -r f; do
+    [[ -z "$f" ]] || [[ ! -f "$f" ]] && continue
+    if grep -qE 'HttpClient|HttpInterceptor|@shared/interfaces|@Injectable' "$f" 2>/dev/null; then
+      contract=2; break
+    fi
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+  if [[ "$contract" -eq 2 ]]; then
+    score=$((score+2)); rationale+="  - contract/HTTP scope (+2): cross-system drift risk\n"
+  else
+    rationale+="  - no contract/HTTP surface (+0)\n"
+  fi
+
+  local lines=0
+  while IFS= read -r f; do
+    [[ -z "$f" ]] || [[ ! -f "$f" ]] && continue
+    lines=$((lines + $(wc -l < "$f" 2>/dev/null)))
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+  if [[ "$lines" -gt 500 ]]; then
+    score=$((score+2)); rationale+="  - large diff (+2): ${lines} lines\n"
+  elif [[ "$lines" -gt 200 ]]; then
+    score=$((score+1)); rationale+="  - moderate diff (+1): ${lines} lines\n"
+  else
+    rationale+="  - small diff (+0): ${lines} lines\n"
+  fi
+
+  local has_logic=false
+  while IFS= read -r f; do
+    case "$f" in
+      *.service.ts|*.interceptor.ts|*.pipe.ts|*.directive.ts|*api*.ts) has_logic=true; break ;;
+    esac
+  done < <(jq -r '(.scope.files // []) | .[]' "$STORY_TMP" 2>/dev/null)
+  if [[ "$has_logic" != true ]]; then
+    score=$((score-1)); rationale+="  - placeholder/view-only (-1): no logic files\n"
+  fi
+
+  local verdict
+  if [[ "$score" -ge 4 ]]; then
+    verdict="RECOMMENDED"
+  elif [[ "$score" -ge 2 ]]; then
+    verdict="OPTIONAL"
+  else
+    verdict="LIKELY-SKIP"
+  fi
+
+  rule
+  echo -e "${BOLD}QA recommendation: $verdict (score $score)${RESET}"
+  echo -e "$rationale"
+  if [[ "$verdict" == "RECOMMENDED" ]]; then
+    info "Consider: ./qa-review.sh $STORY   (override: just run the next story)"
+  else
+    info "Next: ./run-story.sh <NEXT_STORY_ID>   (QA $verdict; ./qa-review.sh $STORY to override)"
+  fi
+  rule
+}
+
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 main() {
   rule
@@ -689,9 +770,7 @@ main() {
         if commit_and_merge "$model" "$tier_name" "$harness" "$wt" "$branch"; then
           record_result "PASS" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed" "$thinking"
           update_capability_report
-          rule
-          echo
-          info "Next: ./run-story.sh <NEXT_STORY_ID>"
+          recommend_qa "$tier_name" "$aot"
           echo
           exit 0
         else
