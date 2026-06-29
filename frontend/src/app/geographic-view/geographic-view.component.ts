@@ -8,6 +8,7 @@ import { MatOptionModule } from '@angular/material/core';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatSortModule, MatSort } from '@angular/material/sort';
+import { MatIconModule } from '@angular/material/icon';
 import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
 import { ApiService } from '../api.service';
 import { Agency, GeoSpendingSnapshot } from '@shared/interfaces';
@@ -18,7 +19,7 @@ import { GeographyQuery } from '@shared/interfaces';
   imports: [
     CommonModule, FormsModule,
     MatFormFieldModule, MatSelectModule, MatButtonToggleModule, MatOptionModule,
-    MatTableModule, MatPaginatorModule, MatSortModule,
+    MatTableModule, MatPaginatorModule, MatSortModule, MatIconModule,
     BarChartComponent,
   ],
   templateUrl: './geographic-view.component.html',
@@ -33,6 +34,7 @@ export class GeographicViewComponent {
   vsAvg: number[] = [];
   chartLabels: string[] = [];
   chartData: ChartDataset[] = [];
+  delta: number | null = null;
 
   paginator = { pageSize: 15, length: 0, pageIndex: 0 } as { pageSize: number; length: number; pageIndex: number };
 
@@ -70,16 +72,42 @@ export class GeographicViewComponent {
 
   loadData(): void {
     const agencyIdVal = this.agencyId();
-    const params: { fiscalYear: number; agencyId?: number; scope: string } = {
+    const params = {
       fiscalYear: this.fiscalYear(),
       scope: this.scope(),
-    };
+    } as { fiscalYear: number; agencyId?: number; scope: string };
     if (agencyIdVal !== null) {
       params.agencyId = agencyIdVal;
     }
-    this.apiService.getGeographyStates(params).subscribe(data => {
-      this.processData(data);
+
+    const oppositeScope = this.scope() === 'recipient' ? 'performance' : 'recipient';
+    const oppParams = { ...params, scope: oppositeScope };
+
+    this.apiService.getGeographyStates(params).subscribe(primary => {
+      this.processData(primary);
+
+      this.apiService.getGeographyStates(oppParams).subscribe(secondary => {
+        this.computeDelta(primary, secondary);
+      });
     });
+  }
+
+  computeDelta(primary: GeoSpendingSnapshot[], secondary: GeoSpendingSnapshot[]): void {
+    if (primary.length === 0 || secondary.length === 0) {
+      this.delta = null;
+      return;
+    }
+
+    const sorted = [...primary].sort((a, b) => b.obligatedAmount - a.obligatedAmount);
+    const topState = sorted[0];
+    const match = secondary.find(s => s.stateCode === topState.stateCode);
+
+    if (!match) {
+      this.delta = null;
+      return;
+    }
+
+    this.delta = topState.obligatedAmount - match.obligatedAmount;
   }
 
   processData(data: GeoSpendingSnapshot[]): void {
@@ -103,6 +131,8 @@ export class GeographicViewComponent {
       label: 'Obligated Amount (cents)',
       data: this.top10.map(t => t.obligatedAmount),
     }];
+
+    this.delta = null;
   }
 
   onAgencyChange(value: number | null): void {
@@ -118,5 +148,6 @@ export class GeographicViewComponent {
   onScopeChange(value: 'recipient' | 'performance'): void {
     this.scope.set(value);
     this.loadData();
+    this.delta = null;
   }
 }
