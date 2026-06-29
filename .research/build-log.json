@@ -589,7 +589,22 @@
       "tierMaxAttempts": 2,
       "elapsedSec": 643,
       "thinking": "medium",
-      "timestamp": "2026-06-29T07:25:53Z"
+      "timestamp": "2026-06-29T07:25:53Z",
+      "note": "Merge initially failed (tracked+modified context files). Manual merge + verify: 4/4 PASS. Both QA findings fixed: delta sign corrected (recipient - performance always), agencyList always returns full list."
+    },
+    {
+      "story": "E5-S03",
+      "epic": "E5",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 415,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T08:29:25Z",
+      "note": "Merge initially failed (tracked+modified context files). Manual merge + verify: 4/4 PASS. Both QA findings fixed: delta sign corrected (recipient - performance always), agencyList always returns full list."
     }
   ]
 }
