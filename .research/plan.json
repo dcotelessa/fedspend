@@ -1360,9 +1360,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/geographic-view/geographic-view.component.ts",
           "frontend/src/app/geographic-view/geographic-view.component.html",
-          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": [
           {
@@ -1404,9 +1405,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/geographic-view/geographic-view.component.ts",
           "frontend/src/app/geographic-view/geographic-view.component.html",
-          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": [
           {
@@ -1458,9 +1460,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/geographic-view/geographic-view.component.ts",
           "frontend/src/app/geographic-view/geographic-view.component.html",
-          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": [
           {
@@ -1508,9 +1511,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
           "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
-          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts"
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
@@ -1545,10 +1549,11 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
           "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
           "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
-          "frontend/src/app/award-colors.ts"
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/award-colors.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
@@ -1587,9 +1592,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
           "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
-          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts"
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
@@ -1624,9 +1630,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
           "frontend/src/app/disaster-lens/disaster-lens.component.html",
-          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts"
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
@@ -1661,9 +1668,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
           "frontend/src/app/disaster-lens/disaster-lens.component.html",
-          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts"
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
@@ -1698,11 +1706,12 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
           "frontend/src/app/disaster-lens/disaster-lens.component.html",
           "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/ratio-color.spec.ts",
           "frontend/src/app/ratio-color.ts",
-          "frontend/src/app/ratio-color.spec.ts"
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
@@ -1747,9 +1756,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/dashboard/dashboard.component.ts",
           "frontend/src/app/dashboard/dashboard.component.html",
-          "frontend/src/app/dashboard/dashboard.component.spec.ts"
+          "frontend/src/app/dashboard/dashboard.component.spec.ts",
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
@@ -1784,9 +1794,10 @@
       ],
       "scope": {
         "files": [
-          "frontend/src/app/dashboard/dashboard.component.ts",
           "frontend/src/app/dashboard/dashboard.component.html",
-          "frontend/src/app/dashboard/dashboard.component.spec.ts"
+          "frontend/src/app/dashboard/dashboard.component.spec.ts",
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "shared/interfaces/index.ts"
         ],
         "regions": []
       },
