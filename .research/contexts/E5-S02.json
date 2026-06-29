@@ -1,0 +1,157 @@
+{
+  "story": "E5-S02",
+  "epic": "E5",
+  "title": "Geographic View — top 10 bar chart + 50-state table",
+  "goal": "Top section: BarChartComponent showing top 10 states by obligatedAmount for current filter (horizontal). Bottom: mat-table with all states, columns State/Total/PerCapita/AwardCount/vsAvg, mat-paginator 15/page, mat-sort on all columns.",
+  "notes": "vs All-Agencies Avg column = (state.obligatedAmount - allAgenciesAvgForState / total) * 100. Computed in component from the same dataset. Spec mocks ApiService and feeds a testTable of geo snapshots → asserts top10 + vsAvg computation.",
+  "dependencies": "E5-S01",
+  "acceptanceCriteria": [
+    {
+      "text": "component fetches via ApiService.getGeographyStates when filter changes",
+      "check": "cd frontend && grep -q 'getGeographyStates' src/app/geographic-view/geographic-view.component.ts"
+    },
+    {
+      "text": "template uses app-bar-chart",
+      "check": "cd frontend && grep -q 'app-bar-chart' src/app/geographic-view/geographic-view.component.html"
+    },
+    {
+      "text": "template has mat-table, mat-paginator, mat-sort",
+      "check": "cd frontend && grep -q 'mat-table' src/app/geographic-view/geographic-view.component.html && grep -q 'mat-paginator' src/app/geographic-view/geographic-view.component.html && grep -q 'mat-sort' src/app/geographic-view/geographic-view.component.html"
+    },
+    {
+      "text": "geographic-view.component.spec.ts passes (top10 slicing, paginator 15 default, sort by obligatedAmount desc)",
+      "check": "cd frontend && pnpm test --testPathPatterns=geographic-view.component.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "frontend builds",
+      "check": "cd frontend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.html",
+      "mode": "slice",
+      "start": 1,
+      "end": 60,
+      "reason": "add BarChartComponent + mat-table + mat-paginator + mat-sort sections",
+      "excerpt": "   1: <h1>Geographic View</h1>\n   2: \n   3: <mat-form-field appearance=\"outline\" class=\"controls-bar\">\n   4:   <mat-label>Agency</mat-label>\n   5:   <mat-select [(ngModel)]=\"agencyIdValue\">\n   6:     <mat-option value=\"\">All Agencies</mat-option>\n   7:     <mat-option *ngFor=\"let agency of agencyList\" [value]=\"agency.id\">\n   8:       {{ agency.name }}\n   9:     </mat-option>\n  10:   </mat-select>\n  11: </mat-form-field>\n  12: \n  13: <mat-form-field appearance=\"outline\" class=\"controls-bar\">\n  14:   <mat-label>Fiscal Year</mat-label>\n  15:   <mat-select [(ngModel)]=\"fiscalYearValue\">\n  16:     <mat-option *ngFor=\"let fy of fiscalYearList\" [value]=\"fy\">\n  17:       {{ fy }}\n  18:     </mat-option>\n  19:   </mat-select>\n  20: </mat-form-field>\n  21: \n  22: <mat-button-toggle-group [(ngModel)]=\"scopeValue\" class=\"controls-bar\" aria-label=\"Scope\">\n  23:   <mat-button-toggle value=\"recipient\">Recipient</mat-button-toggle>\n  24:   <mat-button-toggle value=\"performance\">Performance</mat-button-toggle>\n  25: </mat-button-toggle-group>"
+    },
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.spec.ts",
+      "mode": "full",
+      "contents": "import { Component } from '@angular/core';\nimport { ComponentFixture, TestBed } from '@angular/core/testing';\nimport { MatSelectModule } from '@angular/material/select';\nimport { MatButtonToggleModule } from '@angular/material/button-toggle';\nimport { provideHttpClient } from '@angular/common/http';\n\nimport { GeographicViewComponent } from './geographic-view.component';\nimport { GeographyQuery } from '@shared/interfaces';\n\ndescribe('GeographicViewComponent', () => {\n  let component: GeographicViewComponent;\n  let fixture: ComponentFixture<GeographicViewComponent>;\n\n  beforeEach(async () => {\n    await TestBed.configureTestingModule({\n      imports: [\n        GeographicViewComponent,\n        MatSelectModule,\n        MatButtonToggleModule,\n      ],\n      providers: [provideHttpClient()],\n    }).compileComponents();\n\n    fixture = TestBed.createComponent(GeographicViewComponent);\n    component = fixture.componentInstance;\n  });\n\n  interface TestCase {\n    name: string;\n    setAgencyId: number | null;\n    setFiscalYear: number;\n    setScope: 'recipient' | 'performance';\n    expected: GeographyQuery;\n  }\n\n  const testTable: TestCase[] = [\n    {\n      name: 'initial filter has defaults (null agency, 2020, recipient)',\n      setAgencyId: null,\n      setFiscalYear: 2020,\n      setScope: 'recipient',\n      expected: { agencyId: null, fiscalYear: 2020, scope: 'recipient' },\n    },\n    {\n      name: 'setting agencyId updates filter',\n      setAgencyId: 42,\n      setFiscalYear: 2022,\n      setScope: 'performance',\n      expected: { agencyId: 42, fiscalYear: 2022, scope: 'performance' },\n    },\n    {\n      name: 'setting fiscalYear updates filter',\n      setAgencyId: null,\n      setFiscalYear: 2024,\n      setScope: 'recipient',\n      expected: { agencyId: null, fiscalYear: 2024, scope: 'recipient' },\n    },\n    {\n      name: 'setting scope to performance updates filter',\n      setAgencyId: 7,\n      setFiscalYear: 2021,\n      setScope: 'performance',\n      expected: { agencyId: 7, fiscalYear: 2021, scope: 'performance' },\n    },\n    {\n      name: 'setting scope to recipient updates filter',\n      setAgencyId: null,\n      setFiscalYear: 2020,\n      setScope: 'recipient',\n      expected: { agencyId: null, fiscalYear: 2020, scope: 'recipient' },\n    },\n    {\n      name: 'setting agencyId to null updates filter',\n      setAgencyId: null,\n      setFiscalYear: 2023,\n      setScope: 'performance',\n      expected: { agencyId: null, fiscalYear: 2023, scope: 'performance' },\n    },\n    {\n      name: 'full filter change emits correct GeographyQuery',\n      setAgencyId: 15,\n      setFiscalYear: 2024,\n      setScope: 'recipient',\n      expected: { agencyId: 15, fiscalYear: 2024, scope: 'recipient' },\n    },\n  ];\n\n  it.each(testTable)('$name', ({ setAgencyId, setFiscalYear, setScope, expected }) => {\n    component.agencyId.set(setAgencyId);\n    component.fiscalYear.set(setFiscalYear);\n    component.scope.set(setScope);\n\n    expect(component.filter$()).toEqual(expected);\n  });\n});\n"
+    },
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.ts",
+      "mode": "slice",
+      "start": 30,
+      "end": 80,
+      "reason": "add data fetching via ApiService.getGeographyStates and expose top10 + allStates computed signals",
+      "excerpt": "  28: \n  29:   get scopeValue(): 'recipient' | 'performance' {\n  30:     return this.scope();\n  31:   }\n  32: \n  33:   get agencyList(): Agency[] {\n  34:     return this.agencyId() === null\n  35:       ? [{ id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },\n  36:          { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },\n  37:          { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },\n  38:          { id: 4, name: 'Department of Health and Human Services', abbreviation: 'HHS', toptierCode: '04' },\n  39:          { id: 5, name: 'Department of Homeland Security', abbreviation: 'DHS', toptierCode: '05' },\n  40:          { id: 6, name: 'Department of State', abbreviation: 'STATE', toptierCode: '06' },\n  41:          { id: 7, name: 'Department of Transportation', abbreviation: 'DOT', toptierCode: '07' }]\n  42:       : [];\n  43:   }\n  44: \n  45:   get fiscalYearList(): number[] {\n  46:     return [2020, 2021, 2022, 2023, 2024];\n  47:   }\n  48: \n  49:   filter$ = computed<GeographyQuery>(() => ({\n  50:     agencyId: this.agencyId(),\n  51:     fiscalYear: this.fiscalYear(),\n  52:     scope: this.scope(),\n  53:   }));\n  54: }"
+    },
+    {
+      "path": "shared/interfaces/index.ts",
+      "mode": "full",
+      "contents": "export interface Agency {\n  id: number;\n  name: string;\n  abbreviation: string;\n  toptierCode: string;\n}\n\nexport interface SpendingRecord {\n  id: number;\n  agencyId: number;\n  fiscalYear: number;\n  quarter: number;\n  awardTypeLabel: string;\n  awardTypeCodes: string;\n  obligatedAmount: number;\n  outlayAmount: number;\n  awardCount: number;\n}\n\nexport interface GeoSpendingSnapshot {\n  id: number;\n  stateCode: string;\n  stateName: string;\n  fiscalYear: number;\n  agencyId: number | null;\n  scope: 'recipient' | 'performance';\n  obligatedAmount: number;\n  awardCount: number;\n  population: number;\n  perCapita: number;\n}\n\nexport interface DisasterFundingRecord {\n  id: number;\n  defGroup: string;\n  defCodes: string;\n  stateCode: string;\n  stateName: string;\n  obligatedAmount: number;\n  awardCount: number;\n  perCapita: number;\n  population: number;\n}\n\nexport interface DisasterRecoveryRatio {\n  id: number;\n  stateCode: string;\n  stateName: string;\n  fiscalYear: number;\n  femaObligated: number;\n  fedSpendingObligated: number;\n  declarationCount: number;\n  recoveryRatio: number;\n  dominantIncidentType: string;\n}\n\nexport interface ApiResponse<T> {\n  data: T;\n  meta: {\n    total: number;\n    page: number;\n    pageSize: number;\n  };\n}\n\nexport interface AgencySummary {\n  agency: Agency;\n  currentFyTotal: number;\n  priorFyTotal: number;\n  yoyChange: number;\n}\n\nexport interface DisasterOverview {\n  defGroup: string;\n  totalObligated: number;\n  totalAwardCount: number;\n  stateCount: number;\n  highestPerCapitaState: string;\n  highestPerCapita: number;\n  coverageGapCount: number;\n}\n\nexport interface GeographyQuery {\n  agencyId: number | null;\n  fiscalYear: number;\n  scope: 'recipient' | 'performance';\n}\n"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 <mat-form-field appearance="outline" class="controls-bar">
   <mat-label>Agency</mat-label>
-  <mat-select [(ngModel)]="agencyIdValue">
+  <mat-select [ngModel]="agencyIdValue()" (ngModelChange)="onAgencyChange($event)">
     <mat-option value="">All Agencies</mat-option>
     <mat-option *ngFor="let agency of agencyList" [value]="agency.id">
       {{ agency.name }}
@@ -12,14 +12,59 @@
 
 <mat-form-field appearance="outline" class="controls-bar">
   <mat-label>Fiscal Year</mat-label>
-  <mat-select [(ngModel)]="fiscalYearValue">
+  <mat-select [ngModel]="fiscalYearValue()" (ngModelChange)="onFiscalYearChange($event)">
     <mat-option *ngFor="let fy of fiscalYearList" [value]="fy">
       {{ fy }}
     </mat-option>
   </mat-select>
 </mat-form-field>
 
-<mat-button-toggle-group [(ngModel)]="scopeValue" class="controls-bar" aria-label="Scope">
+<mat-button-toggle-group [ngModel]="scopeValue()" (ngModelChange)="onScopeChange($event)" class="controls-bar" aria-label="Scope">
   <mat-button-toggle value="recipient">Recipient</mat-button-toggle>
   <mat-button-toggle value="performance">Performance</mat-button-toggle>
 </mat-button-toggle-group>
+
+<app-bar-chart
+  [labels]="chartLabels"
+  [datasets]="chartData"
+  title="Top 10 States by Obligated Amount"
+  [horizontal]="true"
+  class="bar-chart-section">
+</app-bar-chart>
+
+<div class="table-section">
+  <h2>All States</h2>
+  <table mat-table [dataSource]="allStates" matSort class="states-table">
+    <ng-container matColumnDef="state">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>State</th>
+      <td mat-cell *matCellDef="let state">{{ state.stateName }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="obligatedAmount">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>Total</th>
+      <td mat-cell *matCellDef="let state">{{ state.obligatedAmount | number:'1.0-0' }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="perCapita">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>Per Capita</th>
+      <td mat-cell *matCellDef="let state">{{ state.perCapita | number:'1.0-0' }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="awardCount">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>Award Count</th>
+      <td mat-cell *matCellDef="let state">{{ state.awardCount }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="vsAvg">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>vs Avg</th>
+      <td mat-cell *matCellDef="let state, let i = index">
+        {{ vsAvg[i] | number:'1.1-1' }}%
+      </td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+  </table>
+
+  <mat-paginator [pageSize]="15" [length]="paginator.length" [pageSizeOptions]="[15, 30, 50]"></mat-paginator>
+</div>
