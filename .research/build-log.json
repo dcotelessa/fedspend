@@ -605,6 +605,19 @@
       "thinking": "medium",
       "timestamp": "2026-06-29T08:29:25Z",
       "note": "Merge initially failed (tracked+modified context files). Manual merge + verify: 4/4 PASS. Both QA findings fixed: delta sign corrected (recipient - performance always), agencyList always returns full list."
+    },
+    {
+      "story": "E6-S01",
+      "epic": "E6",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1079,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T17:32:07Z"
     }
   ]
 }
