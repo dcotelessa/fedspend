@@ -2265,6 +2265,11 @@
         "E1-S04"
       ],
       "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
     }
   ]
 }

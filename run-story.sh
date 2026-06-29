@@ -571,6 +571,16 @@ commit_and_merge() {
     warn "Nothing to commit in worktree (or commit failed)."
   fi
 
+  local leaked
+  leaked="$(cd "$wt" && git diff --name-only HEAD 2>/dev/null | grep -vE '^\.research/' || true)"
+  if [[ -n "$leaked" ]]; then
+    warn "Scope-leakage: builder modified files outside scope.files (not committed):"
+    while IFS= read -r f; do
+      [[ -n "$f" ]] && warn "  $f"
+    done <<< "$leaked"
+    warn "Re-verify gate will confirm whether these are needed on main."
+  fi
+
   merge_and_cleanup_worktree "$wt" "$branch"
 }
 
@@ -768,6 +778,18 @@ main() {
         # (build "PASSed" but no files delivered), which qa-review would then
         # trust and run against a main missing the scope.files.
         if commit_and_merge "$model" "$tier_name" "$harness" "$wt" "$branch"; then
+          info "Re-verifying on main (scope-leakage gate)..."
+          pnpm install >/dev/null 2>&1 || true
+          if bash verify2.sh "$STORY" >/dev/null 2>&1; then
+            success "Re-verify on main: PASS — story reproduces."
+          else
+            error "SCOPE-LEAKAGE: verify passed in worktree but FAILS on main."
+            error "Builder likely modified files outside scope.files (e.g., package.json)"
+            error "that were not committed. Story is on main but NOT marked PASS."
+            error "Inspect: git log --stat -1  — then apply the missing fix and re-verify."
+            record_result "FAIL" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed" "$thinking"
+            exit 1
+          fi
           record_result "PASS" "$tier_name" "$harness" "$model" "$aot" "$tier_max" "$elapsed" "$thinking"
           update_capability_report
           recommend_qa "$tier_name" "$aot"
