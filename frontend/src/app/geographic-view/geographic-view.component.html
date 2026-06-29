@@ -1,1 +1,25 @@
 <h1>Geographic View</h1>
+
+<mat-form-field appearance="outline" class="controls-bar">
+  <mat-label>Agency</mat-label>
+  <mat-select [(ngModel)]="agencyIdValue">
+    <mat-option value="">All Agencies</mat-option>
+    <mat-option *ngFor="let agency of agencyList" [value]="agency.id">
+      {{ agency.name }}
+    </mat-option>
+  </mat-select>
+</mat-form-field>
+
+<mat-form-field appearance="outline" class="controls-bar">
+  <mat-label>Fiscal Year</mat-label>
+  <mat-select [(ngModel)]="fiscalYearValue">
+    <mat-option *ngFor="let fy of fiscalYearList" [value]="fy">
+      {{ fy }}
+    </mat-option>
+  </mat-select>
+</mat-form-field>
+
+<mat-button-toggle-group [(ngModel)]="scopeValue" class="controls-bar" aria-label="Scope">
+  <mat-button-toggle value="recipient">Recipient</mat-button-toggle>
+  <mat-button-toggle value="performance">Performance</mat-button-toggle>
+</mat-button-toggle-group>
