@@ -457,6 +457,72 @@
       "elapsedSec": 738,
       "thinking": "medium",
       "timestamp": "2026-06-29T00:21:15Z"
+    },
+    {
+      "story": "E4-S05",
+      "epic": "E4",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 959,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T02:31:34Z"
+    },
+    {
+      "story": "E4-S05",
+      "epic": "E4",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "FAIL",
+      "attemptOfTier": 2,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 724,
+      "thinking": "high",
+      "timestamp": "2026-06-29T02:43:38Z"
+    },
+    {
+      "story": "E4-S05",
+      "epic": "E4",
+      "tier": "T2",
+      "harness": "pi",
+      "model": "zai-coding-plan/glm-4.7",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1964,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T03:16:22Z"
+    },
+    {
+      "story": "E4-S05",
+      "epic": "E4",
+      "tier": "T3",
+      "harness": "pi",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 749,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T03:28:54Z"
+    },
+    {
+      "story": "E4-S05",
+      "epic": "E4",
+      "tier": "RESCUE",
+      "harness": "planning",
+      "model": "opencode/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 0,
+      "thinking": "high",
+      "timestamp": "2026-06-29T03:49:00Z",
+      "note": "Scope-leakage: builder created bar-chart.component.css in worktree (untracked), not in scope.files. Re-verify gate caught it. Removed dangling styleUrls reference."
     }
   ]
 }
