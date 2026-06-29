@@ -9,7 +9,6 @@ export interface ChartDataset {
 @Component({
   selector: 'app-bar-chart',
   templateUrl: './bar-chart.component.html',
-  styleUrls: ['./bar-chart.component.css'],
   standalone: true,
   imports: [BaseChartDirective],
   providers: [provideCharts(withDefaultRegisterables())]
