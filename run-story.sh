@@ -785,7 +785,6 @@ main() {
         # trust and run against a main missing the scope.files.
         if commit_and_merge "$model" "$tier_name" "$harness" "$wt" "$branch"; then
           info "Re-verifying on main (scope-leakage gate)..."
-          pnpm install >/dev/null 2>&1 || true
           if bash verify2.sh "$STORY" >/dev/null 2>&1; then
             success "Re-verify on main: PASS — story reproduces."
           else

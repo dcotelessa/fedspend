@@ -563,6 +563,20 @@
       "thinking": "high",
       "timestamp": "2026-06-29T06:44:00Z",
       "note": "ornith:9b T1 PASS in worktree. Scope-leakage: added GeographyQuery to shared/interfaces/index.ts (not in scope.files). Re-verify gate caught it. Type added on main."
+    },
+    {
+      "story": "E5-S02",
+      "epic": "E5",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 651,
+      "thinking": "medium",
+      "timestamp": "2026-06-29T07:05:46Z",
+      "note": "Gate false positive: pnpm install churn caused transient build failure. Gate fixed (pnpm install removed). Manual verify: 5/5 PASS, build=0. Code was correct on first attempt."
     }
   ]
 }
