@@ -205,6 +205,73 @@ describe('GeographicViewComponent', () => {
         delta: 1500000000,
       },
     },
+    {
+      name: 'delta is zero when recipient and performance match for top state',
+      agencyId: null,
+      fiscalYear: 2024,
+      scope: 'recipient',
+      primaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
+        { id: 2, stateCode: '48', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 2000000000, awardCount: 40, population: 29100000, perCapita: 6873 },
+      ],
+      secondaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 55, population: 39500000, perCapita: 7594 },
+        { id: 2, stateCode: '48', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 2000000000, awardCount: 35, population: 29100000, perCapita: 6873 },
+      ],
+      expected: {
+        top10: [
+          { stateName: 'California', obligatedAmount: 3000000000 },
+          { stateName: 'Texas', obligatedAmount: 2000000000 },
+        ],
+        allStates: 2,
+        vsAvg: [
+          20.0,
+          -20.0,
+        ],
+        delta: 0,
+      },
+    },
+    {
+      name: 'top10 caps at ten entries when more than ten states are returned and delta reflects the true top state',
+      agencyId: null,
+      fiscalYear: 2020,
+      scope: 'recipient',
+      primaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 39500000, perCapita: 2531 },
+        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 20200000, perCapita: 4950 },
+        { id: 3, stateCode: '48', stateName: 'Texas', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 29100000, perCapita: 3436 },
+        { id: 4, stateCode: '12', stateName: 'Florida', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 22000000, perCapita: 4545 },
+        { id: 5, stateCode: '17', stateName: 'Illinois', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 12800000, perCapita: 7812 },
+        { id: 6, stateCode: '42', stateName: 'Pennsylvania', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 13000000, perCapita: 7692 },
+        { id: 7, stateCode: '39', stateName: 'Ohio', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 11800000, perCapita: 8474 },
+        { id: 8, stateCode: '13', stateName: 'Georgia', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 10700000, perCapita: 9345 },
+        { id: 9, stateCode: '37', stateName: 'North Carolina', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 10500000, perCapita: 9523 },
+        { id: 10, stateCode: '26', stateName: 'Michigan', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 10100000, perCapita: 9900 },
+        { id: 11, stateCode: '34', stateName: 'New Jersey', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 9300000, perCapita: 10752 },
+      ],
+      secondaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'performance', obligatedAmount: 700000000, awardCount: 7, population: 39500000, perCapita: 1772 },
+      ],
+      expected: {
+        top10: [
+          { stateName: 'California', obligatedAmount: 1000000000 },
+          { stateName: 'New York', obligatedAmount: 1000000000 },
+          { stateName: 'Texas', obligatedAmount: 1000000000 },
+          { stateName: 'Florida', obligatedAmount: 1000000000 },
+          { stateName: 'Illinois', obligatedAmount: 1000000000 },
+          { stateName: 'Pennsylvania', obligatedAmount: 1000000000 },
+          { stateName: 'Ohio', obligatedAmount: 1000000000 },
+          { stateName: 'Georgia', obligatedAmount: 1000000000 },
+          { stateName: 'North Carolina', obligatedAmount: 1000000000 },
+          { stateName: 'Michigan', obligatedAmount: 1000000000 },
+        ],
+        allStates: 11,
+        vsAvg: [
+          0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ],
+        delta: 300000000,
+      },
+    },
   ];
 
   it.each(testTable)('$name', ({ agencyId, fiscalYear, scope, primaryData, secondaryData, expected }) => {

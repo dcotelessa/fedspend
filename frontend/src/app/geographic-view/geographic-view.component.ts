@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -7,12 +7,11 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatOptionModule } from '@angular/material/core';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
-import { MatSortModule, MatSort } from '@angular/material/sort';
+import { MatSortModule } from '@angular/material/sort';
 import { MatIconModule } from '@angular/material/icon';
 import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
 import { ApiService } from '../api.service';
 import { Agency, GeoSpendingSnapshot } from '@shared/interfaces';
-import { GeographyQuery } from '@shared/interfaces';
 
 @Component({
   selector: 'app-geographic-view',
@@ -40,10 +39,6 @@ export class GeographicViewComponent {
 
   displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'awardCount', 'vsAvg'];
 
-  agencyIdValue = signal<number | null>(null);
-  fiscalYearValue = signal<number>(2020);
-  scopeValue = signal<'recipient' | 'performance'>('recipient');
-
   constructor(private readonly apiService: ApiService) {
     this.loadData();
   }
@@ -64,18 +59,12 @@ export class GeographicViewComponent {
     return [2020, 2021, 2022, 2023, 2024];
   }
 
-  filter$ = computed<GeographyQuery>(() => ({
-    agencyId: this.agencyId(),
-    fiscalYear: this.fiscalYear(),
-    scope: this.scope(),
-  }));
-
   loadData(): void {
     const agencyIdVal = this.agencyId();
-    const params = {
+    const params: { fiscalYear: number; agencyId?: number; scope: 'recipient' | 'performance' } = {
       fiscalYear: this.fiscalYear(),
       scope: this.scope(),
-    } as { fiscalYear: number; agencyId?: number; scope: string };
+    };
     if (agencyIdVal !== null) {
       params.agencyId = agencyIdVal;
     }
