@@ -44,15 +44,15 @@ export class GeographicViewComponent {
   }
 
   get agencyList(): Agency[] {
-    return this.agencyId() === null
-      ? [{ id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },
-         { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },
-         { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },
-         { id: 4, name: 'Department of Health and Human Services', abbreviation: 'HHS', toptierCode: '04' },
-         { id: 5, name: 'Department of Homeland Security', abbreviation: 'DHS', toptierCode: '05' },
-         { id: 6, name: 'Department of State', abbreviation: 'STATE', toptierCode: '06' },
-         { id: 7, name: 'Department of Transportation', abbreviation: 'DOT', toptierCode: '07' }]
-      : [];
+    return [
+      { id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },
+      { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },
+      { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },
+      { id: 4, name: 'Department of Health and Human Services', abbreviation: 'HHS', toptierCode: '04' },
+      { id: 5, name: 'Department of Homeland Security', abbreviation: 'DHS', toptierCode: '05' },
+      { id: 6, name: 'Department of State', abbreviation: 'STATE', toptierCode: '06' },
+      { id: 7, name: 'Department of Transportation', abbreviation: 'DOT', toptierCode: '07' },
+    ];
   }
 
   get fiscalYearList(): number[] {
@@ -89,14 +89,19 @@ export class GeographicViewComponent {
 
     const sorted = [...primary].sort((a, b) => b.obligatedAmount - a.obligatedAmount);
     const topState = sorted[0];
-    const match = secondary.find(s => s.stateCode === topState.stateCode);
 
-    if (!match) {
+    const recipientData = primary.some(d => d.scope === 'recipient') ? primary : secondary;
+    const performanceData = primary.some(d => d.scope === 'performance') ? primary : secondary;
+
+    const recipientMatch = recipientData.find(s => s.stateCode === topState.stateCode);
+    const performanceMatch = performanceData.find(s => s.stateCode === topState.stateCode);
+
+    if (!recipientMatch || !performanceMatch) {
       this.delta = null;
       return;
     }
 
-    this.delta = topState.obligatedAmount - match.obligatedAmount;
+    this.delta = recipientMatch.obligatedAmount - performanceMatch.obligatedAmount;
   }
 
   processData(data: GeoSpendingSnapshot[]): void {

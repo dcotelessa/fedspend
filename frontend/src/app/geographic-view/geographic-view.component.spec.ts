@@ -111,7 +111,7 @@ describe('GeographicViewComponent', () => {
           20.0,
           -20.0,
         ],
-        delta: 1000000000,
+        delta: -1000000000,
       },
     },
     {
