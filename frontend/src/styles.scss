@@ -1,1 +1,6 @@
+@use '@angular/material' as mat;
+
+// Include the common styles for Angular Material
+@include mat.core();
+
 /* You can add global styles to this file, and also import other style files */
