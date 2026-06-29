@@ -1,5 +1,4 @@
-import { Injectable } from '@angular/core';
-import { signal, WritableSignal } from '@angular/core';
+import { Injectable, signal, WritableSignal } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class LoadingService {
