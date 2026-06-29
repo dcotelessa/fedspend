@@ -79,3 +79,9 @@ export interface DisasterOverview {
   highestPerCapita: number;
   coverageGapCount: number;
 }
+
+export interface GeographyQuery {
+  agencyId: number | null;
+  fiscalYear: number;
+  scope: 'recipient' | 'performance';
+}
