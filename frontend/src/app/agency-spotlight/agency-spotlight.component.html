@@ -1,1 +1,18 @@
-<h1>Agency Spotlight</h1>
+@if (!loading && agency) {
+  <div class="agency-spotlight">
+    <h1>{{ agency.agency.name }}</h1>
+    <p class="abbreviation">{{ agency.agency.abbreviation }}</p>
+    <p class="total">
+      Total Obligated: {{ agency.currentFyTotal | currencyFormat }}
+    </p>
+    <span class="badge badge-{{ badgeColor }}">{{ badgeText }}</span>
+  </div>
+}
+
+@if (loading) {
+  <div class="loading">Loading agency data...</div>
+}
+
+@if (error) {
+  <div class="error">{{ error }}</div>
+}
