@@ -189,6 +189,13 @@ generate_qa_prompt() {
   local spec_file
   spec_file="$(jq -r '(.scope.files // []) | map(select(test("\\.spec\\.ts$")))[0] // ""' "$STORY_TMP")"
 
+  local test_dir="backend"
+  if [[ "$spec_file" == frontend/* ]]; then
+    test_dir="frontend"
+  fi
+
+  local findings_file=".research/qa-findings/${STORY}.md"
+
   local files=""
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
@@ -211,10 +218,9 @@ behavior.
 
 ## Files (CLOSED SET — EDIT these existing files ONLY)
 $files
-You may ONLY edit the files listed above. Do NOT create new files. Do NOT
-delete or rename files. If you believe a new file is warranted, flag it in your
-final summary instead of creating it — file creation is a planning/story change,
-not a QA refinement.
+You may ONLY edit the files listed above. Do NOT create new files EXCEPT
+${findings_file} for follow-up items (see Follow-Up Items below). Do NOT
+delete or rename files.
 
 ## Review Dimensions (apply the AGENTS.md quality bar)
 - Naming: are identifiers intention-revealing? Rename where clearer.
@@ -231,16 +237,31 @@ not a QA refinement.
   in source.
 
 ## Constraints (hard)
-- EDIT ONLY the files listed above. No creating, deleting, or renaming files.
+- EDIT ONLY the files listed above. No creating, deleting, or renaming files
+  (the ONLY exception is ${findings_file}).
 - Prefer surgical edits over rewrites. Refactor only what is clearly improved.
 - Behavior-preserving: the existing table-driven spec is the contract.
-- Keep the build green: \`cd backend && pnpm build\` must pass.
-- Keep tests green: \`cd backend && pnpm test --testPathPatterns=${spec_file##*/}\` must pass.
+- Keep the build green: \`cd ${test_dir} && pnpm build\` must pass.
+- Keep tests green: \`cd ${test_dir} && pnpm test --testPathPatterns=${spec_file##*/}\` must pass.
 
 ## Before finishing
 Run, in the worktree:
-  cd backend && pnpm test --testPathPatterns=${spec_file##*/} && pnpm build
-Both must succeed. Then emit exactly: ===QA_COMPLETE===
+  cd ${test_dir} && pnpm test --testPathPatterns=${spec_file##*/} && pnpm build
+Both must succeed.
+
+## Follow-Up Items (persisted)
+If you flag items that belong in a future story (behavior changes, new files
+needed, spec deviations, latent bugs outside this story's scope), write them
+to \`${findings_file}\` using your write tool. This is the ONLY new file you
+may create. Format:
+
+  # QA Findings — ${STORY}
+  ## Flagged for a follow-up story
+  - [item]: [description + why it can't be fixed in QA]
+
+If nothing is flagged, do NOT create the file.
+
+Then emit exactly: ===QA_COMPLETE===
 
 ## Story context (for reference, do not re-implement the feature)
 Goal: $goal
@@ -309,13 +330,20 @@ review_and_merge() {
 
   (cd "$wt" && git add -- "${scope_args[@]}" 2>/dev/null)
 
+  # Stage QA findings file if the model created one.
+  if [[ -f "${wt}/.research/qa-findings/${STORY}.md" ]]; then
+    (cd "$wt" && git add ".research/qa-findings/${STORY}.md")
+    success "QA findings file staged: .research/qa-findings/${STORY}.md"
+  fi
+
   # Off-contract detection: QA must only EDIT scope.files (which are now staged
-  # as "M " — staged modification). Any other porcelain status — untracked (??),
-  # deletion (D), rename (R), or worktree modification of a non-scope file ( M) —
-  # means the model went beyond refinement. Those are NOT staged (won't merge)
-  # but the human must see them before approving.
+  # as "M " — staged modification) + the optional findings file (A "). Any other
+  # porcelain status — untracked (??), deletion (D), rename (R), or worktree
+  # modification of a non-scope file ( M) — means the model went beyond
+  # refinement. Those are NOT staged (won't merge) but the human must see them.
   local off_contract
   off_contract="$(cd "$wt" && git status --porcelain \
+    | grep -vF '.research/qa-findings/' \
     | while IFS= read -r line; do
         [[ "${line:0:2}" != "M " ]] && echo "$line"
       done)"
@@ -393,6 +421,8 @@ wt="$(provision_worktree)"
 
 # Sync live plan.json so verify runs against current criteria.
 cp .research/plan.json "${wt}/.research/plan.json" 2>/dev/null || true
+
+mkdir -p "${wt}/.research/qa-findings"
 
 generate_qa_prompt "$wt"
 print_session "$wt"
