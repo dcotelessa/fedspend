@@ -9,13 +9,15 @@
 # Tier ladder is branched by story.build (read from plan.json). All tiers use pi:
 #
 #   BUILD-FAST (scaffolds, controllers, constants, config):
-#     T1  llama.cpp/qwen3-coder:30b via pi     (2 attempts) — local, native tools
-#     T2  zai-coding-plan/glm-4.7 via pi        (1 attempt)  — cloud coding-plan
-#     T3  zai-coding-plan/glm-5.2 via pi        (1 attempt)  — cloud thinking
+#     T1  llama.cpp/ornith:9b via pi             (1 attempt)  — fast triage
+#     T2  llama.cpp/qwen3-coder:30b via pi        (2 attempts) — local fallback
+#     T3  zai-coding-plan/glm-4.7 via pi          (1 attempt)  — cloud coding-plan
+#     T4  zai-coding-plan/glm-5.2 via pi          (1 attempt)  — cloud thinking
 #
 #   BUILD-DEEP (services, orchestrators, pure logic):
-#     T1  llama.cpp/qwen3.6:35b via pi          (2 attempts) — local, thinking MoE
-#     T2  zai-coding-plan/glm-5.2 via pi        (1 attempt)  — cloud thinking
+#     T1  llama.cpp/ornith:35b via pi            (2 attempts) — reasoning
+#     T2  llama.cpp/qwen3.6:35b via pi            (2 attempts) — local fallback
+#     T3  zai-coding-plan/glm-5.2 via pi          (1 attempt)  — cloud thinking
 #
 #   Final fail → stop, human reviews, resume after OK.
 #
@@ -23,7 +25,7 @@
 # pi drives every tier (local via llama.cpp, cloud via zai-coding-plan provider).
 #
 # Dependencies: jq, bash 4+, pi (~/.pi).
-# Local tiers need llama-server running: ~/start-llama.sh (coder|thinking|flash)
+# Local tiers need llama-server running: ~/start-llama.sh (coder|thinking|flash|ornith9b|ornith35b)
 # Run from repo root.
 
 set -u
@@ -42,14 +44,16 @@ export PATH="$HOME/.local/bin:$PATH"
 #   harness = pi | opencode
 #   model_id is passed to the harness's --model flag
 TIER_LADDER_FAST=(
-  "T1|pi|qwen3-coder:30b|2|medium"
-  "T2|pi|zai-coding-plan/glm-4.7|1|medium"
-  "T3|pi|zai-coding-plan/glm-5.2|1|medium"
+  "T1|pi|ornith:9b|1|medium"
+  "T2|pi|qwen3-coder:30b|2|medium"
+  "T3|pi|zai-coding-plan/glm-4.7|1|medium"
+  "T4|pi|zai-coding-plan/glm-5.2|1|medium"
 )
 
 TIER_LADDER_DEEP=(
-  "T1|pi|qwen3.6:35b|3|medium"
-  "T2|pi|zai-coding-plan/glm-5.2|1|medium"
+  "T1|pi|ornith:35b|2|medium"
+  "T2|pi|qwen3.6:35b|2|medium"
+  "T3|pi|zai-coding-plan/glm-5.2|1|medium"
 )
 
 TIER_LADDER=()
@@ -166,11 +170,11 @@ select_tier_ladder() {
   case "$build_type" in
     BUILD-DEEP)
       TIER_LADDER=("${TIER_LADDER_DEEP[@]}")
-      info "Build type: BUILD-DEEP → ladder: qwen3.6:35b (medium→high→xhigh) → glm-5.2"
+      info "Build type: BUILD-DEEP → ladder: ornith:35b (medium→high) → qwen3.6:35b → glm-5.2"
       ;;
     BUILD-FAST|*)
       TIER_LADDER=("${TIER_LADDER_FAST[@]}")
-      info "Build type: BUILD-FAST → ladder: qwen3-coder:30b → glm-4.7 → glm-5.2"
+      info "Build type: BUILD-FAST → ladder: ornith:9b → qwen3-coder:30b → glm-4.7 → glm-5.2"
       ;;
   esac
 
@@ -452,6 +456,8 @@ print_session_instructions() {
         local start_arg="coder"
         case "$model" in
           *thinking*|qwen3.6*) start_arg="thinking" ;;
+          *ornith*9b*)         start_arg="ornith9b" ;;
+          *ornith*35b*)        start_arg="ornith35b" ;;
           *flash*)             start_arg="flash" ;;
         esac
         echo -e "${BOLD}0. Ensure llama-server is running $model${RESET}"
