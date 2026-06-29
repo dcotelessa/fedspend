@@ -21,5 +21,6 @@ export function getTypeOrmConfig(configService: ConfigService): TypeOrmModuleOpt
     database: './data/dev.db',
     autoLoadEntities: true,
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+    synchronize: true,
   };
 }
