@@ -1,0 +1,147 @@
+{
+  "story": "E6-S03",
+  "epic": "E6",
+  "title": "Agency Spotlight — award breakdown table + dynamic insight line",
+  "goal": "mat-table with columns: Award Type, FY2024 Obligated, % of Total, Award Count. Sorted by obligated desc. Below chart: dynamic insight line computed from data (e.g. 'In FY2024, NASA spent X% on Contracts').",
+  "notes": "Insight computation: percentage of largest award type for current FY. Or trend (increased/decreased) over the FY range. Keep simple — one insight line, computed from data.\n\nMUST FIX (from E6-S02 QA findings — .research/qa-findings/E6-S02.md):\n1. FY range dropdowns empty: availableYears is declared (= []) but never populated. Populate it (e.g. [2020, 2021, 2022, 2023, 2024] or derived from loaded records). Also fix [(ngModel)] over <option [value]> string coercion — use [ngModel] + (ngModelChange) with Number() or switch to mat-select as the story context specified.\n2. Agency header + badge empty: getAgencySummary(id) exists in ApiService but is never called. Add a fetch in ngOnInit, bind agency.name/abbreviation/currentFyTotal to the header, and compute badge color from yoyChange (green >= 0, red < 0).\n\nDEFERRED (cross-file/backend, separate story):\n- AWARD_COLORS not applied to chart (needs ChartDataset interface + bar-chart template change)\n- FY range not sent to API (client-side filtering works; server-side is optimization)",
+  "dependencies": "E6-S02",
+  "acceptanceCriteria": [
+    {
+      "text": "template has mat-table with the 4 columns",
+      "check": "cd frontend && grep -q 'mat-table' src/app/agency-spotlight/agency-spotlight.component.html"
+    },
+    {
+      "text": "component computes insight string from current data",
+      "check": "cd frontend && grep -qE '(insight|computeInsight)' src/app/agency-spotlight/agency-spotlight.component.ts"
+    },
+    {
+      "text": "agency-spotlight.component.spec.ts passes (table-driven: insight string for various data shapes)",
+      "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight.component.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "frontend builds",
+      "check": "cd frontend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+      "mode": "full",
+      "contents": "<div class=\"agency-spotlight-header\">\n  <h1>{{ agency?.agency?.name }}</h1>\n  <p class=\"abbreviation\">{{ agency?.agency?.abbreviation }}</p>\n  <p class=\"total\">\n    Total Obligated: {{ agency?.currentFyTotal | currencyFormat }}\n  </p>\n  <span class=\"badge badge-{{ badgeColor }}\">{{ badgeText }}</span>\n</div>\n\n<div class=\"fy-range-selector\">\n  <label>\n    From:\n    <select [(ngModel)]=\"fiscalYearStart\" (change)=\"onRangeChange()\">\n      @for (year of availableYears; track year) {\n        <option [value]=\"year\">{{ year }}</option>\n      }\n    </select>\n  </label>\n  <label>\n    To:\n    <select [(ngModel)]=\"fiscalYearEnd\" (change)=\"onRangeChange()\">\n      @for (year of availableYears; track year) {\n        <option [value]=\"year\">{{ year }}</option>\n      }\n    </select>\n  </label>\n</div>\n\n@if (loading) {\n  <div class=\"loading\">Loading agency data...</div>\n}\n\n@if (error) {\n  <div class=\"error\">{{ error }}</div>\n}\n\n@if (chartData.datasets.length > 0 && !loading) {\n  <app-bar-chart\n    [labels]=\"chartData.labels\"\n    [datasets]=\"chartData.datasets\"\n    title=\"Spending by Fiscal Year\"\n    [horizontal]=\"false\">\n  </app-bar-chart>\n}\n"
+    },
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+      "mode": "full",
+      "contents": "import { ComponentFixture, TestBed } from '@angular/core/testing';\nimport { provideHttpClient } from '@angular/common/http';\nimport { provideRouter, convertToParamMap } from '@angular/router';\nimport { of } from 'rxjs';\n\nimport { AgencySpotlightComponent } from './agency-spotlight.component';\nimport { ApiService } from '../api.service';\nimport { AWARD_COLORS } from '../award-colors';\nimport { SpendingRecord } from '@shared/interfaces';\n\ninterface TestCase {\n  name: string;\n  id: number;\n  records: SpendingRecord[];\n  fiscalYearStart: number;\n  fiscalYearEnd: number;\n  expectedLabels: string[];\n  expectedDatasetCount: number;\n  expectedAwardTypes: string[];\n  expectedData: { [awardType: string]: number[] };\n}\n\ndescribe('AgencySpotlightComponent', () => {\n  let component: AgencySpotlightComponent;\n  let fixture: ComponentFixture<AgencySpotlightComponent>;\n  let apiService: ApiService;\n\n  const testTable: TestCase[] = [\n    {\n      name: 'builds stacked dataset grouped by fiscal year across award types',\n      id: 1,\n      records: [\n        { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },\n        { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 200000, outlayAmount: 0, awardCount: 3 },\n        { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 7 },\n        { id: 4, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 250000, outlayAmount: 0, awardCount: 4 },\n      ],\n      fiscalYearStart: 2020,\n      fiscalYearEnd: 2024,\n      expectedLabels: ['2022', '2023'],\n      expectedDatasetCount: 2,\n      expectedAwardTypes: ['Contracts', 'Grants'],\n      expectedData: { Contracts: [100000, 150000], Grants: [200000, 250000] },\n    },\n    {\n      name: 'filters records by fiscal year range',\n      id: 2,\n      records: [\n        { id: 1, agencyId: 1, fiscalYear: 2019, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },\n        { id: 2, agencyId: 1, fiscalYear: 2020, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 200000, outlayAmount: 0, awardCount: 3 },\n        { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 300000, outlayAmount: 0, awardCount: 7 },\n        { id: 4, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 400000, outlayAmount: 0, awardCount: 4 },\n      ],\n      fiscalYearStart: 2020,\n      fiscalYearEnd: 2024,\n      expectedLabels: ['2020', '2024'],\n      expectedDatasetCount: 1,\n      expectedAwardTypes: ['Contracts'],\n      expectedData: { Contracts: [200000, 300000] },\n    },\n    {\n      name: 'aggregates multiple quarters into same fiscal year bucket',\n      id: 3,\n      records: [\n        { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 50000, outlayAmount: 0, awardCount: 2 },\n        { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 2, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 75000, outlayAmount: 0, awardCount: 3 },\n        { id: 3, agencyId: 1, fiscalYear: 2022, quarter: 3, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 25000, outlayAmount: 0, awardCount: 1 },\n      ],\n      fiscalYearStart: 2020,\n      fiscalYearEnd: 2024,\n      expectedLabels: ['2022'],\n      expectedDatasetCount: 1,\n      expectedAwardTypes: ['Contracts'],\n      expectedData: { Contracts: [150000] },\n    },\n    {\n      name: 'handles empty record set',\n      id: 4,\n      records: [],\n      fiscalYearStart: 2020,\n      fiscalYearEnd: 2024,\n      expectedLabels: [],\n      expectedDatasetCount: 0,\n      expectedAwardTypes: [],\n      expectedData: {},\n    },\n    {\n      name: 'fills missing award-type buckets within a year with zero',\n      id: 5,\n      records: [\n        { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },\n        { id: 2, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 50000, outlayAmount: 0, awardCount: 2 },\n        { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 80000, outlayAmount: 0, awardCount: 1 },\n      ],\n      fiscalYearStart: 2020,\n      fiscalYearEnd: 2024,\n      expectedLabels: ['2022', '2023'],\n      expectedDatasetCount: 2,\n      expectedAwardTypes: ['Contracts', 'Grants'],\n      expectedData: { Contracts: [100000, 50000], Grants: [0, 80000] },\n    },\n    {\n      name: 'sorts years and award types regardless of input order',\n      id: 6,\n      records: [\n        { id: 1, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 30000, outlayAmount: 0, awardCount: 1 },\n        { id: 2, agencyId: 1, fiscalYear: 2021, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 10000, outlayAmount: 0, awardCount: 1 },\n        { id: 3, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 20000, outlayAmount: 0, awardCount: 1 },\n        { id: 4, agencyId: 1, fiscalYear: 2021, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 40000, outlayAmount: 0, awardCount: 1 },\n      ],\n      fiscalYearStart: 2020,\n      fiscalYearEnd: 2024,\n      expectedLabels: ['2021', '2022', '2023'],\n      expectedDatasetCount: 2,\n      expectedAwardTypes: ['Contracts', 'Grants'],\n      expectedData: { Contracts: [10000, 0, 0], Grants: [40000, 20000, 30000] },\n    },\n  ];\n\n  beforeEach(async () => {\n    await TestBed.configureTestingModule({\n      imports: [AgencySpotlightComponent],\n      providers: [\n        provideRouter([]),\n        provideHttpClient(),\n      ],\n    }).compileComponents();\n\n    fixture = TestBed.createComponent(AgencySpotlightComponent);\n    component = fixture.componentInstance;\n    apiService = TestBed.inject(ApiService);\n  });\n\n  afterEach(() => {\n    jest.restoreAllMocks();\n  });\n\n  function setupRoute(id: number) {\n    const paramMap = convertToParamMap({ id: String(id) });\n    (component as any).route = {\n      paramMap: {\n        subscribe: jest.fn().mockImplementation((fn: (val: any) => void) => {\n          fn(paramMap);\n        }),\n      },\n    } as any;\n  }\n\n  function flushService(id: number, records: SpendingRecord[] | null) {\n    jest.spyOn(apiService, 'getAgencySpotlight')\n      .mockReturnValueOnce(of(records));\n  }\n\n  it.each(testTable)('$name', ({ id, records, fiscalYearStart, fiscalYearEnd, expectedLabels, expectedDatasetCount, expectedAwardTypes, expectedData }) => {\n    setupRoute(id);\n    flushService(id, records);\n\n    (component as any).ngOnInit();\n\n    expect(component.fiscalYearStart).toBe(fiscalYearStart);\n    expect(component.fiscalYearEnd).toBe(fiscalYearEnd);\n    expect(component.loading).toBe(false);\n    expect(component.chartData.labels).toEqual(expectedLabels);\n    expect(component.chartData.datasets.length).toBe(expectedDatasetCount);\n\n    if (expectedAwardTypes.length > 0) {\n      const datasetLabels = component.chartData.datasets.map(d => d.label);\n      expect(datasetLabels).toEqual(expect.arrayContaining(expectedAwardTypes));\n    }\n\n    for (const [awardType, expectedValues] of Object.entries(expectedData)) {\n      const dataset = component.chartData.datasets.find(d => d.label === awardType);\n      expect(dataset).toBeDefined();\n      expect(dataset!.data).toEqual(expectedValues);\n    }\n  });\n\n  describe('AWARD_COLORS', () => {\n    const awardTypes = ['Contracts', 'Grants', 'Direct Payments', 'Loans', 'IDVs'];\n\n    it.each(awardTypes)('has a color for $awardType', (awardType: string) => {\n      expect(AWARD_COLORS[awardType]).toBeDefined();\n      expect(typeof AWARD_COLORS[awardType]).toBe('string');\n      expect(AWARD_COLORS[awardType].length).toBeGreaterThan(0);\n    });\n  });\n});\n"
+    },
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+      "mode": "full",
+      "contents": "import { Component, inject, OnInit } from '@angular/core';\nimport { FormsModule } from '@angular/forms';\nimport { ActivatedRoute } from '@angular/router';\nimport { ApiService } from '../api.service';\nimport { CurrencyFormatPipe } from '../currency-format.pipe';\nimport { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';\nimport { AgencySummary, SpendingRecord } from '@shared/interfaces';\n\ninterface ChartData {\n  labels: string[];\n  datasets: ChartDataset[];\n}\n\n@Component({\n  selector: 'app-agency-spotlight',\n  templateUrl: './agency-spotlight.component.html',\n  standalone: true,\n  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule],\n})\nexport class AgencySpotlightComponent implements OnInit {\n  readonly route = inject(ActivatedRoute);\n  readonly apiService = inject(ApiService);\n\n  agency: AgencySummary | null = null;\n  loading = true;\n  error = '';\n  badgeColor = 'Neutral';\n  badgeText = '';\n  fiscalYearStart = 2020;\n  fiscalYearEnd = 2024;\n  availableYears: number[] = [];\n  chartData: ChartData = { labels: [], datasets: [] };\n\n  ngOnInit() {\n    this.route.paramMap.subscribe(params => {\n      const id = params.get('id');\n      if (id) {\n        this.apiService.getAgencySpotlight(Number(id)).subscribe({\n          next: (records) => {\n            this.loading = false;\n            if (records && records.length > 0) {\n              this.currentRecords = records;\n              this.buildStackedChartFromRecords(records);\n            }\n          },\n          error: () => {\n            this.error = 'Failed to load agency data';\n            this.loading = false;\n          },\n        });\n      }\n    });\n  }\n\n  onRangeChange(): void {\n    this.buildStackedChartFromRecords(this.currentRecords);\n  }\n\n  private currentRecords: SpendingRecord[] = [];\n\n  private buildStackedChartFromRecords(records: SpendingRecord[]): void {\n    const inRange = records.filter(\n      r => r.fiscalYear >= this.fiscalYearStart && r.fiscalYear <= this.fiscalYearEnd,\n    );\n\n    const years = new Set<number>();\n    const sumsByAwardType = new Map<string, Map<number, number>>();\n    for (const record of inRange) {\n      years.add(record.fiscalYear);\n      let sumsByYear = sumsByAwardType.get(record.awardTypeLabel);\n      if (!sumsByYear) {\n        sumsByYear = new Map<number, number>();\n        sumsByAwardType.set(record.awardTypeLabel, sumsByYear);\n      }\n      sumsByYear.set(\n        record.fiscalYear,\n        (sumsByYear.get(record.fiscalYear) ?? 0) + record.obligatedAmount,\n      );\n    }\n\n    const sortedYears = Array.from(years).sort((a, b) => a - b);\n    const sortedAwardTypes = Array.from(sumsByAwardType.keys()).sort();\n\n    this.chartData.labels = sortedYears.map(String);\n    this.chartData.datasets = sortedAwardTypes.map(awardType => {\n      const sumsByYear = sumsByAwardType.get(awardType)!;\n      return {\n        label: awardType,\n        data: sortedYears.map(year => sumsByYear.get(year) ?? 0),\n      };\n    });\n  }\n}\n"
+    },
+    {
+      "path": "shared/interfaces/index.ts",
+      "mode": "full",
+      "contents": "export interface Agency {\n  id: number;\n  name: string;\n  abbreviation: string;\n  toptierCode: string;\n}\n\nexport interface SpendingRecord {\n  id: number;\n  agencyId: number;\n  fiscalYear: number;\n  quarter: number;\n  awardTypeLabel: string;\n  awardTypeCodes: string;\n  obligatedAmount: number;\n  outlayAmount: number;\n  awardCount: number;\n}\n\nexport interface GeoSpendingSnapshot {\n  id: number;\n  stateCode: string;\n  stateName: string;\n  fiscalYear: number;\n  agencyId: number | null;\n  scope: 'recipient' | 'performance';\n  obligatedAmount: number;\n  awardCount: number;\n  population: number;\n  perCapita: number;\n}\n\nexport interface DisasterFundingRecord {\n  id: number;\n  defGroup: string;\n  defCodes: string;\n  stateCode: string;\n  stateName: string;\n  obligatedAmount: number;\n  awardCount: number;\n  perCapita: number;\n  population: number;\n}\n\nexport interface DisasterRecoveryRatio {\n  id: number;\n  stateCode: string;\n  stateName: string;\n  fiscalYear: number;\n  femaObligated: number;\n  fedSpendingObligated: number;\n  declarationCount: number;\n  recoveryRatio: number;\n  dominantIncidentType: string;\n}\n\nexport interface ApiResponse<T> {\n  data: T;\n  meta: {\n    total: number;\n    page: number;\n    pageSize: number;\n  };\n}\n\nexport interface AgencySummary {\n  agency: Agency;\n  currentFyTotal: number;\n  priorFyTotal: number;\n  yoyChange: number;\n}\n\nexport interface DisasterOverview {\n  defGroup: string;\n  totalObligated: number;\n  totalAwardCount: number;\n  stateCount: number;\n  highestPerCapitaState: string;\n  highestPerCapita: number;\n  coverageGapCount: number;\n}\n\nexport interface GeographyQuery {\n  agencyId: number | null;\n  fiscalYear: number;\n  scope: 'recipient' | 'performance';\n}\n\nexport interface AgencySpotlightQuery {\n  fiscalYearStart: number;\n  fiscalYearEnd: number;\n}\n"
+    }
+  ]
+}

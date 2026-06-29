@@ -1,5 +1,11 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatSelectModule } from '@angular/material/select';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatOptionModule } from '@angular/material/core';
+import { MatInputModule } from '@angular/material/input';
+import { MatTableModule } from '@angular/material/table';
+import { MatCell, MatCellDef, MatHeaderCell, MatHeaderCellDef, MatHeaderRow, MatHeaderRowDef, MatRow, MatRowDef } from '@angular/material/table';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
@@ -11,11 +17,18 @@ interface ChartData {
   datasets: ChartDataset[];
 }
 
+interface TableDataRow {
+  awardType: string;
+  obligatedAmount: number;
+  percentageOfTotal: number;
+  awardCount: number;
+}
+
 @Component({
   selector: 'app-agency-spotlight',
   templateUrl: './agency-spotlight.component.html',
   standalone: true,
-  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule],
+  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatOptionModule, MatInputModule, MatTableModule, MatCell, MatCellDef, MatHeaderCell, MatHeaderCellDef, MatHeaderRow, MatHeaderRowDef, MatRow, MatRowDef],
 })
 export class AgencySpotlightComponent implements OnInit {
   readonly route = inject(ActivatedRoute);
@@ -24,28 +37,49 @@ export class AgencySpotlightComponent implements OnInit {
   agency: AgencySummary | null = null;
   loading = true;
   error = '';
-  badgeColor = 'Neutral';
+  badgeColor = 'neutral';
   badgeText = '';
   fiscalYearStart = 2020;
   fiscalYearEnd = 2024;
   availableYears: number[] = [];
   chartData: ChartData = { labels: [], datasets: [] };
+  insight = '';
+  tableData: TableDataRow[] = [];
+  displayedColumns = ['awardType', 'obligatedAmount', 'percentageOfTotal', 'awardCount'];
+
+  private currentRecords: SpendingRecord[] = [];
 
   ngOnInit() {
     this.route.paramMap.subscribe(params => {
       const id = params.get('id');
       if (id) {
-        this.apiService.getAgencySpotlight(Number(id)).subscribe({
-          next: (records) => {
-            this.loading = false;
-            if (records && records.length > 0) {
-              this.currentRecords = records;
-              this.buildStackedChartFromRecords(records);
+        this.loading = true;
+        this.apiService.getAgencySummary(Number(id)).subscribe({
+          next: (summary) => {
+            if (summary) {
+              this.agency = summary;
+              this.updateBadge();
             }
+            this.apiService.getAgencySpotlight(Number(id)).subscribe({
+              next: (records) => {
+                this.loading = false;
+                if (records && records.length > 0) {
+                  this.currentRecords = records;
+                  this.buildStackedChartFromRecords(records);
+                  this.populateAvailableYears();
+                }
+                this.insight = this.computeInsight();
+                this.tableData = this.buildTableData();
+              },
+              error: () => {
+                this.error = 'Failed to load agency data';
+                this.loading = false;
+              },
+            });
           },
           error: () => {
-            this.error = 'Failed to load agency data';
             this.loading = false;
+            this.error = 'Failed to load agency summary';
           },
         });
       }
@@ -54,9 +88,8 @@ export class AgencySpotlightComponent implements OnInit {
 
   onRangeChange(): void {
     this.buildStackedChartFromRecords(this.currentRecords);
+    this.tableData = this.buildTableData();
   }
-
-  private currentRecords: SpendingRecord[] = [];
 
   private buildStackedChartFromRecords(records: SpendingRecord[]): void {
     const inRange = records.filter(
@@ -89,5 +122,91 @@ export class AgencySpotlightComponent implements OnInit {
         data: sortedYears.map(year => sumsByYear.get(year) ?? 0),
       };
     });
+  }
+
+  private populateAvailableYears(): void {
+    const years = new Set<number>();
+    for (const record of this.currentRecords) {
+      years.add(record.fiscalYear);
+    }
+    this.availableYears = Array.from(years).sort((a, b) => a - b);
+  }
+
+  private updateBadge(): void {
+    if (!this.agency) return;
+
+    const { priorFyTotal, yoyChange } = this.agency;
+    if (priorFyTotal === 0) {
+      this.badgeColor = 'neutral';
+      this.badgeText = '0.0% YoY';
+    } else if (yoyChange >= 0) {
+      this.badgeColor = 'positive';
+      this.badgeText = `+${(yoyChange * 100).toFixed(1)}% YoY`;
+    } else {
+      this.badgeColor = 'negative';
+      this.badgeText = `${(yoyChange * 100).toFixed(1)}% YoY`;
+    }
+  }
+
+  private computeInsight(): string {
+    if (!this.agency || !this.currentRecords.length) {
+      return 'No data available for the selected fiscal year.';
+    }
+
+    const fyRecords = this.currentRecords.filter(r => r.fiscalYear === this.fiscalYearEnd);
+    if (fyRecords.length === 0) {
+      return 'No data available for the selected fiscal year.';
+    }
+
+    const sumsByType = new Map<string, number>();
+    for (const r of fyRecords) {
+      sumsByType.set(r.awardTypeLabel, (sumsByType.get(r.awardTypeLabel) ?? 0) + r.obligatedAmount);
+    }
+
+    const total = fyRecords.reduce((s, r) => s + r.obligatedAmount, 0);
+    if (total === 0) {
+      return 'No data available for the selected fiscal year.';
+    }
+
+    let maxType = '';
+    let maxValue = 0;
+    for (const [type, value] of sumsByType) {
+      if (value > maxValue) {
+        maxValue = value;
+        maxType = type;
+      }
+    }
+
+    const pct = (maxValue / total * 100).toFixed(1);
+    const agencyName = this.agency.agency?.name || '';
+    return `In FY${this.fiscalYearEnd}, ${agencyName} spent ${pct}% on ${maxType}.`;
+  }
+
+  private buildTableData(): TableDataRow[] {
+    const fyRecords = this.currentRecords.filter(r => r.fiscalYear === this.fiscalYearEnd);
+
+    if (fyRecords.length === 0) return [];
+
+    const sumsByType = new Map<string, { obligated: number; count: number }>();
+    for (const r of fyRecords) {
+      let entry = sumsByType.get(r.awardTypeLabel);
+      if (!entry) {
+        entry = { obligated: 0, count: 0 };
+        sumsByType.set(r.awardTypeLabel, entry);
+      }
+      entry.obligated += r.obligatedAmount;
+      entry.count += r.awardCount;
+    }
+
+    const total = fyRecords.reduce((s, r) => s + r.obligatedAmount, 0);
+
+    return Array.from(sumsByType.entries())
+      .map(([awardType, { obligated, count }]) => ({
+        awardType,
+        obligatedAmount: obligated,
+        percentageOfTotal: total > 0 ? Math.round(obligated / total * 1000) / 10 : 0,
+        awardCount: count,
+      }))
+      .sort((a, b) => b.obligatedAmount - a.obligatedAmount);
   }
 }
