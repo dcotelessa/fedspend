@@ -1,0 +1,148 @@
+{
+  "story": "E8-S02",
+  "epic": "E8",
+  "title": "Dashboard — 3 navigation cards",
+  "goal": "3 nav cards linking to /geography, /agencies, /disaster with title + one-sentence description + icon. Click navigates via routerLink.",
+  "notes": "routerLink on the card host element. mat-card for consistent styling. Icons from Material Icons font. Page load target: under 2 seconds — assert in spec via fakeAsync + tick.",
+  "dependencies": "E8-S01",
+  "acceptanceCriteria": [
+    {
+      "text": "template has 3 cards with routerLink to /geography, /agencies, /disaster",
+      "check": "cd frontend && grep -q '/geography' src/app/dashboard/dashboard.component.html && grep -q '/agencies' src/app/dashboard/dashboard.component.html && grep -q '/disaster' src/app/dashboard/dashboard.component.html"
+    },
+    {
+      "text": "dashboard.component.spec.ts passes",
+      "check": "cd frontend && pnpm test --testPathPatterns=dashboard.component.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "frontend builds",
+      "check": "cd frontend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/dashboard/dashboard.component.html",
+      "mode": "full",
+      "contents": "<h1>Dashboard</h1>\n\n<div class=\"cards-grid\">\n  <div class=\"card\">\n    <h2>Total Obligated</h2>\n    <p class=\"value\">{{ totalObligated | currencyFormat }}</p>\n  </div>\n\n  <div class=\"card\">\n    <h2>Largest Agency (FY2024)</h2>\n    <p class=\"value\">{{ largestAgency?.name || 'N/A' }}</p>\n    <p class=\"sub\">{{ largestAgency ? (largestAgency.totalCents | currencyFormat) : '' }}</p>\n  </div>\n\n  <div class=\"card\">\n    <h2>Coverage Gaps</h2>\n    <p class=\"value\">{{ coverageGapCount }}</p>\n    <p class=\"sub\">states with ratio &lt; 0.5</p>\n  </div>\n\n  <div class=\"card\">\n    <h2>Last Sync</h2>\n    <p class=\"value\">{{ lastSync || 'Never' }}</p>\n  </div>\n</div>\n\n<div class=\"chart-section\">\n  <h2>Agency Obligated by FY2024</h2>\n  <canvas baseChart\n    [type]=\"'bar'\"\n    [data]=\"{ labels: chartLabels, datasets: chartDatasets }\"\n    [options]=\"{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }\"\n    (chartClick)=\"onChartClick($event)\">\n  </canvas>\n</div>\n"
+    },
+    {
+      "path": "frontend/src/app/dashboard/dashboard.component.spec.ts",
+      "mode": "full",
+      "contents": "import { ComponentFixture, TestBed } from '@angular/core/testing';\nimport { Router } from '@angular/router';\nimport { of } from 'rxjs';\nimport { provideCharts, withDefaultRegisterables } from 'ng2-charts';\nimport { DashboardComponent } from './dashboard.component';\nimport { ApiService } from '../api.service';\nimport { CurrencyFormatPipe } from '../currency-format.pipe';\n\ndescribe('DashboardComponent', () => {\n  let routerSpy: { navigate: jest.Mock };\n  let apiSpy: {\n    getAgencies: jest.Mock;\n    getDisasterRecoveryRatios: jest.Mock;\n    getLastSync: jest.Mock;\n  };\n\n  beforeEach(() => {\n    routerSpy = { navigate: jest.fn() };\n    apiSpy = {\n      getAgencies: jest.fn().mockReturnValue(of([])),\n      getDisasterRecoveryRatios: jest.fn().mockReturnValue(of([])),\n      getLastSync: jest.fn().mockReturnValue(of(null)),\n    };\n\n    TestBed.configureTestingModule({\n      imports: [DashboardComponent, CurrencyFormatPipe],\n      providers: [\n        { provide: Router, useValue: routerSpy },\n        { provide: ApiService, useValue: apiSpy },\n        provideCharts(withDefaultRegisterables()),\n      ],\n    });\n  });\n\n  interface CardTestCase {\n    name: string;\n    agencies: Array<{ id: number; name: string; totalCents: number }>;\n    ratios: Array<{ stateCode: string; recoveryRatio: number }>;\n    expectedTotal: number;\n    expectedLargest: { name: string; totalCents: number } | null;\n    expectedGapCount: number;\n  }\n\n  const testTable: CardTestCase[] = [\n    {\n      name: 'computes total obligated across all agencies',\n      agencies: [\n        { id: 1, name: 'Agency A', totalCents: 100000 },\n        { id: 2, name: 'Agency B', totalCents: 200000 },\n        { id: 3, name: 'Agency C', totalCents: 300000 },\n      ],\n      ratios: [],\n      expectedTotal: 600000,\n      expectedLargest: { name: 'Agency C', totalCents: 300000 },\n      expectedGapCount: 0,\n    },\n    {\n      name: 'identifies largest agency by highest totalCents',\n      agencies: [\n        { id: 1, name: 'Small', totalCents: 50000 },\n        { id: 2, name: 'Medium', totalCents: 150000 },\n        { id: 3, name: 'Large', totalCents: 500000 },\n      ],\n      ratios: [],\n      expectedTotal: 700000,\n      expectedLargest: { name: 'Large', totalCents: 500000 },\n      expectedGapCount: 0,\n    },\n    {\n      name: 'counts distinct states with coverage gap ratio below 0.5',\n      agencies: [],\n      ratios: [\n        { stateCode: '06', recoveryRatio: 0.3 },\n        { stateCode: '12', recoveryRatio: 0.8 },\n        { stateCode: '48', recoveryRatio: 0.2 },\n        { stateCode: '06', recoveryRatio: 0.4 },\n        { stateCode: '36', recoveryRatio: 1.5 },\n      ],\n      expectedTotal: 0,\n      expectedLargest: null,\n      expectedGapCount: 2,\n    },\n    {\n      name: 'handles empty agencies and ratios gracefully',\n      agencies: [],\n      ratios: [],\n      expectedTotal: 0,\n      expectedLargest: null,\n      expectedGapCount: 0,\n    },\n  ];\n\n  it.each(testTable)('$name', ({ agencies, ratios, expectedTotal, expectedLargest, expectedGapCount }) => {\n    apiSpy.getAgencies.mockReturnValue(of(agencies));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    expect(component.totalObligated).toBe(expectedTotal);\n    expect(component.largestAgency).toEqual(expectedLargest);\n    expect(component.coverageGapCount).toBe(expectedGapCount);\n  });\n\n  it('navigates to agency detail on chart bar click', () => {\n    apiSpy.getAgencies.mockReturnValue(of([\n      { id: 1, name: 'Agency A', totalCents: 100000 },\n      { id: 2, name: 'Agency B', totalCents: 200000 },\n    ]));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    component.onChartClick({ active: [{ datasetIndex: 1, index: 0 }] });\n    expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies', 2]);\n  });\n\n  it('does nothing on chart click with no active bar', () => {\n    apiSpy.getAgencies.mockReturnValue(of([]));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    component.onChartClick({ active: [] });\n    expect(routerSpy.navigate).not.toHaveBeenCalled();\n  });\n\n  it('fetches agencies, ratios, and last sync on init', () => {\n    apiSpy.getAgencies.mockReturnValue(of([]));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));\n    apiSpy.getLastSync.mockReturnValue(of('2024-01-15T10:00:00Z'));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    expect(apiSpy.getAgencies).toHaveBeenCalled();\n    expect(apiSpy.getDisasterRecoveryRatios).toHaveBeenCalled();\n    expect(apiSpy.getLastSync).toHaveBeenCalled();\n    expect(component.lastSync).toBe('2024-01-15T10:00:00Z');\n  });\n});\n"
+    },
+    {
+      "path": "frontend/src/app/dashboard/dashboard.component.ts",
+      "mode": "full",
+      "contents": "import { Component, OnInit } from '@angular/core';\nimport { Router } from '@angular/router';\nimport { BaseChartDirective, provideCharts, withDefaultRegisterables } from 'ng2-charts';\nimport { CurrencyFormatPipe } from '../currency-format.pipe';\nimport { ApiService } from '../api.service';\n\nexport interface ChartDataset {\n  label: string;\n  data: number[];\n}\n\n@Component({\n  selector: 'app-dashboard',\n  standalone: true,\n  imports: [BaseChartDirective, CurrencyFormatPipe],\n  providers: [provideCharts(withDefaultRegisterables())],\n  templateUrl: './dashboard.component.html',\n  styleUrl: './dashboard.component.scss',\n})\nexport class DashboardComponent implements OnInit {\n  totalObligated = 0;\n  largestAgency: { name: string; totalCents: number } | null = null;\n  coverageGapCount = 0;\n  lastSync: string | null = null;\n\n  chartLabels: string[] = [];\n  chartDatasets: ChartDataset[] = [];\n\n  private agencies: Array<{ id: number; name: string; totalCents: number }> = [];\n\n  constructor(\n    private readonly api: ApiService,\n    private readonly router: Router,\n  ) {}\n\n  ngOnInit(): void {\n    this.api.getAgencies().subscribe(\n      agencies => {\n        this.agencies = agencies;\n        this.totalObligated = agencies.reduce((sum, a) => sum + a.totalCents, 0);\n        const largest = agencies.reduce<{ name: string; totalCents: number } | null>(\n          (best, a) => (!best || a.totalCents > best.totalCents ? a : best),\n          null,\n        );\n        this.largestAgency = largest ? { name: largest.name, totalCents: largest.totalCents } : null;\n        this.chartLabels = agencies.map(a => a.name);\n        this.chartDatasets = [{ label: 'Obligated (cents)', data: agencies.map(a => a.totalCents) }];\n      },\n    );\n\n    this.api.getDisasterRecoveryRatios({}).subscribe(\n      ratios => {\n        const gapStates = new Set(ratios.filter(r => r.recoveryRatio < 0.5).map(r => r.stateCode));\n        this.coverageGapCount = gapStates.size;\n      },\n    );\n\n    this.api.getLastSync().subscribe(\n      ts => { this.lastSync = ts; },\n    );\n  }\n\n  onChartClick(event: any): void {\n    const clicked = event.active[0];\n    if (!clicked) return;\n    const agency = this.agencies[clicked.datasetIndex];\n    if (!agency) return;\n    this.router.navigate(['/agencies', agency.id]);\n  }\n}\n"
+    },
+    {
+      "path": "shared/interfaces/index.ts",
+      "mode": "full",
+      "contents": "export interface Agency {\n  id: number;\n  name: string;\n  abbreviation: string;\n  toptierCode: string;\n}\n\nexport interface SpendingRecord {\n  id: number;\n  agencyId: number;\n  fiscalYear: number;\n  quarter: number;\n  awardTypeLabel: string;\n  awardTypeCodes: string;\n  obligatedAmount: number;\n  outlayAmount: number;\n  awardCount: number;\n}\n\nexport interface GeoSpendingSnapshot {\n  id: number;\n  stateCode: string;\n  stateName: string;\n  fiscalYear: number;\n  agencyId: number | null;\n  scope: 'recipient' | 'performance';\n  obligatedAmount: number;\n  awardCount: number;\n  population: number;\n  perCapita: number;\n}\n\nexport interface DisasterFundingRecord {\n  id: number;\n  defGroup: string;\n  defCodes: string;\n  stateCode: string;\n  stateName: string;\n  obligatedAmount: number;\n  awardCount: number;\n  perCapita: number;\n  population: number;\n}\n\nexport interface DisasterRecoveryRatio {\n  id: number;\n  stateCode: string;\n  stateName: string;\n  fiscalYear: number;\n  femaObligated: number;\n  fedSpendingObligated: number;\n  declarationCount: number;\n  recoveryRatio: number;\n  dominantIncidentType: string;\n}\n\nexport interface ApiResponse<T> {\n  data: T;\n  meta: {\n    total: number;\n    page: number;\n    pageSize: number;\n  };\n}\n\nexport interface AgencySummary {\n  agency: Agency;\n  currentFyTotal: number;\n  priorFyTotal: number;\n  yoyChange: number;\n}\n\nexport interface DisasterOverview {\n  defGroup: string;\n  totalObligated: number;\n  totalAwardCount: number;\n  stateCount: number;\n  highestPerCapitaState: string;\n  highestPerCapita: number;\n  coverageGapCount: number;\n}\n\nexport interface GeographyQuery {\n  agencyId: number | null;\n  fiscalYear: number;\n  scope: 'recipient' | 'performance';\n}\n\nexport interface AgencySpotlightQuery {\n  fiscalYearStart: number;\n  fiscalYearEnd: number;\n}\n"
+    },
+    {
+      "path": "frontend/src/app/dashboard/dashboard.component.scss",
+      "mode": "full",
+      "contents": ""
+    }
+  ]
+}

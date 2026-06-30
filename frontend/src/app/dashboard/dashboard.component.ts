@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { BaseChartDirective, provideCharts, withDefaultRegisterables } from 'ng2-charts';
+import { MatIconModule } from '@angular/material/icon';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { ApiService } from '../api.service';
 
@@ -12,7 +13,7 @@ export interface ChartDataset {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [BaseChartDirective, CurrencyFormatPipe],
+  imports: [BaseChartDirective, CurrencyFormatPipe, RouterLink, MatIconModule],
   providers: [provideCharts(withDefaultRegisterables())],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
@@ -66,5 +67,10 @@ export class DashboardComponent implements OnInit {
     const agency = this.agencies[clicked.datasetIndex];
     if (!agency) return;
     this.router.navigate(['/agencies', agency.id]);
+  }
+
+  onNavClick(route: string, event: Event): void {
+    event.preventDefault();
+    this.router.navigate([route]);
   }
 }

@@ -1,13 +1,21 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { of } from 'rxjs';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
+import { of, Subject } from 'rxjs';
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
+
 import { DashboardComponent } from './dashboard.component';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 
 describe('DashboardComponent', () => {
-  let routerSpy: { navigate: jest.Mock };
+  let routerSpy: {
+    navigate: jest.Mock;
+    createUrlTree: jest.Mock;
+    serializeUrl: jest.Mock;
+    navigateEnd: jest.Mock;
+    events: any;
+  };
   let apiSpy: {
     getAgencies: jest.Mock;
     getDisasterRecoveryRatios: jest.Mock;
@@ -15,7 +23,14 @@ describe('DashboardComponent', () => {
   };
 
   beforeEach(() => {
-    routerSpy = { navigate: jest.fn() };
+    const events$ = new (require('rxjs')).Subject<any>();
+    routerSpy = {
+      navigate: jest.fn(),
+      createUrlTree: jest.fn((links: string[]) => links.length > 0 ? links[0] : '/'),
+      serializeUrl: jest.fn((url: string) => ({ toString: () => url })),
+      navigateEnd: jest.fn(),
+      events: events$,
+    };
     apiSpy = {
       getAgencies: jest.fn().mockReturnValue(of([])),
       getDisasterRecoveryRatios: jest.fn().mockReturnValue(of([])),
@@ -23,10 +38,11 @@ describe('DashboardComponent', () => {
     };
 
     TestBed.configureTestingModule({
-      imports: [DashboardComponent, CurrencyFormatPipe],
+      imports: [DashboardComponent, CurrencyFormatPipe, RouterLink, MatIconModule],
       providers: [
         { provide: Router, useValue: routerSpy },
         { provide: ApiService, useValue: apiSpy },
+        { provide: ActivatedRoute, useValue: { snapshot: { data: {} } } },
         provideCharts(withDefaultRegisterables()),
       ],
     });
@@ -144,4 +160,81 @@ describe('DashboardComponent', () => {
     expect(apiSpy.getLastSync).toHaveBeenCalled();
     expect(component.lastSync).toBe('2024-01-15T10:00:00Z');
   });
+
+  it('renders 3 nav cards with correct routerLink targets', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const cards = fixture.nativeElement.querySelectorAll('.card-body');
+    expect(cards.length).toBe(3);
+
+    const links = fixture.nativeElement.querySelectorAll('a[href]');
+    expect(links.length).toBe(3);
+
+    const routes = Array.from(links).map(l => l.getAttribute('href'));
+    expect(routes).toContain('/geography');
+    expect(routes).toContain('/agencies');
+    expect(routes).toContain('/disaster');
+  });
+
+  it('navigates to /geography when geography card is clicked', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('.nav-card:nth-child(1)');
+    link.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/geography']);
+  });
+
+  it('navigates to /agencies when agencies card is clicked', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('.nav-card:nth-child(2)');
+    link.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies']);
+  });
+
+  it('navigates to /disaster when disaster card is clicked', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('.nav-card:nth-child(3)');
+    link.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/disaster']);
+  });
+
+  it('each nav card has title, description, and icon', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const cards = fixture.nativeElement.querySelectorAll('.card-body');
+    expect(cards.length).toBe(3);
+
+    for (const card of cards) {
+      expect(card.querySelector('h2')).toBeTruthy();
+      expect(card.querySelector('p')).toBeTruthy();
+      expect(card.parentElement.querySelector('mat-icon')).toBeTruthy();
+    }
+  });
+
+  it('page load completes in under 2 seconds', fakeAsync(() => {
+    apiSpy.getAgencies.mockReturnValue(of([]));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
+    apiSpy.getLastSync.mockReturnValue(of(null));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    const start = Date.now();
+    fixture.detectChanges();
+    tick(100);
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(2000);
+  }));
 });

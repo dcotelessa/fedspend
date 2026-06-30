@@ -1,5 +1,31 @@
 <h1>Dashboard</h1>
 
+<div class="nav-cards">
+  <a [routerLink]="'/geography'" class="nav-card" (click)="onNavClick('/geography', $event)">
+    <mat-icon class="card-icon">map</mat-icon>
+    <div class="card-body">
+      <h2>Geography</h2>
+      <p>Explore federal spending by state and region</p>
+    </div>
+  </a>
+
+  <a [routerLink]="'/agencies'" class="nav-card" (click)="onNavClick('/agencies', $event)">
+    <mat-icon class="card-icon">business</mat-icon>
+    <div class="card-body">
+      <h2>Agencies</h2>
+      <p>View detailed agency spending summaries</p>
+    </div>
+  </a>
+
+  <a [routerLink]="'/disaster'" class="nav-card" (click)="onNavClick('/disaster', $event)">
+    <mat-icon class="card-icon">emergency</mat-icon>
+    <div class="card-body">
+      <h2>Disaster</h2>
+      <p>Track disaster recovery funding and ratios</p>
+    </div>
+  </a>
+</div>
+
 <div class="cards-grid">
   <div class="card">
     <h2>Total Obligated</h2>
