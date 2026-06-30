@@ -42,13 +42,8 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
   private ratiosSub?: Subscription;
 
   ngOnInit(): void {
-    const now = new Date();
-    const currentFy = now.getMonth() < 10 ? now.getFullYear() : now.getFullYear() + 1;
-    for (let fy = currentFy; fy >= 2018; fy--) {
-      this.fiscalYears.push(fy);
-    }
-    this.fetchOverview();
-    this.fetchStates();
+    this.buildFiscalYearOptions();
+    this.refresh();
   }
 
   ngOnDestroy(): void {
@@ -60,13 +55,25 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
   onTabChange(event: MatTabChangeEvent): void {
     this.currentTab = this.defGroups[event.index];
     this.tabIndex = event.index;
-    this.fetchOverview();
-    this.fetchStates();
+    this.refresh();
   }
 
   onFiscalYearChange(): void {
+    this.refresh();
+  }
+
+  private refresh(): void {
     this.fetchOverview();
     this.fetchStates();
+    this.fetchRatios();
+  }
+
+  private buildFiscalYearOptions(): void {
+    const now = new Date();
+    const currentFy = now.getMonth() < 10 ? now.getFullYear() : now.getFullYear() + 1;
+    for (let fy = currentFy; fy >= 2018; fy--) {
+      this.fiscalYears.push(fy);
+    }
   }
 
   private fetchOverview(): void {
@@ -80,7 +87,6 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
         this.totalObligated = 0;
         this.highestPerCapitaState = '';
       }
-      this.computeCoverageGaps();
     });
   }
 
@@ -92,11 +98,10 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
     }
     this.statesSub = this.api.getDisasterStates(params).subscribe((states: DisasterFundingRecord[]) => {
       this.stateCount = states.length;
-      this.computeCoverageGaps();
     });
   }
 
-  private computeCoverageGaps(): void {
+  private fetchRatios(): void {
     this.ratiosSub?.unsubscribe();
     const params: { fiscalYear?: number } = {};
     if (this.selectedFiscalYear) {

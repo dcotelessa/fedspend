@@ -41,6 +41,7 @@ describe('DisasterLensComponent', () => {
 
   interface CardTestCase {
     name: string;
+    currentTab?: string;
     overview: DisasterOverview[];
     states: DisasterFundingRecord[];
     ratios: DisasterRecoveryRatio[];
@@ -64,12 +65,12 @@ describe('DisasterLensComponent', () => {
       }],
       states: [
         {
-          stateCode: 'CA', stateName: 'California',
+          id: 1, stateCode: 'CA', stateName: 'California',
           obligatedAmount: 300000, awardCount: 50,
           perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '',
         },
         {
-          stateCode: 'NY', stateName: 'New York',
+          id: 2, stateCode: 'NY', stateName: 'New York',
           obligatedAmount: 200000, awardCount: 50,
           perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '',
         },
@@ -103,17 +104,17 @@ describe('DisasterLensComponent', () => {
       }],
       states: [
         {
-          stateCode: 'FL', stateName: 'Florida',
+          id: 3, stateCode: 'FL', stateName: 'Florida',
           obligatedAmount: 500000, awardCount: 100,
           perCapita: 0, population: 0, defGroup: 'Hurricane', defCodes: '',
         },
         {
-          stateCode: 'GA', stateName: 'Georgia',
+          id: 4, stateCode: 'GA', stateName: 'Georgia',
           obligatedAmount: 300000, awardCount: 60,
           perCapita: 0, population: 0, defGroup: 'Hurricane', defCodes: '',
         },
         {
-          stateCode: 'AL', stateName: 'Alabama',
+          id: 5, stateCode: 'AL', stateName: 'Alabama',
           obligatedAmount: 200000, awardCount: 40,
           perCapita: 0, population: 0, defGroup: 'Hurricane', defCodes: '',
         },
@@ -164,7 +165,7 @@ describe('DisasterLensComponent', () => {
       ],
       states: [
         {
-          stateCode: 'TX', stateName: 'Texas',
+          id: 6, stateCode: 'TX', stateName: 'Texas',
           obligatedAmount: 100000, awardCount: 50,
           perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '',
         },
@@ -175,17 +176,53 @@ describe('DisasterLensComponent', () => {
       expectedGapCount: 0,
       expectedHighestPerCapitaState: 'TX',
     },
+    {
+      name: 'selects overview entry matching non-default tab',
+      currentTab: 'Wildfire',
+      overview: [
+        {
+          defGroup: 'COVID-19',
+          totalObligated: 100000,
+          totalAwardCount: 50,
+          stateCount: 1,
+          highestPerCapitaState: 'TX',
+          highestPerCapita: 80000,
+          coverageGapCount: 0,
+        },
+        {
+          defGroup: 'Wildfire',
+          totalObligated: 750000,
+          totalAwardCount: 30,
+          stateCount: 2,
+          highestPerCapitaState: 'CA',
+          highestPerCapita: 200000,
+          coverageGapCount: 1,
+        },
+      ],
+      states: [
+        {
+          id: 7, stateCode: 'CA', stateName: 'California',
+          obligatedAmount: 500000, awardCount: 20,
+          perCapita: 200000, population: 0, defGroup: 'Wildfire', defCodes: 'M',
+        },
+      ],
+      ratios: [],
+      expectedTotalObligated: 750000,
+      expectedStateCount: 1,
+      expectedGapCount: 0,
+      expectedHighestPerCapitaState: 'CA',
+    },
   ];
 
   it.each(testTable)('$name', async ({
-    overview, states, ratios,
+    overview, states, ratios, currentTab,
     expectedTotalObligated, expectedStateCount, expectedGapCount, expectedHighestPerCapitaState,
   }) => {
     apiSpy.getDisasterOverview.mockReturnValue(of(overview));
     apiSpy.getDisasterStates.mockReturnValue(of(states));
     apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
 
-    component.currentTab = 'COVID-19';
+    component.currentTab = currentTab ?? 'COVID-19';
     component.ngOnInit();
     await fixture.whenStable();
     fixture.detectChanges();
