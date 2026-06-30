@@ -1992,7 +1992,7 @@
       "acceptanceCriteria": [
         {
           "text": "app.component.html has nav with routerLink to all 4 routes",
-          "check": "cd frontend && grep -q 'routerLink' src/app/app.component.html && for r '/' '/geography' '/agencies' '/disaster'; do grep -qE \"['\\\"]$r['\\\"]\" src/app/app.component.html || exit 1; done"
+          "check": "cd frontend && grep -q 'routerLink=\"/\"' src/app/app.component.html && grep -q 'routerLink=\"/geography\"' src/app/app.component.html && grep -q 'routerLink=\"/agencies\"' src/app/app.component.html && grep -q 'routerLink=\"/disaster\"' src/app/app.component.html"
         },
         {
           "text": "footer mentions USASpending.gov and OpenFEMA",
