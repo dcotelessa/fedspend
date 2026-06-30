@@ -1759,7 +1759,8 @@
           "frontend/src/app/dashboard/dashboard.component.html",
           "frontend/src/app/dashboard/dashboard.component.spec.ts",
           "frontend/src/app/dashboard/dashboard.component.ts",
-          "shared/interfaces/index.ts"
+          "shared/interfaces/index.ts",
+          "frontend/src/app/dashboard/dashboard.component.scss"
         ],
         "regions": []
       },
@@ -1797,7 +1798,8 @@
           "frontend/src/app/dashboard/dashboard.component.html",
           "frontend/src/app/dashboard/dashboard.component.spec.ts",
           "frontend/src/app/dashboard/dashboard.component.ts",
-          "shared/interfaces/index.ts"
+          "shared/interfaces/index.ts",
+          "frontend/src/app/dashboard/dashboard.component.scss"
         ],
         "regions": []
       },

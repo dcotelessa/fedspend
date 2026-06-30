@@ -722,6 +722,20 @@
       "elapsedSec": 1077,
       "thinking": "medium",
       "timestamp": "2026-06-30T06:01:11Z"
+    },
+    {
+      "story": "E8-S01",
+      "epic": "E8",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 1799,
+      "thinking": "medium",
+      "timestamp": "2026-06-30T08:10:13Z",
+      "note": "Scope-leakage: builder created dashboard.component.scss (not in scope). Early warning caught it. Empty SCSS created on main. Added to scope for E8-S01+E8-S02."
     }
   ]
 }
