@@ -39,7 +39,7 @@ export class AgencySpotlightComponent implements OnInit {
   badgeText = '';
   fiscalYearStart = 2020;
   fiscalYearEnd = 2024;
-  availableYears: number[] = [];
+  availableYears: number[] = [2020, 2021, 2022, 2023, 2024];
   chartData: ChartData = { labels: [], datasets: [] };
   insight = '';
   tableData: TableDataRow[] = [];
