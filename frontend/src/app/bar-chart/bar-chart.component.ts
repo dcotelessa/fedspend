@@ -9,6 +9,13 @@ export interface ChartDataset {
 @Component({
   selector: 'app-bar-chart',
   templateUrl: './bar-chart.component.html',
+  styles: [`
+    .bar-chart-container {
+      position: relative;
+      height: 350px;
+      max-width: 100%;
+    }
+  `],
   standalone: true,
   imports: [BaseChartDirective],
   providers: [provideCharts(withDefaultRegisterables())]
@@ -28,7 +35,8 @@ export class BarChartComponent {
 
   get chartOptions() {
     return {
-      indexAxis: (this.horizontal ? 'y' : 'x') as 'x' | 'y'
+      indexAxis: (this.horizontal ? 'y' : 'x') as 'x' | 'y',
+      maintainAspectRatio: false,
     };
   }
 

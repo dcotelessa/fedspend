@@ -18,6 +18,7 @@ describe('BarChartComponent', () => {
       };
       chartOptions: {
         indexAxis: string;
+        maintainAspectRatio: boolean;
       };
     };
   }
@@ -39,6 +40,7 @@ describe('BarChartComponent', () => {
         },
         chartOptions: {
           indexAxis: 'x',
+          maintainAspectRatio: false,
         },
       },
     },
@@ -58,6 +60,7 @@ describe('BarChartComponent', () => {
         },
         chartOptions: {
           indexAxis: 'y',
+          maintainAspectRatio: false,
         },
       },
     },
@@ -83,6 +86,7 @@ describe('BarChartComponent', () => {
         },
         chartOptions: {
           indexAxis: 'x',
+          maintainAspectRatio: false,
         },
       },
     },
