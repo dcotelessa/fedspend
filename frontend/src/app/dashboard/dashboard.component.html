@@ -1,1 +1,35 @@
 <h1>Dashboard</h1>
+
+<div class="cards-grid">
+  <div class="card">
+    <h2>Total Obligated</h2>
+    <p class="value">{{ totalObligated | currencyFormat }}</p>
+  </div>
+
+  <div class="card">
+    <h2>Largest Agency (FY2024)</h2>
+    <p class="value">{{ largestAgency?.name || 'N/A' }}</p>
+    <p class="sub">{{ largestAgency ? (largestAgency.totalCents | currencyFormat) : '' }}</p>
+  </div>
+
+  <div class="card">
+    <h2>Coverage Gaps</h2>
+    <p class="value">{{ coverageGapCount }}</p>
+    <p class="sub">states with ratio &lt; 0.5</p>
+  </div>
+
+  <div class="card">
+    <h2>Last Sync</h2>
+    <p class="value">{{ lastSync || 'Never' }}</p>
+  </div>
+</div>
+
+<div class="chart-section">
+  <h2>Agency Obligated by FY2024</h2>
+  <canvas baseChart
+    [type]="'bar'"
+    [data]="{ labels: chartLabels, datasets: chartDatasets }"
+    [options]="{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }"
+    (chartClick)="onChartClick($event)">
+  </canvas>
+</div>
