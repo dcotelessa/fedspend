@@ -43,6 +43,8 @@ describe('getTypeOrmConfig', () => {
     if (databaseUrl) {
       expect(config.type).toBe('postgres');
       expect(config.url).toBe(databaseUrl);
+      expect(config.migrationsRun).toBe(true);
+      expect(config.synchronize).toBe(false);
     } else {
       expect(config.type).toBe('better-sqlite3');
       expect(config.database).toBe('./data/dev.db');

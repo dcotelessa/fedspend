@@ -1,0 +1,161 @@
+{
+  "story": "E9-S02",
+  "epic": "E9",
+  "title": "Backend prod config — migrations, env vars, health check",
+  "goal": "Generate initial TypeORM migration. Set NODE_ENV=production behavior: migrationsRun=true, synchronize=false. Verify /health endpoint works in prod mode (no FRONTEND_URL fallback to '*' — must be explicit). Document required env vars.",
+  "notes": "Generate migration via `pnpm typeorm migration:generate src/migrations/Init -d src/config/typeorm-datasource.ts`. Need a datasource file (TypeORM DataSource for CLI). Or hand-write the migration. migrationsRun:true in the postgres config branch (already asserted by E1-S03 spec but stricter here).",
+  "dependencies": "E9-S01",
+  "acceptanceCriteria": [
+    {
+      "text": "Init migration file exists under backend/src/migrations/",
+      "check": "test -f backend/src/migrations/1700000000000-Init.ts"
+    },
+    {
+      "text": "postgres branch has migrationsRun:true and synchronize:false",
+      "check": "cd backend && grep -A2 \"postgres\" src/config/typeorm.config.ts | grep -q 'migrationsRun' && grep -A5 \"postgres\" src/config/typeorm.config.ts | grep -q 'synchronize: false'"
+    },
+    {
+      "text": "package.json has typeorm migration script",
+      "check": "cd backend && jq -e '.scripts.\"typeorm:migrate\" != null' package.json >/dev/null"
+    },
+    {
+      "text": ".env.example documents DATABASE_URL, FRONTEND_URL, NODE_ENV",
+      "check": "cd backend && grep -q 'DATABASE_URL' .env.example && grep -q 'FRONTEND_URL' .env.example && grep -q 'NODE_ENV' .env.example"
+    },
+    {
+      "text": "typeorm.config.spec.ts still passes (updated to cover migrationsRun assertion)",
+      "check": "cd backend && pnpm test --testPathPatterns=typeorm.config.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "backend builds",
+      "check": "cd backend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/config/typeorm.config.ts",
+      "mode": "slice",
+      "start": 1,
+      "end": 50,
+      "reason": "ensure postgres branch has migrationsRun:true, synchronize:false",
+      "excerpt": "   1: import { TypeOrmModuleOptions } from '@nestjs/typeorm';\n   2: import { ConfigService } from '@nestjs/config';\n   3: import { mkdirSync } from 'fs';\n   4: \n   5: export function getTypeOrmConfig(configService: ConfigService): TypeOrmModuleOptions {\n   6:   const databaseUrl = configService.get('DATABASE_URL');\n   7: \n   8:   if (databaseUrl) {\n   9:     return {\n  10:       type: 'postgres',\n  11:       url: databaseUrl,\n  12:       autoLoadEntities: true,\n  13:       entities: [__dirname + '/../**/*.entity{.ts,.js}'],\n  14:     };\n  15:   }\n  16: \n  17:   mkdirSync('data', { recursive: true });\n  18: \n  19:   return {\n  20:     type: 'better-sqlite3',\n  21:     database: './data/dev.db',\n  22:     autoLoadEntities: true,\n  23:     entities: [__dirname + '/../**/*.entity{.ts,.js}'],\n  24:     synchronize: true,\n  25:   };\n  26: }"
+    },
+    {
+      "path": "backend/package.json",
+      "mode": "slice",
+      "start": 1,
+      "end": 30,
+      "reason": "scripts — add typeorm:migrate script",
+      "excerpt": "   1: {\n   2:   \"name\": \"backend\",\n   3:   \"version\": \"0.0.1\",\n   4:   \"description\": \"\",\n   5:   \"author\": \"\",\n   6:   \"private\": true,\n   7:   \"license\": \"UNLICENSED\",\n   8:   \"scripts\": {\n   9:     \"build\": \"nest build\",\n  10:     \"format\": \"prettier --write \\\"src/**/*.ts\\\" \\\"test/**/*.ts\\\"\",\n  11:     \"start\": \"nest start\",\n  12:     \"start:dev\": \"nest start --watch\",\n  13:     \"start:debug\": \"nest start --debug --watch\",\n  14:     \"start:prod\": \"node dist/main\",\n  15:     \"lint\": \"eslint \\\"{src,apps,libs,test}/**/*.ts\\\" --fix\",\n  16:     \"test\": \"jest\",\n  17:     \"test:watch\": \"jest --watch\",\n  18:     \"test:cov\": \"jest --coverage\",\n  19:     \"test:debug\": \"node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand\",\n  20:     \"test:e2e\": \"jest --config ./test/jest-e2e.json\"\n  21:   },\n  22:   \"dependencies\": {\n  23:     \"@nestjs/common\": \"^11.0.1\",\n  24:     \"@nestjs/config\": \"^4.0.0\",\n  25:     \"@nestjs/core\": \"^11.0.1\",\n  26:     \"@nestjs/platform-express\": \"^11.0.1\",\n  27:     \"@nestjs/schedule\": \"^5.0.1\",\n  28:     \"@nestjs/typeorm\": \"^11.0.0\",\n  29:     \"better-sqlite3\": \"^11.8.1\",\n  30:     \"class-transformer\": \"^0.5.1\",\n  31:     \"class-validator\": \"^0.15.0\",\n  32:     \"pg\": \"^8.13.1\","
+    },
+    {
+      "path": "backend/.env.example",
+      "mode": "full",
+      "contents": "DATABASE_URL="
+    },
+    {
+      "path": "backend/src/config/typeorm.config.spec.ts",
+      "mode": "full",
+      "contents": "import { getTypeOrmConfig } from './typeorm.config';\nimport * as fs from 'fs';\n\njest.mock('fs', () => ({\n  ...jest.requireActual('fs'),\n  mkdirSync: jest.fn(),\n}));\n\ndescribe('getTypeOrmConfig', () => {\n  interface TestCase {\n    name: string;\n    databaseUrl: string | undefined;\n    expectedType: 'postgres' | 'better-sqlite3';\n    expectMkdirSync: boolean;\n  }\n\n  const testTable: TestCase[] = [\n    {\n      name: 'returns postgres config when DATABASE_URL is set',\n      databaseUrl: 'postgres://user:pass@localhost/db',\n      expectedType: 'postgres',\n      expectMkdirSync: false,\n    },\n    {\n      name: 'returns sqlite config when DATABASE_URL is unset',\n      databaseUrl: undefined,\n      expectedType: 'better-sqlite3',\n      expectMkdirSync: true,\n    },\n  ];\n\n  it.each(testTable)('$name', ({ databaseUrl, expectedType, expectMkdirSync }) => {\n    const configService = { get: (key: string) => databaseUrl } as any;\n    const config = getTypeOrmConfig(configService);\n\n    expect(config.type).toBe(expectedType);\n    expect(fs.mkdirSync).toHaveBeenCalledTimes(expectMkdirSync ? 1 : 0);\n\n    if (databaseUrl === undefined) {\n      expect(fs.mkdirSync).toHaveBeenCalledWith('data', { recursive: true });\n    }\n\n    if (databaseUrl) {\n      expect(config.type).toBe('postgres');\n      expect(config.url).toBe(databaseUrl);\n    } else {\n      expect(config.type).toBe('better-sqlite3');\n      expect(config.database).toBe('./data/dev.db');\n    }\n  });\n});\n"
+    }
+  ]
+}

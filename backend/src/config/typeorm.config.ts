@@ -9,6 +9,8 @@ export function getTypeOrmConfig(configService: ConfigService): TypeOrmModuleOpt
     return {
       type: 'postgres',
       url: databaseUrl,
+      migrationsRun: true,
+      synchronize: false,
       autoLoadEntities: true,
       entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     };
