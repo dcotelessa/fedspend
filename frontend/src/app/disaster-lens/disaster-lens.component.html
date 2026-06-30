@@ -62,5 +62,54 @@
         title="Top 15 States by Obligated Amount"
       ></app-bar-chart>
     </div>
+
+    <h2>Recovery Ratios by State</h2>
+
+    <table mat-table [dataSource]="pagedRatios" class="full-width" matSort>
+      <ng-container matColumnDef="state">
+        <th mat-header-cell *matHeaderCellDef>State</th>
+        <td mat-cell *matCellDef="let ratio">{{ ratio.stateName }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="declarations">
+        <th mat-header-cell *matHeaderCellDef>Declarations</th>
+        <td mat-cell *matCellDef="let ratio">{{ ratio.declarationCount }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="fema">
+        <th mat-header-cell *matHeaderCellDef>FEMA</th>
+        <td mat-cell *matCellDef="let ratio">{{ ratio.femaObligated | currencyFormat }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="fedDef">
+        <th mat-header-cell *matHeaderCellDef>Fed DEF</th>
+        <td mat-cell *matCellDef="let ratio">{{ ratio.fedSpendingObligated | currencyFormat }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="ratio">
+        <th mat-header-cell *matHeaderCellDef matSortHeader>Ratio</th>
+        <td mat-cell *matCellDef="let ratio">
+          <span
+            class="ratio-chip"
+            [class.warn]="getChipClass(ratio.recoveryRatio) === 'warn'"
+            [class.accent]="getChipClass(ratio.recoveryRatio) === 'accent'"
+            [class.primary]="getChipClass(ratio.recoveryRatio) === 'primary'"
+            matTooltip="Recovery Ratio = Federal DEF Spending ÷ FEMA Baseline. A ratio below 1.0 indicates federal spending has not yet matched FEMA's initial obligation level."
+          >
+            {{ ratio.recoveryRatio | number:'1.2-2' }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="dominantIncident">
+        <th mat-header-cell *matHeaderCellDef>Dominant Incident</th>
+        <td mat-cell *matCellDef="let ratio">{{ ratio.dominantIncidentType }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+
+    <mat-paginator [pageSize]="15" [pageSizeOptions]="[15]" showFirstLastButtons></mat-paginator>
   </mat-tab>
 </mat-tab-group>

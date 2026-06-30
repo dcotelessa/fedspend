@@ -37,6 +37,7 @@ describe('DisasterLensComponent', () => {
 
     fixture = TestBed.createComponent(DisasterLensComponent);
     component = fixture.componentInstance;
+    component.paginator = { pageIndex: 0, pageSize: 15, length: 0 } as any;
   });
 
   interface CardTestCase {
@@ -282,5 +283,47 @@ describe('DisasterLensComponent', () => {
 
     expect(component.top15Labels).toEqual(expectedLabels);
     expect(component.top15Datasets).toEqual(expectedDataset);
+  });
+
+  interface SortedRatiosTestCase {
+    name: string;
+    ratios: DisasterRecoveryRatio[];
+    expectedOrder: string[];
+  }
+
+  const testTableSortedRatios: SortedRatiosTestCase[] = [
+    {
+      name: 'sorts ratios ascending by recoveryRatio',
+      ratios: [
+        { id: 1, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 500000, declarationCount: 3, recoveryRatio: 5.0, dominantIncidentType: 'Wildfire' },
+        { id: 2, stateCode: 'FL', stateName: 'Florida', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 20000, declarationCount: 2, recoveryRatio: 0.2, dominantIncidentType: 'Hurricane' },
+        { id: 3, stateCode: 'NY', stateName: 'New York', fiscalYear: 2024, femaObligated: 50000, fedSpendingObligated: 25000, declarationCount: 1, recoveryRatio: 0.5, dominantIncidentType: 'Hurricane' },
+      ],
+      expectedOrder: ['Florida', 'New York', 'California'],
+    },
+    {
+      name: 'handles empty ratios array',
+      ratios: [],
+      expectedOrder: [],
+    },
+    {
+      name: 'handles single ratio',
+      ratios: [
+        { id: 1, stateCode: 'TX', stateName: 'Texas', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 100000, declarationCount: 1, recoveryRatio: 1.0, dominantIncidentType: 'Infrastructure' },
+      ],
+      expectedOrder: ['Texas'],
+    },
+  ];
+
+  it.each(testTableSortedRatios)('$name', async ({ ratios, expectedOrder }) => {
+    apiSpy.getDisasterOverview.mockReturnValue(of([]));
+    apiSpy.getDisasterStates.mockReturnValue(of([]));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
+
+    component.ngOnInit();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.sortedRatios.map((r) => r.stateName)).toEqual(expectedOrder);
   });
 });

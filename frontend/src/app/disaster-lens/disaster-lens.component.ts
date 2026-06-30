@@ -1,14 +1,19 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTabsModule, MatTabChangeEvent } from '@angular/material/tabs';
 import { MatSelectModule } from '@angular/material/select';
 import { MatCardModule } from '@angular/material/card';
+import { MatTableModule } from '@angular/material/table';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSortModule } from '@angular/material/sort';
 import { BarChartComponent } from '../bar-chart/bar-chart.component';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { DisasterOverview, DisasterFundingRecord, DisasterRecoveryRatio } from '@shared/interfaces';
+import { getRatioColor, RatioColor } from '../ratio-color';
 
 @Component({
   selector: 'app-disaster-lens',
@@ -19,12 +24,16 @@ import { DisasterOverview, DisasterFundingRecord, DisasterRecoveryRatio } from '
     MatTabsModule,
     MatSelectModule,
     MatCardModule,
+    MatTableModule,
+    MatPaginatorModule,
+    MatTooltipModule,
+    MatSortModule,
     BarChartComponent,
     CurrencyFormatPipe,
   ],
   templateUrl: './disaster-lens.component.html',
 })
-export class DisasterLensComponent implements OnInit, OnDestroy {
+export class DisasterLensComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly api = inject(ApiService);
 
   currentTab = 'COVID-19';
@@ -42,6 +51,11 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
   top15Labels: string[] = [];
   top15Datasets: number[] = [];
 
+  sortedRatios: DisasterRecoveryRatio[] = [];
+  displayedColumns: string[] = ['state', 'declarations', 'fema', 'fedDef', 'ratio', 'dominantIncident'];
+
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
+
   private overviewSub?: Subscription;
   private statesSub?: Subscription;
   private ratiosSub?: Subscription;
@@ -49,6 +63,10 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.buildFiscalYearOptions();
     this.refresh();
+  }
+
+  ngAfterViewInit(): void {
+    // paginator pageSize set via template binding
   }
 
   ngOnDestroy(): void {
@@ -130,6 +148,18 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
     }
     this.ratiosSub = this.api.getDisasterRecoveryRatios(params).subscribe((ratios: DisasterRecoveryRatio[]) => {
       this.coverageGapCount = ratios.filter((r) => r.recoveryRatio < 0.5).length;
+      const sort_asc = true;
+      this.sortedRatios = [...ratios].sort((a, b) => sort_asc ? a.recoveryRatio - b.recoveryRatio : b.recoveryRatio - a.recoveryRatio);
     });
+  }
+
+  getChipClass(ratio: number): RatioColor {
+    return getRatioColor(ratio);
+  }
+
+  get pagedRatios(): DisasterRecoveryRatio[] {
+    if (!this.paginator) return [];
+    const start = this.paginator.pageIndex * this.paginator.pageSize;
+    return this.sortedRatios.slice(start, start + this.paginator.pageSize);
   }
 }
