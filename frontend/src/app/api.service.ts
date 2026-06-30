@@ -106,4 +106,17 @@ export class ApiService {
       catchError(() => of(null)),
     );
   }
+
+  getLastSync(): Observable<string | null> {
+    return this.http.get<Record<string, { lastSyncAt: string }>>(`${environment.apiUrl}/sync/status`).pipe(
+      map(statuses => {
+        const entries = Object.values(statuses);
+        if (entries.length === 0) return null;
+        return entries
+          .map(e => e.lastSyncAt)
+          .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+      }),
+      catchError(() => of(null)),
+    );
+  }
 }
