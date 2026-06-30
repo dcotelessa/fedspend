@@ -34,16 +34,6 @@ type FetchDefCodesResult =
   | { status: 'success'; defCodes: RawUsaSpendingDefCodeRow[] }
   | { status: 'not_found' };
 
-const transformAgencyRows = (
-  rows: RawUsaSpendingAgencyRow[],
-): Agency[] =>
-  rows.map((r) => ({
-    id: 0,
-    name: r.agency_name || '',
-    abbreviation: r.abbreviation || '',
-    toptierCode: r.toptier_code,
-  }));
-
 const transformGeoRows = (
   rows: RawUsaSpendingGeoRow[],
   scope: string,
@@ -62,30 +52,15 @@ const transformGeoRows = (
     agency: null as any,
   }));
 
-const transformDefCodeRows = (
-  rows: RawUsaSpendingDefCodeRow[],
-): RawUsaSpendingDefCodeRow[] =>
-  rows.map((r) => ({
-    code: r.code,
-    label: r.label,
-    group: r.group,
-  }));
-
 const fetchWithRetry = async (
   url: string,
   options: RequestInit = {},
-  signal: AbortSignal | undefined = undefined,
 ): Promise<unknown> => {
   let lastError: Error | undefined;
 
-  const fetchOptions: RequestInit = {
-    ...options,
-    signal: signal || options.signal,
-  };
-
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await fetch(url, fetchOptions);
+      const response = await fetch(url, options);
 
       if (!response.ok) {
         throw new Error(
@@ -93,8 +68,7 @@ const fetchWithRetry = async (
         );
       }
 
-      const body = await response.json();
-      return body;
+      return await response.json();
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
@@ -118,10 +92,10 @@ const fetchAllPages = async (
     body: JSON.stringify({ ...baseBody, page: 1 }),
   })) as {
     results: unknown[];
-    meta: { total: number; page: number; pageSize: number };
+    meta: { total: number; pageSize: number };
   };
 
-  const allRows = [...(firstBody.results as unknown[])];
+  const allRows: unknown[] = [...firstBody.results];
   const totalPages = Math.ceil(firstBody.meta.total / firstBody.meta.pageSize);
 
   if (totalPages > 1) {
@@ -131,7 +105,7 @@ const fetchAllPages = async (
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...baseBody, page }),
       })) as { results: unknown[] };
-      allRows.push(...(pageBody.results as unknown[]));
+      allRows.push(...pageBody.results);
     }
   }
 
@@ -141,11 +115,17 @@ const fetchAllPages = async (
 @Injectable()
 export class UsaSpendingService {
   async fetchAgencies(): Promise<FetchAgenciesResult> {
-    const url = `${API_BASE}/references/toptier_agencies/`;
-    const rawData = await fetchWithRetry(url);
+    const rawData = await fetchWithRetry(
+      `${API_BASE}/references/toptier_agencies/`,
+    );
     const body = rawData as { results: RawUsaSpendingAgencyRow[] };
 
-    const agencies = transformAgencyRows(body.results);
+    const agencies: Agency[] = body.results.map((r) => ({
+      id: 0,
+      name: r.agency_name || '',
+      abbreviation: r.abbreviation || '',
+      toptierCode: r.toptier_code,
+    }));
 
     return agencies.length > 0
       ? { status: 'success', agencies }
@@ -253,11 +233,16 @@ export class UsaSpendingService {
   }
 
   async fetchDefCodes(): Promise<FetchDefCodesResult> {
-    const url = `${API_BASE}/references/def_codes/`;
-    const rawData = await fetchWithRetry(url);
+    const rawData = await fetchWithRetry(
+      `${API_BASE}/references/def_codes/`,
+    );
     const body = rawData as { results: RawUsaSpendingDefCodeRow[] };
 
-    const defCodes = transformDefCodeRows(body.results);
+    const defCodes: RawUsaSpendingDefCodeRow[] = body.results.map((r) => ({
+      code: r.code,
+      label: r.label,
+      group: r.group,
+    }));
 
     return defCodes.length > 0
       ? { status: 'success', defCodes }

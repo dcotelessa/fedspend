@@ -51,6 +51,17 @@ describe('UsaSpendingService', () => {
       expectedToptierCode: '049',
       expectedAbbreviation: '',
     },
+    {
+      name: 'falls back to empty string when agency_name is missing',
+      rows: [{
+        agency_name: '',
+        toptier_code: '097',
+        abbreviation: 'DOE',
+      }],
+      expectedName: '',
+      expectedToptierCode: '097',
+      expectedAbbreviation: 'DOE',
+    },
   ];
 
   interface GeoTransformTestCase {
@@ -83,6 +94,28 @@ describe('UsaSpendingService', () => {
       scope: 'performance_location',
       expectedObligatedCents: 1,
       expectedStateCode: 'NY',
+    },
+    {
+      name: 'zero amount → 0 cents',
+      rows: [{
+        shape_code: '48',
+        display_data: { state: 'TX', state_name: 'Texas' },
+        aggregated_amount: 0,
+      }],
+      scope: 'recipient_location',
+      expectedObligatedCents: 0,
+      expectedStateCode: 'TX',
+    },
+    {
+      name: 'rounds fractional cents: 1234.567 → 123457 cents',
+      rows: [{
+        shape_code: '06',
+        display_data: { state: 'CA', state_name: 'California' },
+        aggregated_amount: 1234.567,
+      }],
+      scope: 'recipient_location',
+      expectedObligatedCents: 123457,
+      expectedStateCode: 'CA',
     },
   ];
 
