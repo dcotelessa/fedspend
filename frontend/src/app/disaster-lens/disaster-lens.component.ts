@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, inject, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTabsModule, MatTabChangeEvent } from '@angular/material/tabs';
@@ -33,7 +33,7 @@ import { getRatioColor, RatioColor } from '../ratio-color';
   ],
   templateUrl: './disaster-lens.component.html',
 })
-export class DisasterLensComponent implements OnInit, AfterViewInit, OnDestroy {
+export class DisasterLensComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
 
   currentTab = 'COVID-19';
@@ -63,10 +63,6 @@ export class DisasterLensComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     this.buildFiscalYearOptions();
     this.refresh();
-  }
-
-  ngAfterViewInit(): void {
-    // paginator pageSize set via template binding
   }
 
   ngOnDestroy(): void {
@@ -121,23 +117,16 @@ export class DisasterLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.statesSub = this.api.getDisasterStates(params).subscribe((states: DisasterFundingRecord[]) => {
       this.stateCount = states.length;
-      this.top15Labels = this.slicedTop15Labels(states);
-      this.top15Datasets = this.slicedTop15Datasets(states);
+      this.assignTop15(states);
     });
   }
 
-  private slicedTop15Labels(states: DisasterFundingRecord[]): string[] {
-    return states
+  private assignTop15(states: DisasterFundingRecord[]): void {
+    const top = [...states]
       .sort((a, b) => b.obligatedAmount - a.obligatedAmount)
-      .slice(0, 15)
-      .map((s) => s.stateName);
-  }
-
-  private slicedTop15Datasets(states: DisasterFundingRecord[]): number[] {
-    return states
-      .sort((a, b) => b.obligatedAmount - a.obligatedAmount)
-      .slice(0, 15)
-      .map((s) => s.obligatedAmount);
+      .slice(0, 15);
+    this.top15Labels = top.map((s) => s.stateName);
+    this.top15Datasets = top.map((s) => s.obligatedAmount);
   }
 
   private fetchRatios(): void {
@@ -148,8 +137,7 @@ export class DisasterLensComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.ratiosSub = this.api.getDisasterRecoveryRatios(params).subscribe((ratios: DisasterRecoveryRatio[]) => {
       this.coverageGapCount = ratios.filter((r) => r.recoveryRatio < 0.5).length;
-      const sort_asc = true;
-      this.sortedRatios = [...ratios].sort((a, b) => sort_asc ? a.recoveryRatio - b.recoveryRatio : b.recoveryRatio - a.recoveryRatio);
+      this.sortedRatios = [...ratios].sort((a, b) => a.recoveryRatio - b.recoveryRatio);
     });
   }
 
