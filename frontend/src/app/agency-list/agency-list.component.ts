@@ -16,6 +16,6 @@ export class AgencyListComponent implements OnInit {
   agencies: AgencyWithTotal[] = [];
 
   ngOnInit(): void {
-    this.api.getAgencies().subscribe(a => (this.agencies = a));
+    this.api.getAgencies().subscribe(a => (this.agencies = a.filter(ag => ag.totalCents > 0)));
   }
 }
