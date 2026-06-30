@@ -3,12 +3,43 @@
 // Include the common styles for Angular Material
 @include mat.core();
 
-/* You can add global styles to this file, and also import other style files */
+/* Dark theme */
+.dark-theme {
+  background-color: #121212;
+  color: #e0e0e0;
+}
+
+.dark-theme mat-toolbar {
+  background-color: #1e1e1e;
+  color: #e0e0e0;
+  border-bottom: 1px solid #333;
+}
+
+.dark-theme footer {
+  border-top-color: #333;
+  color: #999;
+}
+
+.dark-theme mat-nav-list, .dark-theme mat-list-item {
+  color: #e0e0e0;
+}
+
+/* Prefers-color-scheme support — auto-switch on first load */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    background-color: #121212;
+    color: #e0e0e0;
+  }
+}
 
 mat-toolbar {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.dark-theme mat-slide-toggle .mat-slide-toggle-label-content {
+  color: #e0e0e0;
 }
 
 mat-toolbar a {
@@ -18,6 +49,10 @@ mat-toolbar a {
   &:hover {
     text-decoration: underline;
   }
+}
+
+mat-toolbar .spacer {
+  flex: 1 1 auto;
 }
 
 footer {
