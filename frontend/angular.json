@@ -30,6 +30,10 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "_redirects",
+                "input": "."
               }
             ],
             "styles": [
