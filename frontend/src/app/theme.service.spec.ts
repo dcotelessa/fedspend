@@ -28,6 +28,20 @@ describe('ThemeService', () => {
       expectedStorage: 'false',
     },
     {
+      name: 'defaults to dark=false when storage has arbitrary garbage',
+      storedValue: 'banana',
+      operations: [],
+      expectedIsDark: false,
+      expectedStorage: 'banana',
+    },
+    {
+      name: 'defaults to dark=false when storage is empty string',
+      storedValue: '',
+      operations: [],
+      expectedIsDark: false,
+      expectedStorage: '',
+    },
+    {
       name: 'restores dark=true from storage',
       storedValue: 'true',
       operations: [],

@@ -1,9 +1,7 @@
 @use '@angular/material' as mat;
 
-// Include the common styles for Angular Material
 @include mat.core();
 
-/* Dark theme */
 .dark-theme {
   background-color: #121212;
   color: #e0e0e0;
@@ -24,7 +22,6 @@
   color: #e0e0e0;
 }
 
-/* Prefers-color-scheme support — auto-switch on first load */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     background-color: #121212;
