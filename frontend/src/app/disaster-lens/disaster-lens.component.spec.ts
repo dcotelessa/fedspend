@@ -232,4 +232,55 @@ describe('DisasterLensComponent', () => {
     expect(component.coverageGapCount).toBe(expectedGapCount);
     expect(component.highestPerCapitaState).toBe(expectedHighestPerCapitaState);
   });
+
+  interface Top15TestCase {
+    name: string;
+    states: DisasterFundingRecord[];
+    expectedLabels: string[];
+    expectedDataset: number[];
+  }
+
+  const testTableTop15: Top15TestCase[] = [
+    {
+      name: 'returns top 15 states by obligatedAmount descending',
+      states: Array.from({ length: 20 }, (_, i) => ({
+        id: i + 1, stateCode: `ST${String(i + 1).padStart(2, '0')}`, stateName: `State ${String(i + 1)}`,
+        obligatedAmount: (20 - i) * 100000, awardCount: 0,
+        perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '',
+      })),
+      expectedLabels: Array.from({ length: 15 }, (_, i) => `State ${String(i + 1)}`),
+      expectedDataset: Array.from({ length: 15 }, (_, i) => (20 - i) * 100000),
+    },
+    {
+      name: 'returns fewer than 15 when less than 15 states exist',
+      states: [
+        { id: 1, stateCode: 'CA', stateName: 'California', obligatedAmount: 300000, awardCount: 0, perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '' },
+        { id: 2, stateCode: 'NY', stateName: 'New York', obligatedAmount: 200000, awardCount: 0, perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '' },
+        { id: 3, stateCode: 'TX', stateName: 'Texas', obligatedAmount: 150000, awardCount: 0, perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '' },
+      ],
+      expectedLabels: ['California', 'New York', 'Texas'],
+      expectedDataset: [300000, 200000, 150000],
+    },
+    {
+      name: 'returns empty arrays when no states data',
+      states: [],
+      expectedLabels: [],
+      expectedDataset: [],
+    },
+  ];
+
+  it.each(testTableTop15)('$name', async ({
+    states, expectedLabels, expectedDataset,
+  }) => {
+    apiSpy.getDisasterOverview.mockReturnValue(of([]));
+    apiSpy.getDisasterStates.mockReturnValue(of(states));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
+
+    component.ngOnInit();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.top15Labels).toEqual(expectedLabels);
+    expect(component.top15Datasets).toEqual(expectedDataset);
+  });
 });

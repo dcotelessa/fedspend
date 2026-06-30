@@ -53,5 +53,14 @@
         </mat-card-content>
       </mat-card>
     </div>
+
+    <div class="chart-container">
+      <app-bar-chart
+        [labels]="top15Labels"
+        [datasets]="[{ label: 'Obligated Amount', data: top15Datasets }]"
+        [horizontal]="true"
+        title="Top 15 States by Obligated Amount"
+      ></app-bar-chart>
+    </div>
   </mat-tab>
 </mat-tab-group>

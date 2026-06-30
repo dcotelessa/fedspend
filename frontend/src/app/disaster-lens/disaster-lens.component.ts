@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatTabsModule, MatTabChangeEvent } from '@angular/material/tabs';
 import { MatSelectModule } from '@angular/material/select';
 import { MatCardModule } from '@angular/material/card';
+import { BarChartComponent } from '../bar-chart/bar-chart.component';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
@@ -18,6 +19,7 @@ import { DisasterOverview, DisasterFundingRecord, DisasterRecoveryRatio } from '
     MatTabsModule,
     MatSelectModule,
     MatCardModule,
+    BarChartComponent,
     CurrencyFormatPipe,
   ],
   templateUrl: './disaster-lens.component.html',
@@ -36,6 +38,9 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
   stateCount = 0;
   coverageGapCount = 0;
   highestPerCapitaState = '';
+
+  top15Labels: string[] = [];
+  top15Datasets: number[] = [];
 
   private overviewSub?: Subscription;
   private statesSub?: Subscription;
@@ -98,7 +103,23 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
     }
     this.statesSub = this.api.getDisasterStates(params).subscribe((states: DisasterFundingRecord[]) => {
       this.stateCount = states.length;
+      this.top15Labels = this.slicedTop15Labels(states);
+      this.top15Datasets = this.slicedTop15Datasets(states);
     });
+  }
+
+  private slicedTop15Labels(states: DisasterFundingRecord[]): string[] {
+    return states
+      .sort((a, b) => b.obligatedAmount - a.obligatedAmount)
+      .slice(0, 15)
+      .map((s) => s.stateName);
+  }
+
+  private slicedTop15Datasets(states: DisasterFundingRecord[]): number[] {
+    return states
+      .sort((a, b) => b.obligatedAmount - a.obligatedAmount)
+      .slice(0, 15)
+      .map((s) => s.obligatedAmount);
   }
 
   private fetchRatios(): void {
