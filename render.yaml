@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: fedspend-api
+    env: node
+    buildCommand: "cd backend && pnpm install --frozen-lockfile && pnpm build"
+    startCommand: "cd backend && node dist/main.js"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        value: "postgres://fedspend:fedspend@fedspend-db:5432/fedspend"
+    healthCheckPath: /health
+    autoDeploy: false
+
+  - type: static
+    name: fedspend-ui
+    env: static
+    staticPublishPath: frontend/dist/frontend/browser
+    autoDeploy: false
+
+databases:
+  - name: fedspend-db
+    plan: free
