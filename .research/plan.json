@@ -1722,7 +1722,7 @@
         },
         {
           "text": "component sorts ratios ascending",
-          "check": "cd frontend && grep -qE '(sort.*asc|recoveryRatio.*asc|order.*ASC)' src/app/disaster-lens/disaster-lens.component.ts"
+          "check": "cd frontend && grep -qE \"sortedRatios.*sort.*recoveryRatio\" src/app/disaster-lens/disaster-lens.component.ts"
         },
         {
           "text": "template has mat-table + mat-paginator + tooltip",

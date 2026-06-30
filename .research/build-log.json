@@ -696,6 +696,32 @@
       "elapsedSec": 2536,
       "thinking": "medium",
       "timestamp": "2026-06-30T00:02:56Z"
+    },
+    {
+      "story": "E7-S02",
+      "epic": "E7",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 225,
+      "thinking": "medium",
+      "timestamp": "2026-06-30T05:42:51Z"
+    },
+    {
+      "story": "E7-S03",
+      "epic": "E7",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 1077,
+      "thinking": "medium",
+      "timestamp": "2026-06-30T06:01:11Z"
     }
   ]
 }
