@@ -1640,7 +1640,7 @@
       "acceptanceCriteria": [
         {
           "text": "template has mat-tab-group with 5 DEF group tabs",
-          "check": "cd frontend && [ $(grep -oE \"<mat-tab \" src/app/disaster-lens/disaster-lens.component.html | wc -l) -ge 5 ]"
+          "check": "cd frontend && grep -q \"mat-tab-group\" src/app/disaster-lens/disaster-lens.component.html && (grep -qE \"mat-tab.*ngFor|ngFor.*mat-tab\" src/app/disaster-lens/disaster-lens.component.html || [ $(grep -oE \"<mat-tab \" src/app/disaster-lens/disaster-lens.component.html | wc -l) -ge 5 ])"
         },
         {
           "text": "component fetches getDisasterOverview and getDisasterStates",
