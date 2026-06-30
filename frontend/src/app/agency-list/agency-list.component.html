@@ -1,1 +1,10 @@
-<h1>Agency List</h1>
+<h2 class="page-header">Agencies</h2>
+
+<mat-list>
+  @for (a of agencies; track a.id) {
+    <a mat-list-item [routerLink]="['/agencies', a.id]">
+      <span matListItemTitle>{{ a.name }}</span>
+      <span matListItemLine>{{ a.totalCents | currencyFormat }}</span>
+    </a>
+  }
+</mat-list>

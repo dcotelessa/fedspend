@@ -42,14 +42,28 @@ mat-toolbar {
 mat-toolbar a {
   text-decoration: none;
   color: inherit;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
 
   &:hover {
     text-decoration: underline;
+    background: rgba(255, 255, 255, 0.1);
   }
+}
+
+mat-toolbar .home-link {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-right: 0.5rem;
 }
 
 mat-toolbar .spacer {
   flex: 1 1 auto;
+}
+
+.page-header {
+  padding: 1rem 1.5rem;
+  margin: 0;
 }
 
 footer {
