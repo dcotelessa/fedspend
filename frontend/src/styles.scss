@@ -4,3 +4,27 @@
 @include mat.core();
 
 /* You can add global styles to this file, and also import other style files */
+
+mat-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+mat-toolbar a {
+  text-decoration: none;
+  color: inherit;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+footer {
+  text-align: center;
+  padding: 1rem;
+  margin-top: 2rem;
+  border-top: 1px solid #e0e0e0;
+  font-size: 0.875rem;
+  color: #666;
+}
