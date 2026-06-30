@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterLink, RouterOutlet } from '@angular/router';
@@ -10,11 +10,6 @@ import { ThemeService } from './theme.service';
   imports: [MatToolbarModule, MatSlideToggleModule, RouterLink, RouterOutlet],
   templateUrl: './app.component.html',
 })
-export class AppComponent implements OnInit {
+export class AppComponent {
   constructor(public readonly theme: ThemeService) {}
-
-  ngOnInit(): void {
-    const isDark = this.theme.isDark$();
-    document.body.classList.toggle('dark-theme', isDark);
-  }
 }

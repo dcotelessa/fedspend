@@ -2,6 +2,17 @@
 
 @include mat.core();
 
+$light-theme: mat.define-theme();
+$dark-theme: mat.define-theme((color: (theme-type: dark)));
+
+html {
+  @include mat.all-component-themes($light-theme);
+}
+
+.dark-theme {
+  @include mat.all-component-colors($dark-theme);
+}
+
 .dark-theme {
   background-color: #121212;
   color: #e0e0e0;
@@ -18,25 +29,10 @@
   color: #999;
 }
 
-.dark-theme mat-nav-list, .dark-theme mat-list-item {
-  color: #e0e0e0;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    background-color: #121212;
-    color: #e0e0e0;
-  }
-}
-
 mat-toolbar {
   display: flex;
   align-items: center;
   gap: 1rem;
-}
-
-.dark-theme mat-slide-toggle .mat-slide-toggle-label-content {
-  color: #e0e0e0;
 }
 
 mat-toolbar a {
