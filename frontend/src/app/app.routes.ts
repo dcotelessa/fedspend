@@ -1,14 +1,9 @@
 import { Routes } from '@angular/router';
-import { DashboardComponent } from './dashboard/dashboard.component';
-import { GeographicViewComponent } from './geographic-view/geographic-view.component';
-import { AgencyListComponent } from './agency-list/agency-list.component';
-import { AgencySpotlightComponent } from './agency-spotlight/agency-spotlight.component';
-import { DisasterLensComponent } from './disaster-lens/disaster-lens.component';
 
 export const routes: Routes = [
-  { path: '', component: DashboardComponent },
-  { path: 'geography', component: GeographicViewComponent },
-  { path: 'agencies', component: AgencyListComponent },
-  { path: 'agencies/:id', component: AgencySpotlightComponent },
-  { path: 'disaster', component: DisasterLensComponent }
+  { path: '', loadComponent: () => import('./dashboard/dashboard.component').then(m => m.DashboardComponent) },
+  { path: 'geography', loadComponent: () => import('./geographic-view/geographic-view.component').then(m => m.GeographicViewComponent) },
+  { path: 'agencies', loadComponent: () => import('./agency-list/agency-list.component').then(m => m.AgencyListComponent) },
+  { path: 'agencies/:id', loadComponent: () => import('./agency-spotlight/agency-spotlight.component').then(m => m.AgencySpotlightComponent) },
+  { path: 'disaster', loadComponent: () => import('./disaster-lens/disaster-lens.component').then(m => m.DisasterLensComponent) },
 ];

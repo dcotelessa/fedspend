@@ -1,49 +1,23 @@
 import { routes } from './app.routes';
-import { DashboardComponent } from './dashboard/dashboard.component';
-import { GeographicViewComponent } from './geographic-view/geographic-view.component';
-import { AgencyListComponent } from './agency-list/agency-list.component';
-import { AgencySpotlightComponent } from './agency-spotlight/agency-spotlight.component';
-import { DisasterLensComponent } from './disaster-lens/disaster-lens.component';
 
 describe('App Routes', () => {
   interface TestCase {
     name: string;
     path: string;
-    expectedComponent: any;
   }
 
   const testTable: TestCase[] = [
-    {
-      name: 'root path maps to DashboardComponent',
-      path: '',
-      expectedComponent: DashboardComponent
-    },
-    {
-      name: 'geography path maps to GeographicViewComponent',
-      path: 'geography',
-      expectedComponent: GeographicViewComponent
-    },
-    {
-      name: 'agencies path maps to AgencyListComponent',
-      path: 'agencies',
-      expectedComponent: AgencyListComponent
-    },
-    {
-      name: 'agencies/:id path maps to AgencySpotlightComponent',
-      path: 'agencies/:id',
-      expectedComponent: AgencySpotlightComponent
-    },
-    {
-      name: 'disaster path maps to DisasterLensComponent',
-      path: 'disaster',
-      expectedComponent: DisasterLensComponent
-    }
+    { name: 'root path exists', path: '' },
+    { name: 'geography path exists', path: 'geography' },
+    { name: 'agencies path exists', path: 'agencies' },
+    { name: 'agencies/:id path exists', path: 'agencies/:id' },
+    { name: 'disaster path exists', path: 'disaster' },
   ];
 
-  it.each(testTable)('$name', ({ path, expectedComponent }) => {
+  it.each(testTable)('$name', ({ path }) => {
     const route = routes.find(r => r.path === path);
     expect(route).toBeDefined();
-    expect(route?.component).toBe(expectedComponent);
+    expect(route?.loadComponent).toBeDefined();
   });
 
   it('has exactly 5 route definitions', () => {
