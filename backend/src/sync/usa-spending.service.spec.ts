@@ -1,5 +1,5 @@
 import { UsaSpendingService } from './usa-spending.service';
-import { RawUsaSpendingAwardRow, RawUsaSpendingGeoRow, RawUsaSpendingDisasterRow } from './usa-spending.types';
+import { RawUsaSpendingAgencyRow, RawUsaSpendingGeoRow } from './usa-spending.types';
 
 describe('UsaSpendingService', () => {
   let fetchMock: jest.SpyInstance;
@@ -20,162 +20,90 @@ describe('UsaSpendingService', () => {
       headers: { 'Content-Type': 'application/json' },
     });
 
-  interface TransformAwardTestCase {
+  interface AgencyTransformTestCase {
     name: string;
-    rows: RawUsaSpendingAwardRow[];
-    expectedAwardType: string;
-    expectedObligatedCents: number;
-    expectedOutlayCents: number;
+    rows: RawUsaSpendingAgencyRow[];
+    expectedName: string;
+    expectedToptierCode: string;
+    expectedAbbreviation: string;
   }
 
-  const awardTransformTable: TransformAwardTestCase[] = [
+  const agencyTransformTable: AgencyTransformTestCase[] = [
     {
-      name: 'Contracts: 1234.56 → 123456 cents',
+      name: 'maps agency_name, toptier_code, abbreviation correctly',
       rows: [{
-        id: 1,
-        agency_id: '080',
-        fiscal_year: 2024,
-        award_type: 'Contracts',
-        obligated_amount: 1234.56,
-        outlay_amount: 1000.00,
-        description: 'Test contract',
-        recipient_name: 'Acme Corp',
-        recipient_id: 'R001',
-        award_date: '2024-01-15',
-        place_of_performance_state: 'CA',
-        place_of_performance_country: 'US',
-        disaster_emergency_fund_code: '',
+        agency_name: 'NASA',
+        toptier_code: '080',
+        abbreviation: 'NASA',
       }],
-      expectedAwardType: 'Contracts',
-      expectedObligatedCents: 123456,
-      expectedOutlayCents: 100000,
+      expectedName: 'NASA',
+      expectedToptierCode: '080',
+      expectedAbbreviation: 'NASA',
     },
     {
-      name: 'Grants: 0.01 → 1 cent',
+      name: 'handles empty abbreviation',
       rows: [{
-        id: 2,
-        agency_id: '075',
-        fiscal_year: 2023,
-        award_type: 'Grants',
-        obligated_amount: 0.01,
-        outlay_amount: 0.01,
-        description: 'Small grant',
-        recipient_name: 'Nonprofit',
-        recipient_id: 'R002',
-        award_date: '2023-06-01',
-        place_of_performance_state: 'NY',
-        place_of_performance_country: 'US',
-        disaster_emergency_fund_code: 'PFMA',
+        agency_name: 'Department of Interior',
+        toptier_code: '049',
+        abbreviation: '',
       }],
-      expectedAwardType: 'Grants',
-      expectedObligatedCents: 1,
-      expectedOutlayCents: 1,
-    },
-    {
-      name: 'Direct Payments: large value rounding',
-      rows: [{
-        id: 3,
-        agency_id: '047',
-        fiscal_year: 2024,
-        award_type: 'Direct Payments',
-        obligated_amount: 999999.99,
-        outlay_amount: 999999.99,
-        description: 'Large payment',
-        recipient_name: 'Big Corp',
-        recipient_id: 'R003',
-        award_date: '2024-03-01',
-        place_of_performance_state: 'TX',
-        place_of_performance_country: 'US',
-        disaster_emergency_fund_code: '',
-      }],
-      expectedAwardType: 'Direct Payments',
-      expectedObligatedCents: 99999999,
-      expectedOutlayCents: 99999999,
+      expectedName: 'Department of Interior',
+      expectedToptierCode: '049',
+      expectedAbbreviation: '',
     },
   ];
 
-  interface TransformGeoTestCase {
+  interface GeoTransformTestCase {
     name: string;
     rows: RawUsaSpendingGeoRow[];
     scope: string;
     expectedObligatedCents: number;
+    expectedStateCode: string;
   }
 
-  const geoTransformTable: TransformGeoTestCase[] = [
+  const geoTransformTable: GeoTransformTestCase[] = [
     {
-      name: 'recipient scope: 500.25 → 50025 cents',
+      name: 'recipient scope: 1234.56 → 123456 cents',
       rows: [{
-        id: 10,
-        agency_id: '080',
-        fiscal_year: 2024,
-        award_type: 'Contracts',
-        obligated_amount: 500.25,
-        outlay_amount: 500.00,
-        place_of_performance_state: 'CA',
-        place_of_performance_country: 'US',
-        disaster_emergency_fund_code: '',
+        shape_code: '06',
+        display_data: { state: 'CA', state_name: 'California' },
+        aggregated_amount: 1234.56,
       }],
-      scope: 'recipient',
-      expectedObligatedCents: 50025,
+      scope: 'recipient_location',
+      expectedObligatedCents: 123456,
+      expectedStateCode: 'CA',
     },
     {
-      name: 'performance scope: 0.50 → 50 cents',
+      name: 'performance scope: 0.01 → 1 cent',
       rows: [{
-        id: 11,
-        agency_id: '024',
-        fiscal_year: 2024,
-        award_type: 'Grants',
-        obligated_amount: 0.50,
-        outlay_amount: 0.25,
-        place_of_performance_state: 'NY',
-        place_of_performance_country: 'US',
-        disaster_emergency_fund_code: '',
+        shape_code: '36',
+        display_data: { state: 'NY', state_name: 'New York' },
+        aggregated_amount: 0.01,
       }],
-      scope: 'performance',
-      expectedObligatedCents: 50,
-    },
-    {
-      name: 'both scopes from same rows',
-      rows: [{
-        id: 12,
-        agency_id: '036',
-        fiscal_year: 2024,
-        award_type: 'Loans',
-        obligated_amount: 100.00,
-        outlay_amount: 100.00,
-        place_of_performance_state: 'FL',
-        place_of_performance_country: 'US',
-        disaster_emergency_fund_code: '',
-      }],
-      scope: 'recipient',
-      expectedObligatedCents: 10000,
+      scope: 'performance_location',
+      expectedObligatedCents: 1,
+      expectedStateCode: 'NY',
     },
   ];
 
-  it.each(awardTransformTable)('$name', async ({ rows, expectedAwardType, expectedObligatedCents, expectedOutlayCents }) => {
-    const responseBody = {
-      data: rows,
-      meta: { total: rows.length, page: 1, pageSize: rows.length },
-    };
+  it.each(agencyTransformTable)('$name', async ({ rows, expectedName, expectedToptierCode, expectedAbbreviation }) => {
+    const responseBody = { results: rows };
     fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-    const result = await svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 });
+    const result = await svc.fetchAgencies();
 
     expect(result).toBeDefined();
     if (result.status === 'success') {
-      expect(result.rows.length).toBeGreaterThan(0);
-      const firstRow = result.rows[0];
-      expect(firstRow.awardTypeLabel).toBe(expectedAwardType);
-      expect(firstRow.obligatedAmount).toBe(expectedObligatedCents);
-      expect(firstRow.outlayAmount).toBe(expectedOutlayCents);
+      expect(result.agencies.length).toBeGreaterThan(0);
+      const firstAgency = result.agencies[0];
+      expect(firstAgency.name).toBe(expectedName);
+      expect(firstAgency.toptierCode).toBe(expectedToptierCode);
+      expect(firstAgency.abbreviation).toBe(expectedAbbreviation);
     }
   });
 
-  it.each(geoTransformTable)('$name', async ({ rows, scope, expectedObligatedCents }) => {
-    const responseBody = {
-      data: rows,
-      meta: { total: rows.length, page: 1, pageSize: rows.length },
-    };
+  it.each(geoTransformTable)('$name', async ({ rows, scope, expectedObligatedCents, expectedStateCode }) => {
+    const responseBody = { results: rows, meta: { total: rows.length, page: 1, pageSize: rows.length } };
     fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
     const result = await svc.fetchGeoSnapshots({
@@ -189,162 +117,210 @@ describe('UsaSpendingService', () => {
       expect(result.rows.length).toBeGreaterThan(0);
       const firstRow = result.rows[0];
       expect(firstRow.obligatedAmount).toBe(expectedObligatedCents);
+      expect(firstRow.stateCode).toBe(expectedStateCode);
       expect(firstRow.scope).toBe(scope);
     }
   });
 
-  interface RetryTestCase {
-    name: string;
-    responses: { status: number }[];
-    shouldSucceed: boolean;
-    expectedAttempts: number;
-  }
+  describe('POST method usage', () => {
+    it('uses POST for geography endpoint', async () => {
+      const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
+      fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-  const retryTable: RetryTestCase[] = [
-    {
-      name: 'HTTP 500 then 200 → retry succeeds on attempt 2',
-      responses: [
-        { status: 500 },
-        { status: 200 },
-      ],
-      shouldSucceed: true,
-      expectedAttempts: 2,
-    },
-    {
-      name: 'HTTP 500 thrice → throws after 3 attempts',
-      responses: [
-        { status: 500 },
-        { status: 500 },
-        { status: 500 },
-      ],
-      shouldSucceed: false,
-      expectedAttempts: 3,
-    },
-    {
-      name: 'HTTP 200 first try → no retry needed',
-      responses: [
-        { status: 200 },
-      ],
-      shouldSucceed: true,
-      expectedAttempts: 1,
-    },
-  ];
+      await svc.fetchGeoSnapshots({
+        agency: '080',
+        fiscalYear: 2024,
+        scope: 'recipient_location',
+      });
 
-  it.each(retryTable)('$name', async ({ responses, shouldSucceed, expectedAttempts }) => {
-    for (const resp of responses) {
-      const body = resp.status === 200
-        ? { data: [], meta: { total: 0, page: 1, pageSize: 10 } }
-        : { error: 'server error' };
-      fetchMock.mockResolvedValueOnce(createResponse(body, resp.status));
-    }
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/search/spending_by_geography/'),
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
 
-    if (shouldSucceed) {
-      await expect(
-        svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 }),
-      ).resolves.toBeDefined();
-    } else {
-      await expect(
-        svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 }),
-      ).rejects.toThrow();
-    }
+    it('uses POST for disaster endpoint', async () => {
+      const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
+      fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-    expect(fetchMock).toHaveBeenCalledTimes(expectedAttempts);
+      await svc.fetchDisasterSpending('L');
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/search/spending_by_geography/'),
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('uses GET for agencies endpoint', async () => {
+      const responseBody = { results: [] };
+      fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+
+      await svc.fetchAgencies();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/references/toptier_agencies/'),
+        expect.not.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('uses GET for def codes endpoint', async () => {
+      const responseBody = { results: [] };
+      fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+
+      await svc.fetchDefCodes();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/references/def_codes/'),
+        expect.not.objectContaining({ method: 'POST' }),
+      );
+    });
   });
 
-  describe('pagination across multiple pages', () => {
-    it('fetches all pages and merges results', async () => {
-      const page1Rows: RawUsaSpendingAwardRow[] = [
-        {
-          id: 1, agency_id: '080', fiscal_year: 2024, award_type: 'Contracts',
-          obligated_amount: 1000.00, outlay_amount: 800.00, description: 'P1',
-          recipient_name: 'Corp1', recipient_id: 'R1', award_date: '2024-01-01',
-          place_of_performance_state: 'CA', place_of_performance_country: 'US',
-          disaster_emergency_fund_code: '',
-        },
-      ];
-      const page2Rows: RawUsaSpendingAwardRow[] = [
-        {
-          id: 2, agency_id: '080', fiscal_year: 2024, award_type: 'Grants',
-          obligated_amount: 2000.00, outlay_amount: 1500.00, description: 'P2',
-          recipient_name: 'Corp2', recipient_id: 'R2', award_date: '2024-02-01',
-          place_of_performance_state: 'NY', place_of_performance_country: 'US',
-          disaster_emergency_fund_code: '',
-        },
-      ];
+  describe('pagination via POST body', () => {
+    it('paginates using page in POST body', async () => {
+      const page1Rows: RawUsaSpendingGeoRow[] = [{
+        shape_code: '06',
+        display_data: { state: 'CA' },
+        aggregated_amount: 1000.00,
+      }];
+      const page2Rows: RawUsaSpendingGeoRow[] = [{
+        shape_code: '36',
+        display_data: { state: 'NY' },
+        aggregated_amount: 2000.00,
+      }];
 
       fetchMock.mockResolvedValueOnce(createResponse({
-        data: page1Rows,
+        results: page1Rows,
         meta: { total: 2, page: 1, pageSize: 1 },
       }));
       fetchMock.mockResolvedValueOnce(createResponse({
-        data: page2Rows,
+        results: page2Rows,
         meta: { total: 2, page: 2, pageSize: 1 },
       }));
 
-      const result = await svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 });
+      const result = await svc.fetchGeoSnapshots({
+        agency: '080',
+        fiscalYear: 2024,
+        scope: 'recipient_location',
+      });
 
       expect(result).toBeDefined();
       if (result.status === 'success') {
         expect(result.rows.length).toBe(2);
-        expect(result.total).toBe(2);
         expect(result.rows[0].obligatedAmount).toBe(100000);
         expect(result.rows[1].obligatedAmount).toBe(200000);
       }
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const secondCall = fetchMock.mock.calls[1];
+      const secondBody = JSON.parse(secondCall[1].body as string);
+      expect(secondBody.page).toBe(2);
     });
   });
 
-  describe('fetchAgencies', () => {
-    it('returns parsed agencies with correct fields', async () => {
-      const agenciesBody = {
-        data: [
-          { agency_name: 'NASA', toptier_agency_name: 'NASA', toptier_agency_cii: '080', subtier_agency_cii: null },
-          { agency_name: 'GSA', toptier_agency_name: 'GSA', toptier_agency_cii: '047', subtier_agency_cii: null },
+  describe('retry logic', () => {
+    interface RetryTestCase {
+      name: string;
+      responses: { status: number }[];
+      shouldSucceed: boolean;
+      expectedAttempts: number;
+    }
+
+    const retryTable: RetryTestCase[] = [
+      {
+        name: 'HTTP 500 then 200 → retry succeeds on attempt 2',
+        responses: [
+          { status: 500 },
+          { status: 200 },
         ],
-        meta: { total: 2, page: 1, pageSize: 2 },
+        shouldSucceed: true,
+        expectedAttempts: 2,
+      },
+      {
+        name: 'HTTP 500 thrice → throws after 3 attempts',
+        responses: [
+          { status: 500 },
+          { status: 500 },
+          { status: 500 },
+        ],
+        shouldSucceed: false,
+        expectedAttempts: 3,
+      },
+      {
+        name: 'HTTP 200 first try → no retry needed',
+        responses: [
+          { status: 200 },
+        ],
+        shouldSucceed: true,
+        expectedAttempts: 1,
+      },
+    ];
+
+    it.each(retryTable)('$name', async ({ responses, shouldSucceed, expectedAttempts }) => {
+      for (const resp of responses) {
+        const body = resp.status === 200
+          ? { results: [], meta: { total: 0, page: 1, pageSize: 10 } }
+          : { error: 'server error' };
+        fetchMock.mockResolvedValueOnce(createResponse(body, resp.status));
+      }
+
+      if (shouldSucceed) {
+        await expect(
+          svc.fetchGeoSnapshots({ agency: '080', fiscalYear: 2024, scope: 'recipient_location' }),
+        ).resolves.toBeDefined();
+      } else {
+        await expect(
+          svc.fetchGeoSnapshots({ agency: '080', fiscalYear: 2024, scope: 'recipient_location' }),
+        ).rejects.toThrow();
+      }
+
+      expect(fetchMock).toHaveBeenCalledTimes(expectedAttempts);
+    });
+  });
+
+  describe('disaster def_codes filter', () => {
+    it('includes def_codes in POST body for disaster queries', async () => {
+      const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
+      fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+
+      await svc.fetchDisasterSpending('L');
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const call = fetchMock.mock.calls[0];
+      const body = JSON.parse(call[1].body as string);
+      expect(body.filters.def_codes).toContain('L');
+    });
+  });
+
+  describe('def codes endpoint', () => {
+    it('fetches def codes from /references/def_codes/', async () => {
+      const responseBody = {
+        results: [
+          { code: 'L', label: 'CARES', group: 'COVID-19' },
+          { code: 'PFMA', label: 'Pandemic', group: 'Natural Disaster' },
+        ],
       };
-      fetchMock.mockResolvedValueOnce(createResponse(agenciesBody));
+      fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+
+      const result = await svc.fetchDefCodes();
+
+      expect(result).toBeDefined();
+      if (result.status === 'success') {
+        expect(result.defCodes.length).toBe(2);
+        expect(result.defCodes[0].code).toBe('L');
+        expect(result.defCodes[0].label).toBe('CARES');
+        expect(result.defCodes[1].code).toBe('PFMA');
+      }
+    });
+  });
+
+  describe('not_found status', () => {
+    it('returns not_found when no results', async () => {
+      fetchMock.mockResolvedValueOnce(createResponse({ results: [] }));
 
       const result = await svc.fetchAgencies();
 
-      expect(result).toBeDefined();
-      if (result.status === 'success') {
-        expect(result.agencies.length).toBe(2);
-        expect(result.agencies[0].name).toBe('NASA');
-        expect(result.agencies[0].toptierCode).toBe('080');
-        expect(result.agencies[1].name).toBe('GSA');
-        expect(result.agencies[1].toptierCode).toBe('047');
-      }
-    });
-  });
-
-  describe('fetchDisasterSpending', () => {
-    it('returns disaster rows with cents conversion', async () => {
-      const disasterBody = {
-        data: [
-          {
-            id: 100,
-            agency_id: '075',
-            fiscal_year: 2024,
-            award_type: 'Grants',
-            obligated_amount: 5000.75,
-            outlay_amount: 4000.00,
-            place_of_performance_state: 'FL',
-            place_of_performance_country: 'US',
-            disaster_emergency_fund_code: 'COVID-19',
-          },
-        ],
-        meta: { total: 1, page: 1, pageSize: 10 },
-      };
-      fetchMock.mockResolvedValueOnce(createResponse(disasterBody));
-
-      const result = await svc.fetchDisasterSpending('COVID-19');
-
-      expect(result).toBeDefined();
-      if (result.status === 'success') {
-        expect(result.rows.length).toBe(1);
-        expect(result.rows[0].obligatedAmount).toBe(500075);
-        expect(result.rows[0].outlayAmount).toBe(400000);
-      }
+      expect(result).toEqual({ status: 'not_found' });
     });
   });
 });

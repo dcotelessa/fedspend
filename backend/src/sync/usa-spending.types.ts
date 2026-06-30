@@ -1,42 +1,24 @@
-// Raw USASpending award row
-export interface RawUsaSpendingAwardRow {
-  id: number;
-  agency_id: string;
-  fiscal_year: number;
-  award_type: string;
-  obligated_amount: number;
-  outlay_amount: number;
-  description: string;
-  recipient_name: string;
-  recipient_id: string;
-  award_date: string;
-  place_of_performance_state: string;
-  place_of_performance_country: string;
-  disaster_emergency_fund_code: string;
+// Agency row from /references/toptier_agencies/
+export interface RawUsaSpendingAgencyRow {
+  agency_name: string;
+  toptier_code: string;
+  abbreviation: string;
 }
 
-// Raw USASpending geographic row
+// Geography row from /search/spending_by_geography/
 export interface RawUsaSpendingGeoRow {
-  id: number;
-  agency_id: string;
-  fiscal_year: number;
-  award_type: string;
-  obligated_amount: number;
-  outlay_amount: number;
-  place_of_performance_state: string;
-  place_of_performance_country: string;
-  disaster_emergency_fund_code: string;
+  shape_code: string;
+  display_data: {
+    state: string;
+    state_name?: string;
+    [key: string]: unknown;
+  };
+  aggregated_amount: number;
 }
 
-// Raw USASpending disaster row
-export interface RawUsaSpendingDisasterRow {
-  id: number;
-  agency_id: string;
-  fiscal_year: number;
-  award_type: string;
-  obligated_amount: number;
-  outlay_amount: number;
-  place_of_performance_state: string;
-  place_of_performance_country: string;
-  disaster_emergency_fund_code: string;
+// Def code row from /references/def_codes/
+export interface RawUsaSpendingDefCodeRow {
+  code: string;
+  label: string;
+  group: string;
 }

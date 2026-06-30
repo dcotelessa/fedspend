@@ -4,9 +4,9 @@ import { SpendingRecord } from '../spending/spending-record.entity';
 import { GeoSpendingSnapshot } from '../geography/geo-spending-snapshot.entity';
 import { DisasterFundingRecord } from '../disaster/disaster-funding-record.entity';
 import {
-  RawUsaSpendingAwardRow,
+  RawUsaSpendingAgencyRow,
   RawUsaSpendingGeoRow,
-  RawUsaSpendingDisasterRow,
+  RawUsaSpendingDefCodeRow,
 } from './usa-spending.types';
 
 const MAX_ATTEMPTS = 3;
@@ -30,21 +30,19 @@ type FetchAgenciesResult =
   | { status: 'success'; agencies: Agency[] }
   | { status: 'not_found' };
 
-const transformAwardRows = (
-  rows: RawUsaSpendingAwardRow[],
-): SpendingRecord[] =>
+type FetchDefCodesResult =
+  | { status: 'success'; defCodes: RawUsaSpendingDefCodeRow[] }
+  | { status: 'not_found' };
+
+const transformAgencyRows = (
+  rows: RawUsaSpendingAgencyRow[],
+): Agency[] =>
   rows.map((r) => ({
     id: 0,
-    agencyId: parseInt(r.agency_id, 10) || 0,
-    fiscalYear: r.fiscal_year,
-    quarter: 1,
-    awardTypeLabel: r.award_type,
-    awardTypeCodes: '',
-    obligatedAmount: Math.round(r.obligated_amount * 100),
-    outlayAmount: Math.round(r.outlay_amount * 100),
-    awardCount: 1,
-    agency: null as any,
-  })) as SpendingRecord[];
+    name: r.agency_name || '',
+    abbreviation: r.abbreviation || '',
+    toptierCode: r.toptier_code,
+  }));
 
 const transformGeoRows = (
   rows: RawUsaSpendingGeoRow[],
@@ -52,43 +50,42 @@ const transformGeoRows = (
 ): GeoSpendingSnapshot[] =>
   rows.map((r) => ({
     id: 0,
-    stateCode: r.place_of_performance_state || '',
-    stateName: r.place_of_performance_state || '',
-    fiscalYear: r.fiscal_year,
-    agencyId: parseInt(r.agency_id, 10) || 0,
+    stateCode: r.display_data.state || r.shape_code,
+    stateName: r.display_data.state_name || r.display_data.state || '',
+    fiscalYear: 2024,
+    agencyId: 0,
     scope,
-    obligatedAmount: Math.round(r.obligated_amount * 100),
-    awardCount: 1,
+    obligatedAmount: Math.round(r.aggregated_amount * 100),
+    awardCount: 0,
     population: 0,
     perCapita: 0,
     agency: null as any,
-  })) as GeoSpendingSnapshot[];
+  }));
 
-const transformDisasterRows = (
-  rows: RawUsaSpendingDisasterRow[],
-): DisasterFundingRecord[] =>
+const transformDefCodeRows = (
+  rows: RawUsaSpendingDefCodeRow[],
+): RawUsaSpendingDefCodeRow[] =>
   rows.map((r) => ({
-    id: 0,
-    defGroup: r.disaster_emergency_fund_code,
-    defCodes: r.disaster_emergency_fund_code,
-    stateCode: r.place_of_performance_state || '',
-    stateName: r.place_of_performance_state || '',
-    obligatedAmount: Math.round(r.obligated_amount * 100),
-    outlayAmount: Math.round(r.outlay_amount * 100),
-    awardCount: 1,
-    perCapita: 0,
-    population: 0,
+    code: r.code,
+    label: r.label,
+    group: r.group,
   }));
 
 const fetchWithRetry = async (
   url: string,
+  options: RequestInit = {},
   signal: AbortSignal | undefined = undefined,
 ): Promise<unknown> => {
   let lastError: Error | undefined;
 
+  const fetchOptions: RequestInit = {
+    ...options,
+    signal: signal || options.signal,
+  };
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await fetch(url, { signal });
+      const response = await fetch(url, fetchOptions);
 
       if (!response.ok) {
         throw new Error(
@@ -113,22 +110,28 @@ const fetchWithRetry = async (
 
 const fetchAllPages = async (
   baseUrl: string,
+  baseBody: Record<string, unknown>,
 ): Promise<unknown[]> => {
-  const firstBody = (await fetchWithRetry(baseUrl)) as {
-    data: unknown[];
+  const firstBody = (await fetchWithRetry(baseUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...baseBody, page: 1 }),
+  })) as {
+    results: unknown[];
     meta: { total: number; page: number; pageSize: number };
   };
 
-  const allRows = [...(firstBody.data as unknown[])];
+  const allRows = [...(firstBody.results as unknown[])];
   const totalPages = Math.ceil(firstBody.meta.total / firstBody.meta.pageSize);
 
   if (totalPages > 1) {
     for (let page = 2; page <= totalPages; page++) {
-      const pageUrl = `${baseUrl}&page=${page}`;
-      const pageBody = (await fetchWithRetry(pageUrl)) as {
-        data: unknown[];
-      };
-      allRows.push(...(pageBody.data as unknown[]));
+      const pageBody = (await fetchWithRetry(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...baseBody, page }),
+      })) as { results: unknown[] };
+      allRows.push(...(pageBody.results as unknown[]));
     }
   }
 
@@ -138,23 +141,11 @@ const fetchAllPages = async (
 @Injectable()
 export class UsaSpendingService {
   async fetchAgencies(): Promise<FetchAgenciesResult> {
-    const url = `${API_BASE}/subtier_agencies/?limit=1000`;
+    const url = `${API_BASE}/references/toptier_agencies/`;
     const rawData = await fetchWithRetry(url);
-    const body = rawData as {
-      data: {
-        agency_name: string;
-        toptier_agency_cii: string;
-        subtier_agency_cii: string | null;
-      }[];
-      meta: { total: number; page: number; pageSize: number };
-    };
+    const body = rawData as { results: RawUsaSpendingAgencyRow[] };
 
-    const agencies: Agency[] = body.data.map((a) => ({
-      id: 0,
-      name: a.agency_name || '',
-      abbreviation: a.agency_name || '',
-      toptierCode: a.toptier_agency_cii,
-    }));
+    const agencies = transformAgencyRows(body.results);
 
     return agencies.length > 0
       ? { status: 'success', agencies }
@@ -164,33 +155,62 @@ export class UsaSpendingService {
   async fetchSpendingByAgency(
     params: { agency: string; fiscalYear: number },
   ): Promise<FetchSpendingResult> {
-    const baseUrl = `${API_BASE}/awards/?agency_type=2&agency_id=${params.agency}&fiscal_year=${params.fiscalYear}&limit=100`;
-    const allRows = await fetchAllPages(baseUrl);
+    const body = {
+      filters: {
+        time_period: [{
+          start_date: `${params.fiscalYear}-10-01`,
+          end_date: `${params.fiscalYear + 1}-09-30`,
+        }],
+      },
+      geo_layer: 'state',
+      scope: 'recipient_location',
+    };
 
-    const rawAwards = allRows as RawUsaSpendingAwardRow[];
-    const transformed = transformAwardRows(rawAwards);
+    const allRows = await fetchAllPages(
+      `${API_BASE}/search/spending_by_geography/`,
+      body,
+    );
+
+    const rawGeo = allRows as RawUsaSpendingGeoRow[];
+    const transformed = transformGeoRows(rawGeo, 'recipient_location').map(
+      (r) => ({
+        ...r,
+        id: 0,
+        agencyId: parseInt(params.agency, 10) || 0,
+        fiscalYear: params.fiscalYear,
+        quarter: 1,
+        awardTypeLabel: '',
+        awardTypeCodes: '',
+        outlayAmount: 0,
+      }) as SpendingRecord,
+    );
 
     return transformed.length > 0
-      ? {
-          status: 'success',
-          rows: transformed,
-          total: rawAwards.length,
-        }
+      ? { status: 'success', rows: transformed, total: rawGeo.length }
       : { status: 'not_found' };
   }
 
   async fetchGeoSnapshots(
     params: { agency: string; fiscalYear: number; scope: string },
   ): Promise<FetchGeoResult> {
-    const scopeParam =
-      params.scope === 'recipient'
-        ? 'place_of_performance'
-        : 'place_of_performance';
-    const baseUrl = `${API_BASE}/awards/?agency_type=2&agency_id=${params.agency}&fiscal_year=${params.fiscalYear}&limit=100`;
-    const allRows = await fetchAllPages(baseUrl);
+    const body = {
+      filters: {
+        time_period: [{
+          start_date: `${params.fiscalYear}-10-01`,
+          end_date: `${params.fiscalYear + 1}-09-30`,
+        }],
+      },
+      geo_layer: 'state',
+      scope: params.scope,
+    };
 
-    const rawRows = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawRows, params.scope);
+    const allRows = await fetchAllPages(
+      `${API_BASE}/search/spending_by_geography/`,
+      body,
+    );
+
+    const rawGeo = allRows as RawUsaSpendingGeoRow[];
+    const transformed = transformGeoRows(rawGeo, params.scope);
 
     return transformed.length > 0
       ? { status: 'success', rows: transformed }
@@ -200,14 +220,47 @@ export class UsaSpendingService {
   async fetchDisasterSpending(
     defGroup: string,
   ): Promise<FetchDisasterResult> {
-    const baseUrl = `${API_BASE}/awards/?disaster_emergency_fund_code=${defGroup}&limit=100`;
-    const allRows = await fetchAllPages(baseUrl);
+    const body = {
+      filters: {
+        time_period: [{
+          start_date: '2024-10-01',
+          end_date: '2025-09-30',
+        }],
+        def_codes: [defGroup],
+      },
+      geo_layer: 'state',
+      scope: 'recipient_location',
+    };
 
-    const rawRows = allRows as RawUsaSpendingDisasterRow[];
-    const transformed = transformDisasterRows(rawRows);
+    const allRows = await fetchAllPages(
+      `${API_BASE}/search/spending_by_geography/`,
+      body,
+    );
+
+    const rawGeo = allRows as RawUsaSpendingGeoRow[];
+    const transformed = transformGeoRows(rawGeo, 'recipient_location').map(
+      (r) => ({
+        ...r,
+        id: 0,
+        defGroup,
+        defCodes: defGroup,
+      }) as DisasterFundingRecord,
+    );
 
     return transformed.length > 0
       ? { status: 'success', rows: transformed }
+      : { status: 'not_found' };
+  }
+
+  async fetchDefCodes(): Promise<FetchDefCodesResult> {
+    const url = `${API_BASE}/references/def_codes/`;
+    const rawData = await fetchWithRetry(url);
+    const body = rawData as { results: RawUsaSpendingDefCodeRow[] };
+
+    const defCodes = transformDefCodeRows(body.results);
+
+    return defCodes.length > 0
+      ? { status: 'success', defCodes }
       : { status: 'not_found' };
   }
 }

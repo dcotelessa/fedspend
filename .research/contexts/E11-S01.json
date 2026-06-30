@@ -1,0 +1,146 @@
+{
+  "story": "E11-S01",
+  "epic": "E11",
+  "title": "Fix USASpending API sync — all endpoints 404",
+  "goal": "Fix usa-spending.service.ts: every API URL is wrong (all return 404). Correct the endpoints, change from GET to POST where needed, and adapt response parsing to the actual USASpending API v2 response shapes.",
+  "notes": "ALL URLs in this service are wrong — they 404 against the live API. Here are the CORRECT endpoints (verified live June 2026):\n\n1. AGENCIES: GET /references/toptier_agencies/\n   Response: { results: [{ agency_name, toptier_code, abbreviation }] }\n   Map: name=agency_name, toptierCode=toptier_code, abbreviation=abbreviation\n\n2. GEOGRAPHY: POST /search/spending_by_geography/\n   Body: { filters: { time_period: [{ start_date, end_date }] }, geo_layer: 'state', scope: 'recipient_location' }\n   Response: { results: [{ shape_code, display_data, aggregated_amount }] }\n   FY2024 = start 2024-10-01, end 2025-09-30\n\n3. DISASTER: Same endpoint, add def_codes to filters:\n   Body: { filters: { time_period: [...], def_codes: ['L'] }, geo_layer: 'state' }\n\n4. DEF CODES: GET /references/def_codes/\n   Response: { results: [{ code, label, group }] }\n\nCRITICAL: fetchWithRetry must support POST with JSON body (currently GET only). fetchAllPages must paginate via POST body { page: N }, not URL query.\nUpdate usa-spending.types.ts raw types to match new response shapes.\nDo NOT change return types of service methods — sync.service.ts depends on them.",
+  "dependencies": "E1-S05",
+  "acceptanceCriteria": [
+    {
+      "text": "agency endpoint uses references/toptier_agencies",
+      "check": "cd backend && grep -q 'references/toptier_agencies' src/sync/usa-spending.service.ts"
+    },
+    {
+      "text": "geography endpoint uses search/spending_by_geography",
+      "check": "cd backend && grep -q 'search/spending_by_geography' src/sync/usa-spending.service.ts"
+    },
+    {
+      "text": "POST method used for spending/geography (not GET)",
+      "check": "cd backend && grep -q 'POST' src/sync/usa-spending.service.ts"
+    },
+    {
+      "text": "usa-spending.service.spec.ts passes",
+      "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "backend builds",
+      "check": "cd backend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/sync/usa-spending.service.ts",
+      "mode": "full",
+      "contents": "import { Injectable } from '@nestjs/common';\nimport { Agency } from '../agencies/agency.entity';\nimport { SpendingRecord } from '../spending/spending-record.entity';\nimport { GeoSpendingSnapshot } from '../geography/geo-spending-snapshot.entity';\nimport { DisasterFundingRecord } from '../disaster/disaster-funding-record.entity';\nimport {\n  RawUsaSpendingAwardRow,\n  RawUsaSpendingGeoRow,\n  RawUsaSpendingDisasterRow,\n} from './usa-spending.types';\n\nconst MAX_ATTEMPTS = 3;\nconst BASE_DELAY_MS = 500;\n\nconst API_BASE = 'https://api.usaspending.gov/api/v2';\n\ntype FetchSpendingResult =\n  | { status: 'success'; rows: SpendingRecord[]; total: number }\n  | { status: 'not_found' };\n\ntype FetchGeoResult =\n  | { status: 'success'; rows: GeoSpendingSnapshot[] }\n  | { status: 'not_found' };\n\ntype FetchDisasterResult =\n  | { status: 'success'; rows: DisasterFundingRecord[] }\n  | { status: 'not_found' };\n\ntype FetchAgenciesResult =\n  | { status: 'success'; agencies: Agency[] }\n  | { status: 'not_found' };\n\nconst transformAwardRows = (\n  rows: RawUsaSpendingAwardRow[],\n): SpendingRecord[] =>\n  rows.map((r) => ({\n    id: 0,\n    agencyId: parseInt(r.agency_id, 10) || 0,\n    fiscalYear: r.fiscal_year,\n    quarter: 1,\n    awardTypeLabel: r.award_type,\n    awardTypeCodes: '',\n    obligatedAmount: Math.round(r.obligated_amount * 100),\n    outlayAmount: Math.round(r.outlay_amount * 100),\n    awardCount: 1,\n    agency: null as any,\n  })) as SpendingRecord[];\n\nconst transformGeoRows = (\n  rows: RawUsaSpendingGeoRow[],\n  scope: string,\n): GeoSpendingSnapshot[] =>\n  rows.map((r) => ({\n    id: 0,\n    stateCode: r.place_of_performance_state || '',\n    stateName: r.place_of_performance_state || '',\n    fiscalYear: r.fiscal_year,\n    agencyId: parseInt(r.agency_id, 10) || 0,\n    scope,\n    obligatedAmount: Math.round(r.obligated_amount * 100),\n    awardCount: 1,\n    population: 0,\n    perCapita: 0,\n    agency: null as any,\n  })) as GeoSpendingSnapshot[];\n\nconst transformDisasterRows = (\n  rows: RawUsaSpendingDisasterRow[],\n): DisasterFundingRecord[] =>\n  rows.map((r) => ({\n    id: 0,\n    defGroup: r.disaster_emergency_fund_code,\n    defCodes: r.disaster_emergency_fund_code,\n    stateCode: r.place_of_performance_state || '',\n    stateName: r.place_of_performance_state || '',\n    obligatedAmount: Math.round(r.obligated_amount * 100),\n    outlayAmount: Math.round(r.outlay_amount * 100),\n    awardCount: 1,\n    perCapita: 0,\n    population: 0,\n  }));\n\nconst fetchWithRetry = async (\n  url: string,\n  signal: AbortSignal | undefined = undefined,\n): Promise<unknown> => {\n  let lastError: Error | undefined;\n\n  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {\n    try {\n      const response = await fetch(url, { signal });\n\n      if (!response.ok) {\n        throw new Error(\n          `HTTP ${response.status}: ${response.statusText}`,\n        );\n      }\n\n      const body = await response.json();\n      return body;\n    } catch (err) {\n      lastError = err instanceof Error ? err : new Error(String(err));\n\n      if (attempt < MAX_ATTEMPTS) {\n        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);\n        await new Promise((resolve) => setTimeout(resolve, delay));\n      }\n    }\n  }\n\n  throw lastError;\n};\n\nconst fetchAllPages = async (\n  baseUrl: string,\n): Promise<unknown[]> => {\n  const firstBody = (await fetchWithRetry(baseUrl)) as {\n    data: unknown[];\n    meta: { total: number; page: number; pageSize: number };\n  };\n\n  const allRows = [...(firstBody.data as unknown[])];\n  const totalPages = Math.ceil(firstBody.meta.total / firstBody.meta.pageSize);\n\n  if (totalPages > 1) {\n    for (let page = 2; page <= totalPages; page++) {\n      const pageUrl = `${baseUrl}&page=${page}`;\n      const pageBody = (await fetchWithRetry(pageUrl)) as {\n        data: unknown[];\n      };\n      allRows.push(...(pageBody.data as unknown[]));\n    }\n  }\n\n  return allRows;\n};\n\n@Injectable()\nexport class UsaSpendingService {\n  async fetchAgencies(): Promise<FetchAgenciesResult> {\n    const url = `${API_BASE}/subtier_agencies/?limit=1000`;\n    const rawData = await fetchWithRetry(url);\n    const body = rawData as {\n      data: {\n        agency_name: string;\n        toptier_agency_cii: string;\n        subtier_agency_cii: string | null;\n      }[];\n      meta: { total: number; page: number; pageSize: number };\n    };\n\n    const agencies: Agency[] = body.data.map((a) => ({\n      id: 0,\n      name: a.agency_name || '',\n      abbreviation: a.agency_name || '',\n      toptierCode: a.toptier_agency_cii,\n    }));\n\n    return agencies.length > 0\n      ? { status: 'success', agencies }\n      : { status: 'not_found' };\n  }\n\n  async fetchSpendingByAgency(\n    params: { agency: string; fiscalYear: number },\n  ): Promise<FetchSpendingResult> {\n    const baseUrl = `${API_BASE}/awards/?agency_type=2&agency_id=${params.agency}&fiscal_year=${params.fiscalYear}&limit=100`;\n    const allRows = await fetchAllPages(baseUrl);\n\n    const rawAwards = allRows as RawUsaSpendingAwardRow[];\n    const transformed = transformAwardRows(rawAwards);\n\n    return transformed.length > 0\n      ? {\n          status: 'success',\n          rows: transformed,\n          total: rawAwards.length,\n        }\n      : { status: 'not_found' };\n  }\n\n  async fetchGeoSnapshots(\n    params: { agency: string; fiscalYear: number; scope: string },\n  ): Promise<FetchGeoResult> {\n    const scopeParam =\n      params.scope === 'recipient'\n        ? 'place_of_performance'\n        : 'place_of_performance';\n    const baseUrl = `${API_BASE}/awards/?agency_type=2&agency_id=${params.agency}&fiscal_year=${params.fiscalYear}&limit=100`;\n    const allRows = await fetchAllPages(baseUrl);\n\n    const rawRows = allRows as RawUsaSpendingGeoRow[];\n    const transformed = transformGeoRows(rawRows, params.scope);\n\n    return transformed.length > 0\n      ? { status: 'success', rows: transformed }\n      : { status: 'not_found' };\n  }\n\n  async fetchDisasterSpending(\n    defGroup: string,\n  ): Promise<FetchDisasterResult> {\n    const baseUrl = `${API_BASE}/awards/?disaster_emergency_fund_code=${defGroup}&limit=100`;\n    const allRows = await fetchAllPages(baseUrl);\n\n    const rawRows = allRows as RawUsaSpendingDisasterRow[];\n    const transformed = transformDisasterRows(rawRows);\n\n    return transformed.length > 0\n      ? { status: 'success', rows: transformed }\n      : { status: 'not_found' };\n  }\n}\n"
+    },
+    {
+      "path": "backend/src/sync/usa-spending.service.spec.ts",
+      "mode": "full",
+      "contents": "import { UsaSpendingService } from './usa-spending.service';\nimport { RawUsaSpendingAwardRow, RawUsaSpendingGeoRow, RawUsaSpendingDisasterRow } from './usa-spending.types';\n\ndescribe('UsaSpendingService', () => {\n  let fetchMock: jest.SpyInstance;\n  let svc: UsaSpendingService;\n\n  beforeEach(() => {\n    svc = new UsaSpendingService();\n    fetchMock = jest.spyOn(global, 'fetch');\n  });\n\n  afterEach(() => {\n    jest.restoreAllMocks();\n  });\n\n  const createResponse = (body: unknown, status = 200) =>\n    new Response(JSON.stringify(body), {\n      status,\n      headers: { 'Content-Type': 'application/json' },\n    });\n\n  interface TransformAwardTestCase {\n    name: string;\n    rows: RawUsaSpendingAwardRow[];\n    expectedAwardType: string;\n    expectedObligatedCents: number;\n    expectedOutlayCents: number;\n  }\n\n  const awardTransformTable: TransformAwardTestCase[] = [\n    {\n      name: 'Contracts: 1234.56 → 123456 cents',\n      rows: [{\n        id: 1,\n        agency_id: '080',\n        fiscal_year: 2024,\n        award_type: 'Contracts',\n        obligated_amount: 1234.56,\n        outlay_amount: 1000.00,\n        description: 'Test contract',\n        recipient_name: 'Acme Corp',\n        recipient_id: 'R001',\n        award_date: '2024-01-15',\n        place_of_performance_state: 'CA',\n        place_of_performance_country: 'US',\n        disaster_emergency_fund_code: '',\n      }],\n      expectedAwardType: 'Contracts',\n      expectedObligatedCents: 123456,\n      expectedOutlayCents: 100000,\n    },\n    {\n      name: 'Grants: 0.01 → 1 cent',\n      rows: [{\n        id: 2,\n        agency_id: '075',\n        fiscal_year: 2023,\n        award_type: 'Grants',\n        obligated_amount: 0.01,\n        outlay_amount: 0.01,\n        description: 'Small grant',\n        recipient_name: 'Nonprofit',\n        recipient_id: 'R002',\n        award_date: '2023-06-01',\n        place_of_performance_state: 'NY',\n        place_of_performance_country: 'US',\n        disaster_emergency_fund_code: 'PFMA',\n      }],\n      expectedAwardType: 'Grants',\n      expectedObligatedCents: 1,\n      expectedOutlayCents: 1,\n    },\n    {\n      name: 'Direct Payments: large value rounding',\n      rows: [{\n        id: 3,\n        agency_id: '047',\n        fiscal_year: 2024,\n        award_type: 'Direct Payments',\n        obligated_amount: 999999.99,\n        outlay_amount: 999999.99,\n        description: 'Large payment',\n        recipient_name: 'Big Corp',\n        recipient_id: 'R003',\n        award_date: '2024-03-01',\n        place_of_performance_state: 'TX',\n        place_of_performance_country: 'US',\n        disaster_emergency_fund_code: '',\n      }],\n      expectedAwardType: 'Direct Payments',\n      expectedObligatedCents: 99999999,\n      expectedOutlayCents: 99999999,\n    },\n  ];\n\n  interface TransformGeoTestCase {\n    name: string;\n    rows: RawUsaSpendingGeoRow[];\n    scope: string;\n    expectedObligatedCents: number;\n  }\n\n  const geoTransformTable: TransformGeoTestCase[] = [\n    {\n      name: 'recipient scope: 500.25 → 50025 cents',\n      rows: [{\n        id: 10,\n        agency_id: '080',\n        fiscal_year: 2024,\n        award_type: 'Contracts',\n        obligated_amount: 500.25,\n        outlay_amount: 500.00,\n        place_of_performance_state: 'CA',\n        place_of_performance_country: 'US',\n        disaster_emergency_fund_code: '',\n      }],\n      scope: 'recipient',\n      expectedObligatedCents: 50025,\n    },\n    {\n      name: 'performance scope: 0.50 → 50 cents',\n      rows: [{\n        id: 11,\n        agency_id: '024',\n        fiscal_year: 2024,\n        award_type: 'Grants',\n        obligated_amount: 0.50,\n        outlay_amount: 0.25,\n        place_of_performance_state: 'NY',\n        place_of_performance_country: 'US',\n        disaster_emergency_fund_code: '',\n      }],\n      scope: 'performance',\n      expectedObligatedCents: 50,\n    },\n    {\n      name: 'both scopes from same rows',\n      rows: [{\n        id: 12,\n        agency_id: '036',\n        fiscal_year: 2024,\n        award_type: 'Loans',\n        obligated_amount: 100.00,\n        outlay_amount: 100.00,\n        place_of_performance_state: 'FL',\n        place_of_performance_country: 'US',\n        disaster_emergency_fund_code: '',\n      }],\n      scope: 'recipient',\n      expectedObligatedCents: 10000,\n    },\n  ];\n\n  it.each(awardTransformTable)('$name', async ({ rows, expectedAwardType, expectedObligatedCents, expectedOutlayCents }) => {\n    const responseBody = {\n      data: rows,\n      meta: { total: rows.length, page: 1, pageSize: rows.length },\n    };\n    fetchMock.mockResolvedValueOnce(createResponse(responseBody));\n\n    const result = await svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 });\n\n    expect(result).toBeDefined();\n    if (result.status === 'success') {\n      expect(result.rows.length).toBeGreaterThan(0);\n      const firstRow = result.rows[0];\n      expect(firstRow.awardTypeLabel).toBe(expectedAwardType);\n      expect(firstRow.obligatedAmount).toBe(expectedObligatedCents);\n      expect(firstRow.outlayAmount).toBe(expectedOutlayCents);\n    }\n  });\n\n  it.each(geoTransformTable)('$name', async ({ rows, scope, expectedObligatedCents }) => {\n    const responseBody = {\n      data: rows,\n      meta: { total: rows.length, page: 1, pageSize: rows.length },\n    };\n    fetchMock.mockResolvedValueOnce(createResponse(responseBody));\n\n    const result = await svc.fetchGeoSnapshots({\n      agency: '080',\n      fiscalYear: 2024,\n      scope,\n    });\n\n    expect(result).toBeDefined();\n    if (result.status === 'success') {\n      expect(result.rows.length).toBeGreaterThan(0);\n      const firstRow = result.rows[0];\n      expect(firstRow.obligatedAmount).toBe(expectedObligatedCents);\n      expect(firstRow.scope).toBe(scope);\n    }\n  });\n\n  interface RetryTestCase {\n    name: string;\n    responses: { status: number }[];\n    shouldSucceed: boolean;\n    expectedAttempts: number;\n  }\n\n  const retryTable: RetryTestCase[] = [\n    {\n      name: 'HTTP 500 then 200 → retry succeeds on attempt 2',\n      responses: [\n        { status: 500 },\n        { status: 200 },\n      ],\n      shouldSucceed: true,\n      expectedAttempts: 2,\n    },\n    {\n      name: 'HTTP 500 thrice → throws after 3 attempts',\n      responses: [\n        { status: 500 },\n        { status: 500 },\n        { status: 500 },\n      ],\n      shouldSucceed: false,\n      expectedAttempts: 3,\n    },\n    {\n      name: 'HTTP 200 first try → no retry needed',\n      responses: [\n        { status: 200 },\n      ],\n      shouldSucceed: true,\n      expectedAttempts: 1,\n    },\n  ];\n\n  it.each(retryTable)('$name', async ({ responses, shouldSucceed, expectedAttempts }) => {\n    for (const resp of responses) {\n      const body = resp.status === 200\n        ? { data: [], meta: { total: 0, page: 1, pageSize: 10 } }\n        : { error: 'server error' };\n      fetchMock.mockResolvedValueOnce(createResponse(body, resp.status));\n    }\n\n    if (shouldSucceed) {\n      await expect(\n        svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 }),\n      ).resolves.toBeDefined();\n    } else {\n      await expect(\n        svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 }),\n      ).rejects.toThrow();\n    }\n\n    expect(fetchMock).toHaveBeenCalledTimes(expectedAttempts);\n  });\n\n  describe('pagination across multiple pages', () => {\n    it('fetches all pages and merges results', async () => {\n      const page1Rows: RawUsaSpendingAwardRow[] = [\n        {\n          id: 1, agency_id: '080', fiscal_year: 2024, award_type: 'Contracts',\n          obligated_amount: 1000.00, outlay_amount: 800.00, description: 'P1',\n          recipient_name: 'Corp1', recipient_id: 'R1', award_date: '2024-01-01',\n          place_of_performance_state: 'CA', place_of_performance_country: 'US',\n          disaster_emergency_fund_code: '',\n        },\n      ];\n      const page2Rows: RawUsaSpendingAwardRow[] = [\n        {\n          id: 2, agency_id: '080', fiscal_year: 2024, award_type: 'Grants',\n          obligated_amount: 2000.00, outlay_amount: 1500.00, description: 'P2',\n          recipient_name: 'Corp2', recipient_id: 'R2', award_date: '2024-02-01',\n          place_of_performance_state: 'NY', place_of_performance_country: 'US',\n          disaster_emergency_fund_code: '',\n        },\n      ];\n\n      fetchMock.mockResolvedValueOnce(createResponse({\n        data: page1Rows,\n        meta: { total: 2, page: 1, pageSize: 1 },\n      }));\n      fetchMock.mockResolvedValueOnce(createResponse({\n        data: page2Rows,\n        meta: { total: 2, page: 2, pageSize: 1 },\n      }));\n\n      const result = await svc.fetchSpendingByAgency({ agency: '080', fiscalYear: 2024 });\n\n      expect(result).toBeDefined();\n      if (result.status === 'success') {\n        expect(result.rows.length).toBe(2);\n        expect(result.total).toBe(2);\n        expect(result.rows[0].obligatedAmount).toBe(100000);\n        expect(result.rows[1].obligatedAmount).toBe(200000);\n      }\n    });\n  });\n\n  describe('fetchAgencies', () => {\n    it('returns parsed agencies with correct fields', async () => {\n      const agenciesBody = {\n        data: [\n          { agency_name: 'NASA', toptier_agency_name: 'NASA', toptier_agency_cii: '080', subtier_agency_cii: null },\n          { agency_name: 'GSA', toptier_agency_name: 'GSA', toptier_agency_cii: '047', subtier_agency_cii: null },\n        ],\n        meta: { total: 2, page: 1, pageSize: 2 },\n      };\n      fetchMock.mockResolvedValueOnce(createResponse(agenciesBody));\n\n      const result = await svc.fetchAgencies();\n\n      expect(result).toBeDefined();\n      if (result.status === 'success') {\n        expect(result.agencies.length).toBe(2);\n        expect(result.agencies[0].name).toBe('NASA');\n        expect(result.agencies[0].toptierCode).toBe('080');\n        expect(result.agencies[1].name).toBe('GSA');\n        expect(result.agencies[1].toptierCode).toBe('047');\n      }\n    });\n  });\n\n  describe('fetchDisasterSpending', () => {\n    it('returns disaster rows with cents conversion', async () => {\n      const disasterBody = {\n        data: [\n          {\n            id: 100,\n            agency_id: '075',\n            fiscal_year: 2024,\n            award_type: 'Grants',\n            obligated_amount: 5000.75,\n            outlay_amount: 4000.00,\n            place_of_performance_state: 'FL',\n            place_of_performance_country: 'US',\n            disaster_emergency_fund_code: 'COVID-19',\n          },\n        ],\n        meta: { total: 1, page: 1, pageSize: 10 },\n      };\n      fetchMock.mockResolvedValueOnce(createResponse(disasterBody));\n\n      const result = await svc.fetchDisasterSpending('COVID-19');\n\n      expect(result).toBeDefined();\n      if (result.status === 'success') {\n        expect(result.rows.length).toBe(1);\n        expect(result.rows[0].obligatedAmount).toBe(500075);\n        expect(result.rows[0].outlayAmount).toBe(400000);\n      }\n    });\n  });\n});\n"
+    },
+    {
+      "path": "backend/src/sync/usa-spending.types.ts",
+      "mode": "full",
+      "contents": "// Raw USASpending award row\nexport interface RawUsaSpendingAwardRow {\n  id: number;\n  agency_id: string;\n  fiscal_year: number;\n  award_type: string;\n  obligated_amount: number;\n  outlay_amount: number;\n  description: string;\n  recipient_name: string;\n  recipient_id: string;\n  award_date: string;\n  place_of_performance_state: string;\n  place_of_performance_country: string;\n  disaster_emergency_fund_code: string;\n}\n\n// Raw USASpending geographic row\nexport interface RawUsaSpendingGeoRow {\n  id: number;\n  agency_id: string;\n  fiscal_year: number;\n  award_type: string;\n  obligated_amount: number;\n  outlay_amount: number;\n  place_of_performance_state: string;\n  place_of_performance_country: string;\n  disaster_emergency_fund_code: string;\n}\n\n// Raw USASpending disaster row\nexport interface RawUsaSpendingDisasterRow {\n  id: number;\n  agency_id: string;\n  fiscal_year: number;\n  award_type: string;\n  obligated_amount: number;\n  outlay_amount: number;\n  place_of_performance_state: string;\n  place_of_performance_country: string;\n  disaster_emergency_fund_code: string;\n}"
+    }
+  ]
+}
