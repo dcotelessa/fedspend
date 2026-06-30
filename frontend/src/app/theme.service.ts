@@ -9,11 +9,12 @@ export class ThemeService {
   readonly isDark$: WritableSignal<boolean> = signal(this.readStorage());
 
   constructor() {
-    effect(() => {
-      const isDark = this.isDark$();
+    const apply = (isDark: boolean) => {
       document.body.classList.toggle('dark-theme', isDark);
       this.overlayContainer.getContainerElement().classList.toggle('dark-theme', isDark);
-    });
+    };
+    apply(this.isDark$());
+    effect(() => apply(this.isDark$()));
   }
 
   toggle(): void {
