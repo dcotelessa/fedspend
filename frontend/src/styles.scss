@@ -13,9 +13,16 @@ html {
   @include mat.all-component-colors($dark-theme);
 }
 
-.dark-theme {
-  background-color: #121212;
-  color: #e0e0e0;
+body {
+  background-color: #fafafa;
+  color: #1a1a1a;
+  min-height: 100vh;
+  margin: 0;
+}
+
+body.dark-theme {
+  background-color: #121212 !important;
+  color: #e0e0e0 !important;
 }
 
 .dark-theme mat-toolbar {
@@ -27,6 +34,19 @@ html {
 .dark-theme footer {
   border-top-color: #333;
   color: #999;
+}
+
+.dark-theme mat-card {
+  background-color: #1e1e1e !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .mat-mdc-table {
+  background-color: #1e1e1e !important;
+}
+
+.dark-theme h2, .dark-theme h3 {
+  color: #e0e0e0 !important;
 }
 
 mat-toolbar {
