@@ -13,11 +13,11 @@ import { StateAggregationResult } from './openfema.service';
 
 describe('SyncService', () => {
   let service: SyncService;
-  let agencyRepo: Repository<Agency>;
-  let spendingRepo: Repository<SpendingRecord>;
-  let geoRepo: Repository<GeoSpendingSnapshot>;
-  let disasterRepo: Repository<DisasterFundingRecord>;
-  let ratioRepo: Repository<DisasterRecoveryRatio>;
+  let agencyRepo: { upsert: jest.Mock };
+  let spendingRepo: { upsert: jest.Mock };
+  let geoRepo: { upsert: jest.Mock };
+  let disasterRepo: { upsert: jest.Mock };
+  let ratioRepo: { upsert: jest.Mock };
   let usaService: UsaSpendingService;
   let femaService: OpenFemaService;
 
@@ -29,8 +29,7 @@ describe('SyncService', () => {
     geoFetchResult?: { status: string; rows?: any[] };
     disasterFetchResult?: { status: string; rows?: any[] };
     femaFetchResult?: StateAggregationResult[];
-    findOneReturns: Record<string, any>;
-    expectedSaveCalls: { repoName: string; count: number }[];
+    expectedUpsertCalls: { repoName: string; count: number }[];
     expectedRepoData?: Record<string, any[]>;
   }
 
@@ -41,22 +40,18 @@ describe('SyncService', () => {
       agencyFetchResult: { status: 'success', agencies: [
         { id: 0, name: 'Test Agency', abbreviation: 'TA', toptierCode: 'ABC' }
       ]},
-      findOneReturns: { Agency: null },
-      expectedSaveCalls: [{ repoName: 'agency', count: 1 }],
+      expectedUpsertCalls: [{ repoName: 'agency', count: 1 }],
       expectedRepoData: {
         agency: [{ name: 'Test Agency', toptierCode: 'ABC' }],
       },
     },
     {
-      name: 'syncAgenciesAndSpending updates an existing agency',
+      name: 'syncAgenciesAndSpending upserts an existing agency',
       method: 'syncAgenciesAndSpending',
       agencyFetchResult: { status: 'success', agencies: [
         { id: 1, name: 'Updated Agency', abbreviation: 'UA', toptierCode: 'ABC' }
       ]},
-      findOneReturns: {
-        Agency: { id: 1, name: 'Old Agency', abbreviation: 'OA', toptierCode: 'ABC' }
-      },
-      expectedSaveCalls: [{ repoName: 'agency', count: 1 }],
+      expectedUpsertCalls: [{ repoName: 'agency', count: 1 }],
       expectedRepoData: {
         agency: [{ name: 'Updated Agency', toptierCode: 'ABC' }],
       },
@@ -68,8 +63,7 @@ describe('SyncService', () => {
       spendingFetchResult: { status: 'success', rows: [
         { id: 0, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: '', obligatedAmount: 1000, outlayAmount: 500, awardCount: 1 }
       ], total: 1},
-      findOneReturns: { SpendingRecord: null },
-      expectedSaveCalls: [{ repoName: 'spending', count: 1 }],
+      expectedUpsertCalls: [{ repoName: 'spending', count: 1 }],
       expectedRepoData: {
         spending: [{ agencyId: 1, fiscalYear: 2024, obligatedAmount: 1000 }],
       },
@@ -80,8 +74,7 @@ describe('SyncService', () => {
       geoFetchResult: { status: 'success', rows: [
         { id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: 1, scope: 'recipient', obligatedAmount: 5000, awardCount: 3, population: 1000, perCapita: 5 }
       ]},
-      findOneReturns: { GeoSpendingSnapshot: null },
-      expectedSaveCalls: [{ repoName: 'geo', count: 1 }],
+      expectedUpsertCalls: [{ repoName: 'geo', count: 1 }],
       expectedRepoData: {
         geo: [{ stateCode: 'CA', fiscalYear: 2024 }],
       },
@@ -93,8 +86,7 @@ describe('SyncService', () => {
         { id: 0, defGroup: 'JF-3038', defCodes: 'JF-3038', stateCode: 'CA', stateName: 'California', obligatedAmount: 10000, outlayAmount: 8000, awardCount: 5, perCapita: 0, population: 0 }
       ]},
       femaFetchResult: [],
-      findOneReturns: { DisasterFundingRecord: null },
-      expectedSaveCalls: [{ repoName: 'disaster', count: 1 }],
+      expectedUpsertCalls: [{ repoName: 'disaster', count: 1 }],
       expectedRepoData: {
         disaster: [{ defGroup: 'JF-3038', stateCode: 'CA' }],
       },
@@ -106,8 +98,7 @@ describe('SyncService', () => {
       femaFetchResult: [
         { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }
       ],
-      findOneReturns: {},
-      expectedSaveCalls: [{ repoName: 'ratio', count: 1 }],
+      expectedUpsertCalls: [{ repoName: 'ratio', count: 1 }],
       expectedRepoData: {
         ratio: [{ stateCode: 'CA', recoveryRatio: 0, fedSpendingObligated: 0, femaObligated: 5000 }],
       },
@@ -121,8 +112,7 @@ describe('SyncService', () => {
       femaFetchResult: [
         { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }
       ],
-      findOneReturns: { DisasterFundingRecord: null },
-      expectedSaveCalls: [
+      expectedUpsertCalls: [
         { repoName: 'disaster', count: 1 },
         { repoName: 'ratio', count: 1 },
       ],
@@ -145,8 +135,7 @@ describe('SyncService', () => {
       femaFetchResult: [
         { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }
       ],
-      findOneReturns: { Agency: null, GeoSpendingSnapshot: null },
-      expectedSaveCalls: [
+      expectedUpsertCalls: [
         { repoName: 'agency', count: 1 },
         { repoName: 'geo', count: 1 },
         { repoName: 'ratio', count: 1 },
@@ -160,11 +149,11 @@ describe('SyncService', () => {
   ];
 
   beforeEach(async () => {
-    const mockAgencyRepo = { findOne: jest.fn(), save: jest.fn() };
-    const mockSpendingRepo = { findOne: jest.fn(), save: jest.fn() };
-    const mockGeoRepo = { findOne: jest.fn(), save: jest.fn() };
-    const mockDisasterRepo = { findOne: jest.fn(), save: jest.fn() };
-    const mockRatioRepo = { findOne: jest.fn(), save: jest.fn() };
+    const mockAgencyRepo = { upsert: jest.fn() };
+    const mockSpendingRepo = { upsert: jest.fn() };
+    const mockGeoRepo = { upsert: jest.fn() };
+    const mockDisasterRepo = { upsert: jest.fn() };
+    const mockRatioRepo = { upsert: jest.fn() };
     const mockUsaService = {
       fetchAgencies: jest.fn(),
       fetchSpendingByAgency: jest.fn(),
@@ -209,8 +198,7 @@ describe('SyncService', () => {
     geoFetchResult,
     disasterFetchResult,
     femaFetchResult,
-    findOneReturns,
-    expectedSaveCalls,
+    expectedUpsertCalls,
     expectedRepoData,
   }) => {
     usaService.fetchAgencies.mockResolvedValue({ status: 'not_found' });
@@ -225,59 +213,36 @@ describe('SyncService', () => {
     if (disasterFetchResult) usaService.fetchDisasterSpending.mockResolvedValue(disasterFetchResult);
     if (femaFetchResult) femaService.fetchDeclarationsByState.mockResolvedValue(femaFetchResult);
 
-    agencyRepo.findOne.mockImplementation(async ({ where }: any) => {
-      if (where?.toptierCode) return findOneReturns.Agency ?? null;
-      return null;
-    });
-    spendingRepo.findOne.mockImplementation(async ({ where }: any) => {
-      if (where?.agencyId && where?.fiscalYear && where?.quarter && where?.awardTypeLabel) {
-        return findOneReturns.SpendingRecord ?? null;
-      }
-      return null;
-    });
-    geoRepo.findOne.mockImplementation(async ({ where }: any) => {
-      if (where?.stateCode && where?.fiscalYear) {
-        return findOneReturns.GeoSpendingSnapshot ?? null;
-      }
-      return null;
-    });
-    disasterRepo.findOne.mockImplementation(async ({ where }: any) => {
-      if (where?.defGroup && where?.stateCode) {
-        return findOneReturns.DisasterFundingRecord ?? null;
-      }
-      return null;
-    });
-
     await (service as Record<string, unknown>)[method]();
 
-    for (const call of expectedSaveCalls) {
+    for (const call of expectedUpsertCalls) {
       const repo = getRepo(call.repoName);
-      const saveCalls = (repo.save as jest.Mock).mock.calls;
-      expect(saveCalls.length).toBe(call.count);
+      const upsertCalls = (repo.upsert as jest.Mock).mock.calls;
+      expect(upsertCalls.length).toBe(call.count);
     }
 
     if (expectedRepoData) {
       for (const [repoName, expectedData] of Object.entries(expectedRepoData)) {
         const repo = getRepo(repoName);
-        const saveCalls = (repo.save as jest.Mock).mock.calls;
-        for (let i = 0; i < saveCalls.length; i++) {
-          const saved = saveCalls[i][0];
+        const upsertCalls = (repo.upsert as jest.Mock).mock.calls;
+        for (let i = 0; i < upsertCalls.length; i++) {
+          const upserted = upsertCalls[i][0];
           const expected = (expectedData as any[])[i];
           for (const [key, value] of Object.entries(expected)) {
-            expect(saved[key]).toBe(value);
+            expect(upserted[key]).toBe(value);
           }
         }
       }
     }
   });
 
-  function getRepo(name: string): { save: jest.Mock } {
+  function getRepo(name: string): { upsert: jest.Mock } {
     switch (name) {
-      case 'agency': return { save: agencyRepo.save };
-      case 'spending': return { save: spendingRepo.save };
-      case 'geo': return { save: geoRepo.save };
-      case 'disaster': return { save: disasterRepo.save };
-      case 'ratio': return { save: ratioRepo.save };
+      case 'agency': return { upsert: agencyRepo.upsert };
+      case 'spending': return { upsert: spendingRepo.upsert };
+      case 'geo': return { upsert: geoRepo.upsert };
+      case 'disaster': return { upsert: disasterRepo.upsert };
+      case 'ratio': return { upsert: ratioRepo.upsert };
     }
   }
 });

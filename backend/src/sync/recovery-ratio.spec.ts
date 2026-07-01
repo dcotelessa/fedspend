@@ -16,10 +16,10 @@ describe('computeRecoveryRatio', () => {
       expected: 1.0,
     },
     {
-      name: 'fema zero fed positive returns Infinity',
+      name: 'fema zero fed positive returns 0',
       femaCents: 0,
       fedCents: 50000,
-      expected: Infinity,
+      expected: 0,
     },
     {
       name: 'fema positive fed zero returns 0',
@@ -56,6 +56,24 @@ describe('computeRecoveryRatio', () => {
       femaCents: Number.MAX_SAFE_INTEGER,
       fedCents: 1,
       expected: 1 / Number.MAX_SAFE_INTEGER,
+    },
+    {
+      name: 'NaN femaCents returns 0',
+      femaCents: NaN,
+      fedCents: 50000,
+      expected: 0,
+    },
+    {
+      name: 'NaN fedCents returns 0',
+      femaCents: 50000,
+      fedCents: NaN,
+      expected: 0,
+    },
+    {
+      name: 'both NaN returns 0',
+      femaCents: NaN,
+      fedCents: NaN,
+      expected: 0,
     },
   ];
 

@@ -37,12 +37,13 @@ type FetchDefCodesResult =
 const transformGeoRows = (
   rows: RawUsaSpendingGeoRow[],
   scope: string,
+  fiscalYear: number,
 ): GeoSpendingSnapshot[] =>
   rows.map((r) => ({
     id: 0,
     stateCode: r.display_data.state || r.shape_code,
     stateName: r.display_data.state_name || r.display_data.state || '',
-    fiscalYear: 2024,
+    fiscalYear,
     agencyId: 0,
     scope,
     obligatedAmount: Math.round(r.aggregated_amount * 100),
@@ -152,7 +153,7 @@ export class UsaSpendingService {
     );
 
     const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, 'recipient_location').map(
+    const transformed = transformGeoRows(rawGeo, 'recipient_location', params.fiscalYear).map(
       (r) => ({
         ...r,
         id: 0,
@@ -190,7 +191,7 @@ export class UsaSpendingService {
     );
 
     const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, params.scope);
+    const transformed = transformGeoRows(rawGeo, params.scope, params.fiscalYear);
 
     return transformed.length > 0
       ? { status: 'success', rows: transformed }
@@ -218,7 +219,7 @@ export class UsaSpendingService {
     );
 
     const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, 'recipient_location').map(
+    const transformed = transformGeoRows(rawGeo, 'recipient_location', 2024).map(
       (r) => ({
         ...r,
         id: 0,
