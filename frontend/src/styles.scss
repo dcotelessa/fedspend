@@ -2,6 +2,21 @@
 
 @include mat.core();
 
+$light-bg: #fafafa;
+$light-text: #1a1a1a;
+$light-toolbar: #1976d2;
+$light-toolbar-text: #fff;
+$light-footer-border: #e0e0e0;
+$light-footer-text: #666;
+$muted-text: #999;
+
+$dark-bg: #121212;
+$dark-surface: #1e1e1e;
+$dark-elevated: #2a2a2a;
+$dark-text: #e0e0e0;
+$dark-border: #333;
+$dark-toolbar: #0d47a1;
+
 $light-theme: mat.define-theme();
 $dark-theme: mat.define-theme((color: (theme-type: dark)));
 
@@ -11,100 +26,101 @@ html {
 
 .dark-theme {
   @include mat.all-component-colors($dark-theme);
+  --card-bg: #{$dark-surface};
 }
 
 body {
-  background-color: #fafafa;
-  color: #1a1a1a;
+  background-color: $light-bg;
+  color: $light-text;
   min-height: 100vh;
   margin: 0;
 }
 
 body.dark-theme {
-  background-color: #121212 !important;
-  color: #e0e0e0 !important;
+  background-color: $dark-bg !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-toolbar {
-  background-color: #0d47a1 !important;
-  color: #e0e0e0 !important;
-  border-bottom: 1px solid #333;
+  background-color: $dark-toolbar !important;
+  color: $dark-text !important;
+  border-bottom: 1px solid $dark-border;
 }
 
 .dark-theme footer {
-  border-top-color: #333;
-  color: #999;
+  border-top-color: $dark-border;
+  color: $muted-text;
 }
 
 .dark-theme mat-card {
-  background-color: #1e1e1e !important;
-  color: #e0e0e0 !important;
+  background-color: $dark-surface !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-card-content {
-  color: #e0e0e0 !important;
+  color: $dark-text !important;
 }
 
 .dark-theme .mat-mdc-table {
-  background-color: #1e1e1e !important;
-  color: #e0e0e0 !important;
+  background-color: $dark-surface !important;
+  color: $dark-text !important;
 }
 
 .dark-theme .mat-mdc-table-row {
-  color: #e0e0e0 !important;
+  color: $dark-text !important;
 
   &:hover {
-    background-color: #2a2a2a !important;
+    background-color: $dark-elevated !important;
   }
 }
 
 .dark-theme h2, .dark-theme h3 {
-  color: #e0e0e0 !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-tab-body {
-  color: #e0e0e0 !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-tab-body h1, .dark-theme mat-tab-body h2, .dark-theme mat-tab-body h3 {
-  color: #e0e0e0 !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-tab-body .page-header {
-  color: #e0e0e0 !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-paginator {
-  color: #e0e0e0 !important;
-  background-color: #1e1e1e !important;
+  color: $dark-text !important;
+  background-color: $dark-surface !important;
 }
 
 .dark-theme .mat-mdc-select-panel {
-  background-color: #1e1e1e !important;
-  color: #e0e0e0 !important;
+  background-color: $dark-surface !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-option {
-  color: #e0e0e0 !important;
+  color: $dark-text !important;
 }
 
 .dark-theme mat-divider {
-  border-color: #333 !important;
+  border-color: $dark-border !important;
 }
 
 mat-toolbar {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background-color: #1976d2 !important;
-  color: #fff !important;
+  background-color: $light-toolbar !important;
+  color: $light-toolbar-text !important;
 }
 
-.muted { color: #999; font-style: italic; }
+.muted { color: $muted-text; font-style: italic; }
 
 mat-toolbar a {
   text-decoration: none;
-  color: #fff !important;
+  color: $light-toolbar-text !important;
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
   font-size: 0.95rem;
@@ -134,7 +150,7 @@ footer {
   text-align: center;
   padding: 1rem;
   margin-top: 2rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid $light-footer-border;
   font-size: 0.875rem;
-  color: #666;
+  color: $light-footer-text;
 }
