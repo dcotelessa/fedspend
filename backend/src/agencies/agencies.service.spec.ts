@@ -57,6 +57,15 @@ describe('AgenciesService', () => {
         rawResults: [],
         expected: [],
       },
+      {
+        name: 'parses large cent totals without precision loss',
+        rawResults: [
+          { agency_id: 1, agency_name: 'Defense', totalCents: '98000000000000' },
+        ],
+        expected: [
+          { id: 1, name: 'Defense', totalCents: 98000000000000 },
+        ],
+      },
     ];
 
     it.each(testTable)('$name', async ({ rawResults, currentFy, expected }) => {
@@ -80,7 +89,13 @@ describe('AgenciesService', () => {
       const result = await svc.findAllWithTotals();
       expect(result.data).toEqual(expected);
       expect(agencyRepo.createQueryBuilder).toHaveBeenCalledWith('agency');
-      expect(mockQueryBuilder.leftJoin).toHaveBeenCalled();
+      expect(mockQueryBuilder.leftJoin).toHaveBeenCalledWith(
+        'agency.spendingRecords',
+        'sr',
+        'sr.fiscalYear = :fy',
+        { fy: currentFy ?? 2026 },
+      );
+      expect(mockQueryBuilder.groupBy).toHaveBeenCalledWith('agency.id');
       expect(mockQueryBuilder.getRawMany).toHaveBeenCalled();
     });
   });

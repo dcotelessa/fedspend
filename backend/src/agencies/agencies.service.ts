@@ -21,7 +21,8 @@ export class AgenciesService {
     const rows = await this.agencyRepo
       .createQueryBuilder('agency')
       .leftJoin('agency.spendingRecords', 'sr', 'sr.fiscalYear = :fy', { fy: currentFy })
-      .select(['agency.id', 'agency.name', 'COALESCE(SUM(sr.obligatedAmount), 0)', 'totalCents'])
+      .select(['agency.id', 'agency.name'])
+      .addSelect('COALESCE(SUM(sr.obligatedAmount), 0)', 'totalCents')
       .groupBy('agency.id')
       .getRawMany();
     const data = rows.map(row => ({
