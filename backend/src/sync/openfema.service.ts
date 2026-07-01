@@ -8,9 +8,10 @@ const API_BASE = 'https://www.fema.gov/api/open/v2';
 interface RawDeclaration {
   incidentType: string;
   state: string;
-  stateName: string;
+  stateName?: string;
   declarationDate: string;
-  obligatedAmount: number;
+  obligatedAmount?: number;
+  fyDeclared?: number;
 }
 
 interface StateAggregationResult {
@@ -50,20 +51,23 @@ const fetchWithRetry = async (url: string): Promise<unknown> => {
 
 const fetchAllPages = async (baseUrl: string): Promise<RawDeclaration[]> => {
   const firstBody = (await fetchWithRetry(baseUrl)) as {
-    data: RawDeclaration[];
-    meta: { total: number; page: number; pageSize: number };
+    DisasterDeclarationsSummaries: RawDeclaration[];
+    metadata: { count: number; top: number };
   };
 
-  const allRows = [...firstBody.data];
-  const totalPages = Math.ceil(firstBody.meta.total / firstBody.meta.pageSize);
+  const allRows = [...(firstBody.DisasterDeclarationsSummaries || [])];
+  const totalCount = firstBody.metadata?.count ?? allRows.length;
+  const pageSize = firstBody.metadata?.top ?? 100;
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   if (totalPages > 1) {
     for (let page = 2; page <= totalPages; page++) {
-      const pageUrl = `${baseUrl}&page=${page}`;
-      const pageBody = (await fetchWithRetry(pageUrl)) as {
-        data: RawDeclaration[];
+      const skip = (page - 1) * pageSize;
+      const sep = baseUrl.includes('?') ? '&' : '?';
+      const pageBody = (await fetchWithRetry(`${baseUrl}${sep}$skip=${skip}`)) as {
+        DisasterDeclarationsSummaries: RawDeclaration[];
       };
-      allRows.push(...pageBody.data);
+      allRows.push(...(pageBody.DisasterDeclarationsSummaries || []));
     }
   }
 
@@ -122,15 +126,15 @@ const aggregateDeclarations = (
     const existing = groups.get(key);
 
     if (existing) {
-      existing.totalCents += Math.round(decl.obligatedAmount * 100);
+      existing.totalCents += Math.round((decl.obligatedAmount ?? 0) * 100);
       existing.count += 1;
       existing.incidentTypes.push(decl.incidentType);
     } else {
       groups.set(key, {
         stateCode: decl.state,
-        stateName: decl.stateName,
+        stateName: decl.stateName || decl.state,
         fiscalYear,
-        totalCents: Math.round(decl.obligatedAmount * 100),
+        totalCents: Math.round((decl.obligatedAmount ?? 0) * 100),
         count: 1,
         incidentTypes: [decl.incidentType],
       });

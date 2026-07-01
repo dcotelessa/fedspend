@@ -854,6 +854,71 @@
       "thinking": "medium",
       "timestamp": "2026-06-30T17:47:01Z",
       "note": "Criterion was broken (missing in keyword + $r shell expansion in for-loop). All tiers likely produced correct code. Criterion fixed to 4 direct greps. 4/4 PASS."
+    },
+    {
+      "story": "E10-S02",
+      "epic": "E10",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 865,
+      "thinking": "medium",
+      "timestamp": "2026-06-30T18:36:05Z"
+    },
+    {
+      "story": "E10-S03",
+      "epic": "E10",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 311,
+      "thinking": "medium",
+      "timestamp": "2026-06-30T18:56:16Z"
+    },
+    {
+      "story": "E10-S04",
+      "epic": "E10",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 229,
+      "thinking": "medium",
+      "timestamp": "2026-06-30T19:00:25Z"
+    },
+    {
+      "story": "E11-S01",
+      "epic": "E11",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 1073,
+      "thinking": "medium",
+      "timestamp": "2026-06-30T19:33:43Z"
+    },
+    {
+      "story": "E11-S02",
+      "epic": "E11",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 647,
+      "thinking": "medium",
+      "timestamp": "2026-07-01T07:23:32Z"
     }
   ]
 }

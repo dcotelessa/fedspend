@@ -40,18 +40,18 @@ const transformGeoRows = (
   fiscalYear: number,
 ): GeoSpendingSnapshot[] =>
   rows.map((r) => ({
-    id: 0,
-    stateCode: r.display_data.state || r.shape_code,
-    stateName: r.display_data.state_name || r.display_data.state || '',
+    id: undefined as any,
+    stateCode: r.shape_code || '',
+    stateName: r.display_name || '',
     fiscalYear,
     agencyId: 0,
     scope,
     obligatedAmount: Math.round(r.aggregated_amount * 100),
     awardCount: 0,
-    population: 0,
-    perCapita: 0,
+    population: r.population || 0,
+    perCapita: Math.round((r.per_capita || 0) * 100),
     agency: null as any,
-  }));
+  })) as GeoSpendingSnapshot[];
 
 const fetchWithRetry = async (
   url: string,
@@ -93,20 +93,22 @@ const fetchAllPages = async (
     body: JSON.stringify({ ...baseBody, page: 1 }),
   })) as {
     results: unknown[];
-    meta: { total: number; pageSize: number };
+    page_metadata?: { has_next?: boolean; total?: number; page?: number };
   };
 
-  const allRows: unknown[] = [...firstBody.results];
-  const totalPages = Math.ceil(firstBody.meta.total / firstBody.meta.pageSize);
+  const allRows: unknown[] = [...(firstBody.results || [])];
 
-  if (totalPages > 1) {
-    for (let page = 2; page <= totalPages; page++) {
+  if (firstBody.page_metadata?.has_next) {
+    let page = 2;
+    while (true) {
       const pageBody = (await fetchWithRetry(baseUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...baseBody, page }),
-      })) as { results: unknown[] };
-      allRows.push(...pageBody.results);
+      })) as { results: unknown[]; page_metadata?: { has_next?: boolean } };
+      allRows.push(...(pageBody.results || []));
+      if (!pageBody.page_metadata?.has_next) break;
+      page++;
     }
   }
 
@@ -122,7 +124,7 @@ export class UsaSpendingService {
     const body = rawData as { results: RawUsaSpendingAgencyRow[] };
 
     const agencies: Agency[] = body.results.map((r) => ({
-      id: 0,
+      id: undefined as any,
       name: r.agency_name || '',
       abbreviation: r.abbreviation || '',
       toptierCode: r.toptier_code,
@@ -136,6 +138,8 @@ export class UsaSpendingService {
   async fetchSpendingByAgency(
     params: { agency: string; fiscalYear: number },
   ): Promise<FetchSpendingResult> {
+    if (!params.agency) return { status: 'not_found' };
+
     const body = {
       filters: {
         time_period: [{
@@ -156,7 +160,7 @@ export class UsaSpendingService {
     const transformed = transformGeoRows(rawGeo, 'recipient_location', params.fiscalYear).map(
       (r) => ({
         ...r,
-        id: 0,
+        id: undefined as any,
         agencyId: parseInt(params.agency, 10) || 0,
         fiscalYear: params.fiscalYear,
         quarter: 1,
@@ -174,6 +178,10 @@ export class UsaSpendingService {
   async fetchGeoSnapshots(
     params: { agency: string; fiscalYear: number; scope: string },
   ): Promise<FetchGeoResult> {
+    const scopeMap: Record<string, string> = {
+      recipient: 'recipient_location',
+      performance: 'place_of_performance',
+    };
     const body = {
       filters: {
         time_period: [{
@@ -182,7 +190,7 @@ export class UsaSpendingService {
         }],
       },
       geo_layer: 'state',
-      scope: params.scope,
+      scope: scopeMap[params.scope] || params.scope,
     };
 
     const allRows = await fetchAllPages(
@@ -222,7 +230,7 @@ export class UsaSpendingService {
     const transformed = transformGeoRows(rawGeo, 'recipient_location', 2024).map(
       (r) => ({
         ...r,
-        id: 0,
+        id: undefined as any,
         defGroup,
         defCodes: defGroup,
       }) as DisasterFundingRecord,
@@ -237,9 +245,9 @@ export class UsaSpendingService {
     const rawData = await fetchWithRetry(
       `${API_BASE}/references/def_codes/`,
     );
-    const body = rawData as { results: RawUsaSpendingDefCodeRow[] };
+    const body = rawData as { codes: RawUsaSpendingDefCodeRow[] };
 
-    const defCodes: RawUsaSpendingDefCodeRow[] = body.results.map((r) => ({
+    const defCodes: RawUsaSpendingDefCodeRow[] = body.codes.map((r) => ({
       code: r.code,
       label: r.label,
       group: r.group,

@@ -76,8 +76,8 @@ describe('UsaSpendingService', () => {
     {
       name: 'recipient scope: 1234.56 → 123456 cents',
       rows: [{
-        shape_code: '06',
-        display_data: { state: 'CA', state_name: 'California' },
+        shape_code: 'CA',
+        display_name: 'California', population: 39538223, per_capita: 5000.5,
         aggregated_amount: 1234.56,
       }],
       scope: 'recipient_location',
@@ -87,8 +87,8 @@ describe('UsaSpendingService', () => {
     {
       name: 'performance scope: 0.01 → 1 cent',
       rows: [{
-        shape_code: '36',
-        display_data: { state: 'NY', state_name: 'New York' },
+        shape_code: 'NY',
+        display_name: 'New York', population: 20201249, per_capita: 3000.3,
         aggregated_amount: 0.01,
       }],
       scope: 'performance_location',
@@ -98,8 +98,8 @@ describe('UsaSpendingService', () => {
     {
       name: 'zero amount → 0 cents',
       rows: [{
-        shape_code: '48',
-        display_data: { state: 'TX', state_name: 'Texas' },
+        shape_code: 'TX',
+        display_name: 'Texas', population: 29145505, per_capita: 2000.2,
         aggregated_amount: 0,
       }],
       scope: 'recipient_location',
@@ -109,8 +109,8 @@ describe('UsaSpendingService', () => {
     {
       name: 'rounds fractional cents: 1234.567 → 123457 cents',
       rows: [{
-        shape_code: '06',
-        display_data: { state: 'CA', state_name: 'California' },
+        shape_code: 'CA',
+        display_name: 'California', population: 39538223, per_capita: 5000.5,
         aggregated_amount: 1234.567,
       }],
       scope: 'recipient_location',
@@ -197,7 +197,7 @@ describe('UsaSpendingService', () => {
     });
 
     it('uses GET for def codes endpoint', async () => {
-      const responseBody = { results: [] };
+      const responseBody = { codes: [] };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
       await svc.fetchDefCodes();
@@ -212,23 +212,23 @@ describe('UsaSpendingService', () => {
   describe('pagination via POST body', () => {
     it('paginates using page in POST body', async () => {
       const page1Rows: RawUsaSpendingGeoRow[] = [{
-        shape_code: '06',
-        display_data: { state: 'CA' },
+        shape_code: 'CA',
+        display_name: 'California', population: 39538223, per_capita: 5000.5,
         aggregated_amount: 1000.00,
       }];
       const page2Rows: RawUsaSpendingGeoRow[] = [{
-        shape_code: '36',
+        shape_code: 'NY',
         display_data: { state: 'NY' },
         aggregated_amount: 2000.00,
       }];
 
       fetchMock.mockResolvedValueOnce(createResponse({
         results: page1Rows,
-        meta: { total: 2, page: 1, pageSize: 1 },
+        page_metadata: { has_next: true, page: 1 },
       }));
       fetchMock.mockResolvedValueOnce(createResponse({
         results: page2Rows,
-        meta: { total: 2, page: 2, pageSize: 1 },
+        page_metadata: { has_next: false, page: 2 },
       }));
 
       const result = await svc.fetchGeoSnapshots({
@@ -328,7 +328,7 @@ describe('UsaSpendingService', () => {
   describe('def codes endpoint', () => {
     it('fetches def codes from /references/def_codes/', async () => {
       const responseBody = {
-        results: [
+        codes: [
           { code: 'L', label: 'CARES', group: 'COVID-19' },
           { code: 'PFMA', label: 'Pandemic', group: 'Natural Disaster' },
         ],

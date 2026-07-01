@@ -9,10 +9,10 @@ export function getTypeOrmConfig(configService: ConfigService): TypeOrmModuleOpt
     return {
       type: 'postgres',
       url: databaseUrl,
-      migrationsRun: true,
-      synchronize: false,
       autoLoadEntities: true,
       entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+      migrationsRun: true,
+      synchronize: false,
     };
   }
 
@@ -23,6 +23,6 @@ export function getTypeOrmConfig(configService: ConfigService): TypeOrmModuleOpt
     database: './data/dev.db',
     autoLoadEntities: true,
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-    synchronize: true,
+    synchronize: false,
   };
 }

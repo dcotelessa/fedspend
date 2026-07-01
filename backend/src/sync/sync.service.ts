@@ -12,7 +12,7 @@ import { computeRecoveryRatio } from './recovery-ratio';
 import { Cron } from '@nestjs/schedule';
 
 const SYNC_FISCAL_YEAR = 2024;
-const SYNC_DEF_GROUP = 'JF-3038';
+const SYNC_DEF_GROUP = 'L';
 
 const AGENCIES_AND_SPENDING = 'agencies_and_spending';
 const GEOGRAPHY = 'geography';
@@ -51,7 +51,8 @@ export class SyncService {
     try {
       await work();
       this.markStatus(module, 'success');
-    } catch {
+    } catch (e) {
+      console.error(`[Sync] ${module} failed:`, e instanceof Error ? e.message : e);
       this.markStatus(module, 'error');
     }
   }
