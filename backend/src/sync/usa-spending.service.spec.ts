@@ -1,33 +1,6 @@
 import { UsaSpendingService } from './usa-spending.service';
 import { RawUsaSpendingAgencyRow, RawUsaSpendingGeoRow } from './usa-spending.types';
 
-const API_BASE = 'https://api.usaspending.gov/api/v2';
-
-const createBodyMatcher = (expectedBody: Record<string, unknown>) => {
-  return (call: unknown[]) => {
-    const url = (call[0] as string);
-    const opts = call[1] as { method: string; body: string };
-    const body = JSON.parse(opts.body);
-    return {
-      match: (expected: Record<string, unknown>) => {
-        const actual = JSON.parse(opts.body);
-        for (const key of Object.keys(expected) as (keyof typeof actual)[]) {
-          if (typeof expected[key] === 'object') {
-            if (JSON.stringify(actual[key]) !== JSON.stringify(expected[key])) {
-              return false;
-            }
-          } else if (actual[key] !== expected[key]) {
-            return false;
-          }
-        }
-        return true;
-      },
-      url,
-      body: actual,
-    };
-  };
-};
-
 describe('UsaSpendingService', () => {
   let fetchMock: jest.SpyInstance;
   let svc: UsaSpendingService;
@@ -143,6 +116,13 @@ describe('UsaSpendingService', () => {
       scope: 'recipient_location',
       expectedObligatedCents: 123457,
       expectedStateCode: 'CA',
+    },
+    {
+      name: 'missing shape_code and population fall back to safe defaults',
+      rows: [{ display_name: 'Unknown', aggregated_amount: 50.25 } as RawUsaSpendingGeoRow],
+      scope: 'recipient_location',
+      expectedObligatedCents: 5025,
+      expectedStateCode: '',
     },
   ];
 
