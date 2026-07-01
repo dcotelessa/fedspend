@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ObjectLiteral } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Agency } from '../agencies/agency.entity';
 import { SpendingRecord } from '../spending/spending-record.entity';
 import { GeoSpendingSnapshot } from '../geography/geo-spending-snapshot.entity';
@@ -57,24 +57,12 @@ export class SyncService {
     }
   }
 
-  private async upsertBy<T extends ObjectLiteral>(
-    repo: Repository<T>,
-    entity: T,
-    conflictColumns: string[],
-  ): Promise<void> {
-    await repo.upsert(entity, conflictColumns);
-  }
-
   async syncAgenciesAndSpending(): Promise<void> {
     await this.runWithStatus(AGENCIES_AND_SPENDING, async () => {
       const agenciesResult = await this.usaService.fetchAgencies();
       if (agenciesResult.status === 'success') {
         for (const agency of agenciesResult.agencies) {
-          await this.upsertBy(
-            this.agencyRepo,
-            agency,
-            ['toptierCode'],
-          );
+          await this.agencyRepo.upsert(agency, ['toptierCode']);
         }
       }
 
@@ -84,11 +72,12 @@ export class SyncService {
       });
       if (spendingResult.status === 'success') {
         for (const record of spendingResult.rows) {
-          await this.upsertBy(
-            this.spendingRepo,
-            record,
-            ['agencyId', 'fiscalYear', 'quarter', 'awardTypeLabel'],
-          );
+          await this.spendingRepo.upsert(record, [
+            'agencyId',
+            'fiscalYear',
+            'quarter',
+            'awardTypeLabel',
+          ]);
         }
       }
     });
@@ -103,11 +92,12 @@ export class SyncService {
       });
       if (geoResult.status === 'success') {
         for (const snapshot of geoResult.rows) {
-          await this.upsertBy(
-            this.geoRepo,
-            snapshot,
-            ['stateCode', 'fiscalYear', 'agencyId', 'scope'],
-          );
+          await this.geoRepo.upsert(snapshot, [
+            'stateCode',
+            'fiscalYear',
+            'agencyId',
+            'scope',
+          ]);
         }
       }
     });
@@ -119,11 +109,7 @@ export class SyncService {
       const fedSpendingByState = new Map<string, number>();
       if (disasterResult.status === 'success') {
         for (const record of disasterResult.rows) {
-          await this.upsertBy(
-            this.disasterRepo,
-            record,
-            ['defGroup', 'stateCode'],
-          );
+          await this.disasterRepo.upsert(record, ['defGroup', 'stateCode']);
           fedSpendingByState.set(
             record.stateCode,
             (fedSpendingByState.get(record.stateCode) ?? 0) + record.obligatedAmount,

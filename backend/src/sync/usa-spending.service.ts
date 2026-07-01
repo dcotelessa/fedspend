@@ -13,6 +13,7 @@ const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 500;
 
 const API_BASE = 'https://api.usaspending.gov/api/v2';
+const DISASTER_FISCAL_YEAR = 2024;
 
 type FetchSpendingResult =
   | { status: 'success'; rows: SpendingRecord[]; total: number }
@@ -212,8 +213,8 @@ export class UsaSpendingService {
     const body = {
       filters: {
         time_period: [{
-          start_date: '2024-10-01',
-          end_date: '2025-09-30',
+          start_date: `${DISASTER_FISCAL_YEAR}-10-01`,
+          end_date: `${DISASTER_FISCAL_YEAR + 1}-09-30`,
         }],
         def_codes: [defGroup],
       },
@@ -227,7 +228,7 @@ export class UsaSpendingService {
     );
 
     const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, 'recipient_location', 2024).map(
+    const transformed = transformGeoRows(rawGeo, 'recipient_location', DISASTER_FISCAL_YEAR).map(
       (r) => ({
         ...r,
         id: undefined as any,
