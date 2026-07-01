@@ -61,9 +61,9 @@ export class AgencySpotlightComponent implements OnInit {
             this.apiService.getAgencySpotlight(Number(id)).subscribe({
               next: (records) => {
                 this.loading = false;
-                if (records && records.length > 0) {
-                  this.currentRecords = records;
-                  this.buildStackedChartFromRecords(records);
+                this.currentRecords = records ?? [];
+                if (this.currentRecords.length > 0) {
+                  this.buildStackedChartFromRecords(this.currentRecords);
                   this.populateAvailableYears();
                 }
                 this.insight = this.computeInsight();

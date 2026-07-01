@@ -89,7 +89,7 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
 
   private buildFiscalYearOptions(): void {
     const now = new Date();
-    const currentFy = now.getMonth() < 10 ? now.getFullYear() : now.getFullYear() + 1;
+    const currentFy = now.getMonth() < 9 ? now.getFullYear() : now.getFullYear() + 1;
     for (let fy = currentFy; fy >= 2018; fy--) {
       this.fiscalYears.push(fy);
     }
