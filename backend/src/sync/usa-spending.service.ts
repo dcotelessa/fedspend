@@ -44,7 +44,7 @@ const transformGeoRows = (
     stateCode: r.shape_code || '',
     stateName: r.display_name || '',
     fiscalYear,
-    agencyId: 0,
+    agencyId: null as any,
     scope,
     obligatedAmount: Math.round(r.aggregated_amount * 100),
     awardCount: 0,
