@@ -2205,7 +2205,7 @@
         },
         {
           "text": "upsertBy uses TypeORM upsert or ON CONFLICT (not save)",
-          "check": "cd backend && grep -qE '(repo\\.upsert|onConflict|INSERT.*ON CONFLICT)' src/sync/sync.service.ts"
+          "check": "cd backend && grep -qiE \"(repo\\.upsert|onConflict|INSERT.*ON CONFLICT)\" src/sync/sync.service.ts"
         },
         {
           "text": "transformGeoRows receives fiscalYear as parameter (not hardcoded)",
