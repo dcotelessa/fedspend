@@ -41,12 +41,55 @@ body.dark-theme {
   color: #e0e0e0 !important;
 }
 
+.dark-theme mat-card-content {
+  color: #e0e0e0 !important;
+}
+
 .dark-theme .mat-mdc-table {
   background-color: #1e1e1e !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-theme .mat-mdc-table-row {
+  color: #e0e0e0 !important;
+
+  &:hover {
+    background-color: #2a2a2a !important;
+  }
 }
 
 .dark-theme h2, .dark-theme h3 {
   color: #e0e0e0 !important;
+}
+
+.dark-theme mat-tab-body {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme mat-tab-body h1, .dark-theme mat-tab-body h2, .dark-theme mat-tab-body h3 {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme mat-tab-body .page-header {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme mat-paginator {
+  color: #e0e0e0 !important;
+  background-color: #1e1e1e !important;
+}
+
+.dark-theme .mat-mdc-select-panel {
+  background-color: #1e1e1e !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-theme mat-option {
+  color: #e0e0e0 !important;
+}
+
+.dark-theme mat-divider {
+  border-color: #333 !important;
 }
 
 mat-toolbar {
