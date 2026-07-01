@@ -18,16 +18,16 @@ export class AgenciesService {
 
   async findAllWithTotals(): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
     const currentFy = this.currentFiscalYear();
-    const agencies = await this.agencyRepo.find();
-    const records = await Promise.all(
-      agencies.map(a =>
-        this.spendingRepo.find({ where: { agencyId: a.id, fiscalYear: currentFy } }),
-      ),
-    );
-    const data = agencies.map((a, i) => ({
-      id: a.id,
-      name: a.name,
-      totalCents: records[i].reduce((s, r) => s + r.obligatedAmount, 0),
+    const rows = await this.agencyRepo
+      .createQueryBuilder('agency')
+      .leftJoin('agency.spendingRecords', 'sr', 'sr.fiscalYear = :fy', { fy: currentFy })
+      .select(['agency.id', 'agency.name', 'COALESCE(SUM(sr.obligatedAmount), 0)', 'totalCents'])
+      .groupBy('agency.id')
+      .getRawMany();
+    const data = rows.map(row => ({
+      id: row.agency_id,
+      name: row.agency_name,
+      totalCents: parseInt(row.totalCents, 10),
     }));
     return {
       data,

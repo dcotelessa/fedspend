@@ -7,68 +7,46 @@ describe('AgenciesService', () => {
   describe('findAllWithTotals', () => {
     interface TestCase {
       name: string;
-      agencies: Agency[];
-      spendingByAgency: Record<number, SpendingRecord[]>;
+      rawResults: { agency_id: number; agency_name: string; totalCents: string }[];
       currentFy?: number;
       expected: { id: number; name: string; totalCents: number }[];
     }
 
     const testTable: TestCase[] = [
       {
-        name: 'returns agencies with current FY total spent',
-        agencies: [
-          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },
-          { id: 2, name: 'Agency B', abbreviation: 'B', toptierCode: '002' },
+        name: 'returns agencies with current FY total spent via single query',
+        rawResults: [
+          { agency_id: 1, agency_name: 'Agency A', totalCents: '300000' },
+          { agency_id: 2, agency_name: 'Agency B', totalCents: '50000' },
         ],
-        spendingByAgency: {
-          1: [
-            { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 80000, awardCount: 5 } as SpendingRecord,
-            { id: 2, agencyId: 1, fiscalYear: 2026, quarter: 2, awardTypeLabel: 'Direct Payment', awardTypeCodes: 'D', obligatedAmount: 200000, outlayAmount: 150000, awardCount: 10 } as SpendingRecord,
-          ],
-          2: [
-            { id: 3, agencyId: 2, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 50000, outlayAmount: 40000, awardCount: 2 } as SpendingRecord,
-          ],
-        },
         expected: [
           { id: 1, name: 'Agency A', totalCents: 300000 },
           { id: 2, name: 'Agency B', totalCents: 50000 },
         ],
       },
       {
-        name: 'excludes records from other fiscal years',
-        agencies: [
-          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },
+        name: 'excludes records from other fiscal years via JOIN condition',
+        rawResults: [
+          { agency_id: 1, agency_name: 'Agency A', totalCents: '500000' },
         ],
-        spendingByAgency: {
-          1: [
-            { id: 1, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 999999, outlayAmount: 0, awardCount: 0 } as SpendingRecord,
-            { id: 2, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 500000, outlayAmount: 400000, awardCount: 3 } as SpendingRecord,
-          ],
-        },
         expected: [
           { id: 1, name: 'Agency A', totalCents: 500000 },
         ],
       },
       {
         name: 'returns zero total when no spending records exist',
-        agencies: [
-          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },
+        rawResults: [
+          { agency_id: 1, agency_name: 'Agency A', totalCents: '0' },
         ],
-        spendingByAgency: {},
         expected: [
           { id: 1, name: 'Agency A', totalCents: 0 },
         ],
       },
       {
         name: 'uses config currentFy when set',
-        agencies: [
-          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },
+        rawResults: [
+          { agency_id: 1, agency_name: 'Agency A', totalCents: '300000' },
         ],
-        spendingByAgency: {
-          1: [
-            { id: 1, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 300000, outlayAmount: 200000, awardCount: 2 } as SpendingRecord,
-          ],
-        },
         currentFy: 2025,
         expected: [
           { id: 1, name: 'Agency A', totalCents: 300000 },
@@ -76,20 +54,23 @@ describe('AgenciesService', () => {
       },
       {
         name: 'returns empty data list when no agencies exist',
-        agencies: [],
-        spendingByAgency: {},
+        rawResults: [],
         expected: [],
       },
     ];
 
-    it.each(testTable)('$name', async ({ agencies, spendingByAgency, currentFy, expected }) => {
-      const agencyRepo = { find: jest.fn().mockResolvedValue(agencies) } as any;
-      const spendingRepo = { find: jest.fn((opts: any) => {
-        const aid = opts.where.agencyId;
-        const fy = opts.where.fiscalYear;
-        const records = spendingByAgency[aid] || [];
-        return Promise.resolve(records.filter(r => r.fiscalYear === fy));
-      }) } as any;
+    it.each(testTable)('$name', async ({ rawResults, currentFy, expected }) => {
+      const mockQueryBuilder = {
+        leftJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        addWhere: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue(rawResults),
+      };
+      const agencyRepo = { createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder) } as any;
+      const spendingRepo = { find: jest.fn().mockResolvedValue([]) } as any;
       const configService = { get: jest.fn((key: string) => {
         if (key === 'currentFy' && currentFy !== undefined) return currentFy;
         if (key === 'currentFy') return 2026;
@@ -98,12 +79,9 @@ describe('AgenciesService', () => {
       const svc = new AgenciesService(agencyRepo, spendingRepo, configService);
       const result = await svc.findAllWithTotals();
       expect(result.data).toEqual(expected);
-      expect(agencyRepo.find).toHaveBeenCalledWith();
-      for (const agency of agencies) {
-        expect(spendingRepo.find).toHaveBeenCalledWith({
-          where: { agencyId: agency.id, fiscalYear: currentFy ?? 2026 },
-        });
-      }
+      expect(agencyRepo.createQueryBuilder).toHaveBeenCalledWith('agency');
+      expect(mockQueryBuilder.leftJoin).toHaveBeenCalled();
+      expect(mockQueryBuilder.getRawMany).toHaveBeenCalled();
     });
   });
 

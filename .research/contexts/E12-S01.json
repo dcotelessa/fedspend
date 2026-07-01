@@ -1,0 +1,133 @@
+{
+  "story": "E12-S01",
+  "epic": "E12",
+  "title": "Fix N+1 query in AgenciesService.findAllWithTotals",
+  "goal": "Replace the per-agency spending query loop with a single TypeORM query using LEFT JOIN + GROUP BY to compute totalCents for all agencies in one round trip.",
+  "notes": "Current code: agencies.map(a => spendingRepo.find({ where: { agencyId: a.id } })) — 111 queries. Replace with a single LEFT JOIN agency -> spending_record GROUP BY agency.id computing SUM(obligatedAmount). Use TypeORM QueryBuilder: agencyRepo.createQueryBuilder('agency').leftJoin('agency.spendingRecords', 'sr').select(['agency.id', 'agency.name', 'COALESCE(SUM(sr.obligatedAmount), 0) AS totalCents']).groupBy('agency.id').getRawMany(). Filter by current fiscal year in the JOIN condition.",
+  "dependencies": "E11-S02",
+  "acceptanceCriteria": [
+    {
+      "text": "findAllWithTotals uses a single query (no per-agency loop)",
+      "check": "cd backend && grep -qE '(leftJoin|innerJoin|createQueryBuilder|GROUP BY)' src/agencies/agencies.service.ts"
+    },
+    {
+      "text": "agencies.service.spec.ts passes",
+      "check": "cd backend && pnpm test --testPathPatterns=agencies.service.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "backend builds",
+      "check": "cd backend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/agencies/agencies.service.ts",
+      "mode": "full",
+      "contents": "import { Injectable } from '@nestjs/common';\nimport { InjectRepository } from '@nestjs/typeorm';\nimport { Repository } from 'typeorm';\nimport { Agency } from './agency.entity';\nimport { SpendingRecord } from '../spending/spending-record.entity';\nimport { ApiResponse, AgencySummary } from '@shared/interfaces';\nimport { ConfigService } from '@nestjs/config';\n\n@Injectable()\nexport class AgenciesService {\n  constructor(\n    @InjectRepository(Agency)\n    private readonly agencyRepo: Repository<Agency>,\n    @InjectRepository(SpendingRecord)\n    private readonly spendingRepo: Repository<SpendingRecord>,\n    private readonly configService: ConfigService,\n  ) {}\n\n  async findAllWithTotals(): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {\n    const currentFy = this.currentFiscalYear();\n    const agencies = await this.agencyRepo.find();\n    const records = await Promise.all(\n      agencies.map(a =>\n        this.spendingRepo.find({ where: { agencyId: a.id, fiscalYear: currentFy } }),\n      ),\n    );\n    const data = agencies.map((a, i) => ({\n      id: a.id,\n      name: a.name,\n      totalCents: records[i].reduce((s, r) => s + r.obligatedAmount, 0),\n    }));\n    return {\n      data,\n      meta: { total: data.length, page: 1, pageSize: 6 },\n    };\n  }\n\n  async findSummary(agencyId: number): Promise<AgencySummary | null> {\n    const agency = await this.agencyRepo.findOne({ where: { id: agencyId } });\n    if (!agency) return null;\n    const currentFy = this.currentFiscalYear();\n    const priorFy = currentFy - 1;\n    const currentRecords = await this.spendingRepo.find({ where: { agencyId, fiscalYear: currentFy } });\n    const priorRecords = await this.spendingRepo.find({ where: { agencyId, fiscalYear: priorFy } });\n    const currentTotal = currentRecords.reduce((s, r) => s + r.obligatedAmount, 0);\n    const priorTotal = priorRecords.reduce((s, r) => s + r.obligatedAmount, 0);\n    const yoyChange = priorTotal === 0 ? 0 : (currentTotal - priorTotal) / priorTotal * 100;\n    return {\n      agency: { id: agency.id, name: agency.name, abbreviation: agency.abbreviation, toptierCode: agency.toptierCode },\n      currentFyTotal: currentTotal,\n      priorFyTotal: priorTotal,\n      yoyChange,\n    };\n  }\n\n  async findSpotlight(agencyId: number): Promise<SpendingRecord[] | null> {\n    const agency = await this.agencyRepo.findOne({ where: { id: agencyId } });\n    if (!agency) return null;\n    const records = await this.spendingRepo.find({ where: { agencyId } });\n    const groups = new Map<string, SpendingRecord>();\n    for (const r of records) {\n      const key = `${r.fiscalYear}-${r.awardTypeLabel}`;\n      const existing = groups.get(key);\n      if (existing) {\n        existing.obligatedAmount += r.obligatedAmount;\n        existing.outlayAmount += r.outlayAmount;\n        existing.awardCount += r.awardCount;\n      } else {\n        groups.set(key, { ...r } as SpendingRecord);\n      }\n    }\n    return Array.from(groups.values());\n  }\n\n  private currentFiscalYear(): number {\n    return this.configService.get<number>('currentFy') ?? 2026;\n  }\n}"
+    },
+    {
+      "path": "backend/src/agencies/agencies.service.spec.ts",
+      "mode": "full",
+      "contents": "import { AgenciesService } from './agencies.service';\nimport { Agency } from './agency.entity';\nimport { SpendingRecord } from '../spending/spending-record.entity';\nimport { Repository } from 'typeorm';\n\ndescribe('AgenciesService', () => {\n  describe('findAllWithTotals', () => {\n    interface TestCase {\n      name: string;\n      agencies: Agency[];\n      spendingByAgency: Record<number, SpendingRecord[]>;\n      currentFy?: number;\n      expected: { id: number; name: string; totalCents: number }[];\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'returns agencies with current FY total spent',\n        agencies: [\n          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n          { id: 2, name: 'Agency B', abbreviation: 'B', toptierCode: '002' },\n        ],\n        spendingByAgency: {\n          1: [\n            { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 80000, awardCount: 5 } as SpendingRecord,\n            { id: 2, agencyId: 1, fiscalYear: 2026, quarter: 2, awardTypeLabel: 'Direct Payment', awardTypeCodes: 'D', obligatedAmount: 200000, outlayAmount: 150000, awardCount: 10 } as SpendingRecord,\n          ],\n          2: [\n            { id: 3, agencyId: 2, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 50000, outlayAmount: 40000, awardCount: 2 } as SpendingRecord,\n          ],\n        },\n        expected: [\n          { id: 1, name: 'Agency A', totalCents: 300000 },\n          { id: 2, name: 'Agency B', totalCents: 50000 },\n        ],\n      },\n      {\n        name: 'excludes records from other fiscal years',\n        agencies: [\n          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        ],\n        spendingByAgency: {\n          1: [\n            { id: 1, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 999999, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n            { id: 2, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 500000, outlayAmount: 400000, awardCount: 3 } as SpendingRecord,\n          ],\n        },\n        expected: [\n          { id: 1, name: 'Agency A', totalCents: 500000 },\n        ],\n      },\n      {\n        name: 'returns zero total when no spending records exist',\n        agencies: [\n          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        ],\n        spendingByAgency: {},\n        expected: [\n          { id: 1, name: 'Agency A', totalCents: 0 },\n        ],\n      },\n      {\n        name: 'uses config currentFy when set',\n        agencies: [\n          { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        ],\n        spendingByAgency: {\n          1: [\n            { id: 1, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 300000, outlayAmount: 200000, awardCount: 2 } as SpendingRecord,\n          ],\n        },\n        currentFy: 2025,\n        expected: [\n          { id: 1, name: 'Agency A', totalCents: 300000 },\n        ],\n      },\n      {\n        name: 'returns empty data list when no agencies exist',\n        agencies: [],\n        spendingByAgency: {},\n        expected: [],\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ agencies, spendingByAgency, currentFy, expected }) => {\n      const agencyRepo = { find: jest.fn().mockResolvedValue(agencies) } as any;\n      const spendingRepo = { find: jest.fn((opts: any) => {\n        const aid = opts.where.agencyId;\n        const fy = opts.where.fiscalYear;\n        const records = spendingByAgency[aid] || [];\n        return Promise.resolve(records.filter(r => r.fiscalYear === fy));\n      }) } as any;\n      const configService = { get: jest.fn((key: string) => {\n        if (key === 'currentFy' && currentFy !== undefined) return currentFy;\n        if (key === 'currentFy') return 2026;\n        return undefined;\n      }) } as any;\n      const svc = new AgenciesService(agencyRepo, spendingRepo, configService);\n      const result = await svc.findAllWithTotals();\n      expect(result.data).toEqual(expected);\n      expect(agencyRepo.find).toHaveBeenCalledWith();\n      for (const agency of agencies) {\n        expect(spendingRepo.find).toHaveBeenCalledWith({\n          where: { agencyId: agency.id, fiscalYear: currentFy ?? 2026 },\n        });\n      }\n    });\n  });\n\n  describe('findSummary', () => {\n    interface TestCase {\n      name: string;\n      agency: Agency;\n      currentRecords: SpendingRecord[];\n      priorRecords: SpendingRecord[];\n      currentFy?: number;\n      expectedCurrent: number;\n      expectedPrior: number;\n      expectedYoy: number;\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'calculates totals and YoY change for two fiscal years',\n        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        currentRecords: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        priorRecords: [\n          { id: 2, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 80000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        expectedCurrent: 100000,\n        expectedPrior: 80000,\n        expectedYoy: 25,\n      },\n      {\n        name: 'returns zero YoY when prior year total is zero',\n        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        currentRecords: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 50000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        priorRecords: [],\n        expectedCurrent: 50000,\n        expectedPrior: 0,\n        expectedYoy: 0,\n      },\n      {\n        name: 'sums multiple records per fiscal year',\n        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        currentRecords: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n          { id: 2, agencyId: 1, fiscalYear: 2026, quarter: 2, awardTypeLabel: 'Direct Payment', awardTypeCodes: 'D', obligatedAmount: 200000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        priorRecords: [\n          { id: 3, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        expectedCurrent: 300000,\n        expectedPrior: 100000,\n        expectedYoy: 200,\n      },\n      {\n        name: 'uses priorFy = currentFy - 1 for prior year lookup',\n        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        currentRecords: [\n          { id: 1, agencyId: 1, fiscalYear: 2027, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        priorRecords: [\n          { id: 2, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 50000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        currentFy: 2027,\n        expectedCurrent: 100000,\n        expectedPrior: 50000,\n        expectedYoy: 100,\n      },\n      {\n        name: 'returns negative YoY when current total decreased from prior',\n        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        currentRecords: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 50000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        priorRecords: [\n          { id: 2, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        expectedCurrent: 50000,\n        expectedPrior: 100000,\n        expectedYoy: -50,\n      },\n      {\n        name: 'returns -100% YoY when current total is zero with nonzero prior',\n        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        currentRecords: [],\n        priorRecords: [\n          { id: 2, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 80000, outlayAmount: 0, awardCount: 0 } as SpendingRecord,\n        ],\n        expectedCurrent: 0,\n        expectedPrior: 80000,\n        expectedYoy: -100,\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ agency, currentRecords, priorRecords, currentFy, expectedCurrent, expectedPrior, expectedYoy }) => {\n      const agencyRepo = { findOne: jest.fn().mockResolvedValue(agency) } as any;\n      const spendingRepo = { find: jest.fn((opts: any) => {\n        const aid = opts.where.agencyId;\n        const fy = opts.where.fiscalYear;\n        if (fy === (currentFy ?? 2026)) {\n          return Promise.resolve(currentRecords);\n        }\n        if (fy === ((currentFy ?? 2026) - 1)) {\n          return Promise.resolve(priorRecords);\n        }\n        return Promise.resolve([]);\n      }) } as any;\n      const configService = { get: jest.fn((key: string) => {\n        if (key === 'currentFy' && currentFy !== undefined) return currentFy;\n        if (key === 'currentFy') return 2026;\n        return undefined;\n      }) } as any;\n      const svc = new AgenciesService(agencyRepo, spendingRepo, configService);\n      const result = await svc.findSummary(1);\n      expect(result).toEqual({\n        agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n        currentFyTotal: expectedCurrent,\n        priorFyTotal: expectedPrior,\n        yoyChange: expectedYoy,\n      });\n    });\n\n    it('returns null when agency not found', async () => {\n      const agencyRepo = { findOne: jest.fn().mockResolvedValue(null) } as any;\n      const spendingRepo = { find: jest.fn().mockResolvedValue([]) } as any;\n      const configService = { get: jest.fn(() => 2026) } as any;\n      const svc = new AgenciesService(agencyRepo, spendingRepo, configService);\n      const result = await svc.findSummary(999);\n      expect(result).toBeNull();\n    });\n  });\n\n  describe('findSpotlight', () => {\n    interface TestCase {\n      name: string;\n      records: SpendingRecord[];\n      expected: { fiscalYear: number; awardTypeLabel: string; obligatedAmount: number; outlayAmount: number; awardCount: number }[];\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'groups records by fiscalYear and awardTypeLabel, aggregating totals',\n        records: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 80000, awardCount: 5 } as SpendingRecord,\n          { id: 2, agencyId: 1, fiscalYear: 2026, quarter: 2, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 200000, outlayAmount: 150000, awardCount: 10 } as SpendingRecord,\n          { id: 3, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Direct Payment', awardTypeCodes: 'D', obligatedAmount: 50000, outlayAmount: 30000, awardCount: 3 } as SpendingRecord,\n          { id: 4, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 90000, outlayAmount: 70000, awardCount: 4 } as SpendingRecord,\n        ],\n        expected: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 300000, outlayAmount: 230000, awardCount: 15 },\n          { id: 3, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Direct Payment', awardTypeCodes: 'D', obligatedAmount: 50000, outlayAmount: 30000, awardCount: 3 },\n          { id: 4, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 90000, outlayAmount: 70000, awardCount: 4 },\n        ],\n      },\n      {\n        name: 'handles empty records list',\n        records: [],\n        expected: [],\n      },\n      {\n        name: 'handles single record',\n        records: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 80000, awardCount: 5 } as SpendingRecord,\n        ],\n        expected: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 100000, outlayAmount: 80000, awardCount: 5 },\n        ],\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ records, expected }) => {\n      const agencyRepo = { findOne: jest.fn().mockResolvedValue({ id: 1 } as Agency) } as any;\n      const spendingRepo = { find: jest.fn().mockResolvedValue(records) } as any;\n      const configService = { get: jest.fn(() => 2026) } as any;\n      const svc = new AgenciesService(agencyRepo, spendingRepo, configService);\n      const result = await svc.findSpotlight(1);\n      expect(result).toEqual(expected);\n    });\n\n    it('returns null when agency not found', async () => {\n      const agencyRepo = { findOne: jest.fn().mockResolvedValue(null) } as any;\n      const spendingRepo = { find: jest.fn().mockResolvedValue([]) } as any;\n      const configService = { get: jest.fn(() => 2026) } as any;\n      const svc = new AgenciesService(agencyRepo, spendingRepo, configService);\n      const result = await svc.findSpotlight(999);\n      expect(result).toBeNull();\n    });\n  });\n});\n"
+    }
+  ]
+}
