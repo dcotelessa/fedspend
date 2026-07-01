@@ -2225,6 +2225,159 @@
         }
       ],
       "notes": "Three bugs prevent the sync from running end-to-end. E11-S01 fixed the API URLs and response parsing. This story fixes the remaining data-layer bugs.\n\nBUG 1: recovery-ratio.ts returns Infinity (SQLite cannot store it)\n  File: recovery-ratio.ts\n  Current: if (femaCents === 0) return Infinity;\n  Error: SqliteError: no such column: Infinity\n  Fix: return 0 when femaCents === 0 (no FEMA funding = no ratio to compute).\n  Also guard: if either input is NaN, return 0.\n  Update recovery-ratio.spec.ts: the test row for femaCents=0 fedCents>0 should expect 0, not Infinity.\n\nBUG 2: upsertBy causes UNIQUE constraint failures\n  File: sync.service.ts\n  Current: findOne(match) -> save(entity). When id is undefined, TypeORM tries INSERT. If the record already exists (race, re-sync, stale data), INSERT fails with UNIQUE constraint.\n  Error: SqliteError: UNIQUE constraint failed: agency.toptierCode\n  Fix: replace upsertBy with TypeORM's repo.upsert() method:\n    await repo.upsert(entity, conflictColumns);\n  For agencies: conflict on ['toptierCode']\n  For spending records: conflict on ['agencyId','fiscalYear','quarter','awardTypeLabel']\n  For geo snapshots: conflict on ['stateCode','fiscalYear','agencyId','scope']\n  For disaster records: conflict on ['defGroup','stateCode']\n  Note: SQLite supports ON CONFLICT DO UPDATE. TypeORM's upsert() uses this internally.\n  If repo.upsert() is unavailable in this TypeORM version, use createQueryBuilder()\n    .insert().into(Entity).values(entity)\n    .orUpdate(['columnName'], ['conflictColumn'])\n    .execute();\n\nBUG 3: transformGeoRows hardcodes fiscalYear\n  File: usa-spending.service.ts\n  Current: transformGeoRows sets fiscalYear: 0 on every snapshot.\n  Fix: pass fiscalYear as a third parameter:\n    transformGeoRows(rows, scope, fiscalYear)\n  Callers: fetchSpendingByAgency knows params.fiscalYear.\n           fetchGeoSnapshots knows params.fiscalYear.\n           fetchDisasterSpending uses FY2024 (hardcoded in the POST body).\n\nCONTEXT (already fixed in E11-S01, do NOT re-fix):\n- API URLs are correct (references/toptier_agencies, search/spending_by_geography)\n- POST method with JSON body is working\n- Response field mapping is correct (shape_code, display_name, aggregated_amount)\n- fetchAllPages uses page_metadata.has_next\n- OpenFEMA uses DisasterDeclarationsSummaries key\n- DEF code is 'L'\n- Error logging added to runWithStatus\n\nDo NOT change: api.service.ts, controllers, entities, or the frontend."
+    },
+    {
+      "id": "E12-S01",
+      "epic": "E12",
+      "title": "Fix N+1 query in AgenciesService.findAllWithTotals",
+      "goal": "Replace the per-agency spending query loop with a single TypeORM query using LEFT JOIN + GROUP BY to compute totalCents for all agencies in one round trip.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E11-S02"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/agencies/agencies.service.ts",
+          "backend/src/agencies/agencies.service.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "findAllWithTotals uses a single query (no per-agency loop)",
+          "check": "cd backend && grep -qE '(leftJoin|innerJoin|createQueryBuilder|GROUP BY)' src/agencies/agencies.service.ts"
+        },
+        {
+          "text": "agencies.service.spec.ts passes",
+          "check": "cd backend && pnpm test --testPathPatterns=agencies.service.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "Current code: agencies.map(a => spendingRepo.find({ where: { agencyId: a.id } })) \u2014 111 queries. Replace with a single LEFT JOIN agency -> spending_record GROUP BY agency.id computing SUM(obligatedAmount). Use TypeORM QueryBuilder: agencyRepo.createQueryBuilder('agency').leftJoin('agency.spendingRecords', 'sr').select(['agency.id', 'agency.name', 'COALESCE(SUM(sr.obligatedAmount), 0) AS totalCents']).groupBy('agency.id').getRawMany(). Filter by current fiscal year in the JOIN condition."
+    },
+    {
+      "id": "E12-S02",
+      "epic": "E12",
+      "title": "Seed spending records via sync using spending_by_geography per-agency",
+      "goal": "Populate the spending_record table with real per-agency data by fetching spending_by_geography for each major agency (using toptier_code filter) and transforming the results into SpendingRecord entities.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E11-S02"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/sync/usa-spending.service.ts",
+          "backend/src/sync/usa-spending.service.spec.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/sync/sync.service.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "fetchSpendingByAgency fetches real data when agency toptier_code is provided",
+          "check": "cd backend && grep -q 'toptier' src/sync/usa-spending.service.ts"
+        },
+        {
+          "text": "syncAgenciesAndSpending loops through agencies to fetch per-agency spending",
+          "check": "cd backend && grep -qE 'for.*agenc|Promise.all.*agenc' src/sync/sync.service.ts"
+        },
+        {
+          "text": "usa-spending.service.spec.ts passes",
+          "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "backend builds",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "The USASpending API has no /search/spending_by_agency/ endpoint (404). BUT /search/spending_by_geography/ accepts an agencies filter in the POST body: { filters: { time_period: [...], agencies: [{ type: 'awarding', tier: 'toptier', toptier_code: '097' }] }, geo_layer: 'state' }. This returns per-state spending for ONE agency.\n\nApproach: for each agency in the agency table, POST to /search/spending_by_geography/ with that agency's toptier_code. Sum all states' aggregated_amount to get the agency total. Create one SpendingRecord per agency per fiscal year with awardTypeLabel='Total'.\n\nUpdate syncAgenciesAndSpending to loop through agencies (limit to top 20 by spending to avoid 111 API calls). For each: fetch spending, sum amounts, create SpendingRecord.\n\nUpdate fetchSpendingByAgency params to accept toptier_code instead of agency string. Remove the empty-agency guard (it was added because the old code passed empty string)."
+    },
+    {
+      "id": "E12-S03",
+      "epic": "E12",
+      "title": "Dark mode smoke test + fix any remaining theme gaps",
+      "goal": "Verify dark mode works end-to-end in the browser. Fix any remaining gaps where light-theme colors bleed through in dark mode (cards, tables, chart backgrounds, dropdown overlays).",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E10-S02"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/styles.scss",
+          "frontend/src/app/theme.service.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "styles.scss has dark-theme overrides for mat-card, mat-table, and page background",
+          "check": "cd frontend && grep -q 'dark-theme.*mat-card\\|dark-theme.*table\\|dark-theme.*body' src/styles.scss"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "all frontend specs pass",
+          "check": "cd frontend && pnpm test"
+        }
+      ],
+      "notes": "Dark mode CSS uses body.dark-theme with !important on background-color. Material M3 theme variables are scoped to .dark-theme. Remaining gaps to check: mat-card content text color, mat-table row hover, chart canvas background (Chart.js transparent \u2014 fine), mat-tab-body content, mat-paginator. Add overrides in styles.scss as needed. The ThemeService already toggles class on body + CDK overlay container via effect()."
+    },
+    {
+      "id": "E12-S04",
+      "epic": "E12",
+      "title": "Push all work to GitHub remote",
+      "goal": "Push the 80+ local commits to the GitHub remote. Verify the push succeeds with no conflicts.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "git push succeeds with no errors",
+          "check": "git log --oneline origin/main..main | wc -l | grep -q '^0$' || git push --dry-run 2>&1 | grep -qi 'success\\|up-to-date\\|Everything'"
+        }
+      ],
+      "notes": "Manual task \u2014 run: git push origin main. If the remote has diverged, rebase first. This is a verification gate, not a code story."
+    },
+    {
+      "id": "E12-S05",
+      "epic": "E12",
+      "title": "Deploy to Render \u2014 verify production build + health check",
+      "goal": "Verify the Render deployment works: backend serves the production build, frontend assets are served correctly, environment.prod.ts points to the right API URL, and /health returns ok.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E12-S04"
+      ],
+      "scope": {
+        "files": [
+          "render.yaml",
+          "frontend/src/environments/environment.prod.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "render.yaml exists with backend + frontend services",
+          "check": "test -f render.yaml && grep -q 'services' render.yaml"
+        },
+        {
+          "text": "environment.prod.ts has empty apiUrl (relative paths)",
+          "check": "cd frontend && grep -qE \"apiUrl.*''\" src/environments/environment.prod.ts"
+        },
+        {
+          "text": "frontend production build succeeds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "E9 stories created the render.yaml and prod config but were never tested on actual Render infra. This story verifies the config is correct. The render.yaml should define: (1) backend service running nest start -- from dist/backend/src/main.js, (2) static site for frontend dist/. environment.prod.ts apiUrl should be '' (empty \u2014 same-origin). DATABASE_URL will be set by Render's Postgres addon."
     }
   ],
   "storyOrder": [
