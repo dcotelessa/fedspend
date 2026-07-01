@@ -66,20 +66,26 @@ export class SyncService {
         }
       }
 
-      const spendingResult = await this.usaService.fetchSpendingByAgency({
-        agency: '',
-        fiscalYear: SYNC_FISCAL_YEAR,
-      });
-      if (spendingResult.status === 'success') {
-        for (const record of spendingResult.rows) {
-          await this.spendingRepo.upsert(record, [
-            'agencyId',
-            'fiscalYear',
-            'quarter',
-            'awardTypeLabel',
-          ]);
+      const agenciesList = agenciesResult.status === 'success'
+        ? agenciesResult.agencies.slice(0, 20)
+        : [];
+
+      await Promise.all(agenciesList.map(async (agency) => {
+        const spendingResult = await this.usaService.fetchSpendingByAgency({
+          toptierCode: agency.toptierCode || '',
+          fiscalYear: SYNC_FISCAL_YEAR,
+        });
+        if (spendingResult.status === 'success') {
+          for (const record of spendingResult.rows) {
+            await this.spendingRepo.upsert({ ...record, agencyId: agency.id }, [
+              'agencyId',
+              'fiscalYear',
+              'quarter',
+              'awardTypeLabel',
+            ]);
+          }
         }
-      }
+      }));
     });
   }
 

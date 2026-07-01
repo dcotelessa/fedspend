@@ -25,7 +25,7 @@ describe('SyncService', () => {
     name: string;
     method: string;
     agencyFetchResult?: { status: string; agencies?: any[] };
-    spendingFetchResult?: { status: string; rows?: any[]; total?: number };
+    spendingFetchResults?: { status: string; rows?: any[]; total?: number }[];
     geoFetchResult?: { status: string; rows?: any[] };
     disasterFetchResult?: { status: string; rows?: any[] };
     femaFetchResult?: StateAggregationResult[];
@@ -40,6 +40,7 @@ describe('SyncService', () => {
       agencyFetchResult: { status: 'success', agencies: [
         { id: 0, name: 'Test Agency', abbreviation: 'TA', toptierCode: 'ABC' }
       ]},
+      spendingFetchResults: [{ status: 'not_found' }],
       expectedUpsertCalls: [{ repoName: 'agency', count: 1 }],
       expectedRepoData: {
         agency: [{ name: 'Test Agency', toptierCode: 'ABC' }],
@@ -51,21 +52,40 @@ describe('SyncService', () => {
       agencyFetchResult: { status: 'success', agencies: [
         { id: 1, name: 'Updated Agency', abbreviation: 'UA', toptierCode: 'ABC' }
       ]},
+      spendingFetchResults: [{ status: 'not_found' }],
       expectedUpsertCalls: [{ repoName: 'agency', count: 1 }],
       expectedRepoData: {
         agency: [{ name: 'Updated Agency', toptierCode: 'ABC' }],
       },
     },
     {
-      name: 'syncAgenciesAndSpending upserts a new spending record',
+      name: 'syncAgenciesAndSpending loops through agencies and upserts spending per agency',
       method: 'syncAgenciesAndSpending',
-      agencyFetchResult: { status: 'not_found' },
-      spendingFetchResult: { status: 'success', rows: [
-        { id: 0, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: '', obligatedAmount: 1000, outlayAmount: 500, awardCount: 1 }
-      ], total: 1},
-      expectedUpsertCalls: [{ repoName: 'spending', count: 1 }],
+      agencyFetchResult: { status: 'success', agencies: [
+        { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
+        { id: 2, name: 'DOE', abbreviation: 'DOE', toptierCode: '097' },
+      ]},
+      spendingFetchResults: [
+        { status: 'success', rows: [
+          { id: 0, agencyId: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', awardTypeCodes: '', obligatedAmount: 1000, outlayAmount: 0, awardCount: 0 }
+        ], total: 1},
+        { status: 'success', rows: [
+          { id: 0, agencyId: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', awardTypeCodes: '', obligatedAmount: 2000, outlayAmount: 0, awardCount: 0 }
+        ], total: 1},
+      ],
+      expectedUpsertCalls: [
+        { repoName: 'agency', count: 2 },
+        { repoName: 'spending', count: 2 },
+      ],
       expectedRepoData: {
-        spending: [{ agencyId: 1, fiscalYear: 2024, obligatedAmount: 1000 }],
+        agency: [
+          { name: 'NASA', toptierCode: '080' },
+          { name: 'DOE', toptierCode: '097' },
+        ],
+        spending: [
+          { agencyId: 1, fiscalYear: 2024, awardTypeLabel: 'Total', obligatedAmount: 1000 },
+          { agencyId: 2, fiscalYear: 2024, awardTypeLabel: 'Total', obligatedAmount: 2000 },
+        ],
       },
     },
     {
@@ -127,7 +147,7 @@ describe('SyncService', () => {
       agencyFetchResult: { status: 'success', agencies: [
         { id: 0, name: 'Test Agency', abbreviation: 'TA', toptierCode: 'ABC' }
       ]},
-      spendingFetchResult: { status: 'not_found' },
+      spendingFetchResults: [{ status: 'not_found' }],
       geoFetchResult: { status: 'success', rows: [
         { id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: 1, scope: 'recipient', obligatedAmount: 5000, awardCount: 3, population: 1000, perCapita: 5 }
       ]},
@@ -194,7 +214,7 @@ describe('SyncService', () => {
   it.each(testTable)('$name', async ({
     method,
     agencyFetchResult,
-    spendingFetchResult,
+    spendingFetchResults,
     geoFetchResult,
     disasterFetchResult,
     femaFetchResult,
@@ -208,7 +228,11 @@ describe('SyncService', () => {
     femaService.fetchDeclarationsByState.mockResolvedValue([]);
 
     if (agencyFetchResult) usaService.fetchAgencies.mockResolvedValue(agencyFetchResult);
-    if (spendingFetchResult) usaService.fetchSpendingByAgency.mockResolvedValue(spendingFetchResult);
+    if (spendingFetchResults) {
+      for (const r of spendingFetchResults) {
+        usaService.fetchSpendingByAgency.mockResolvedValueOnce(r);
+      }
+    }
     if (geoFetchResult) usaService.fetchGeoSnapshots.mockResolvedValue(geoFetchResult);
     if (disasterFetchResult) usaService.fetchDisasterSpending.mockResolvedValue(disasterFetchResult);
     if (femaFetchResult) femaService.fetchDeclarationsByState.mockResolvedValue(femaFetchResult);

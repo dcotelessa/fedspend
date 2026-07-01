@@ -1,6 +1,33 @@
 import { UsaSpendingService } from './usa-spending.service';
 import { RawUsaSpendingAgencyRow, RawUsaSpendingGeoRow } from './usa-spending.types';
 
+const API_BASE = 'https://api.usaspending.gov/api/v2';
+
+const createBodyMatcher = (expectedBody: Record<string, unknown>) => {
+  return (call: unknown[]) => {
+    const url = (call[0] as string);
+    const opts = call[1] as { method: string; body: string };
+    const body = JSON.parse(opts.body);
+    return {
+      match: (expected: Record<string, unknown>) => {
+        const actual = JSON.parse(opts.body);
+        for (const key of Object.keys(expected) as (keyof typeof actual)[]) {
+          if (typeof expected[key] === 'object') {
+            if (JSON.stringify(actual[key]) !== JSON.stringify(expected[key])) {
+              return false;
+            }
+          } else if (actual[key] !== expected[key]) {
+            return false;
+          }
+        }
+        return true;
+      },
+      url,
+      body: actual,
+    };
+  };
+};
+
 describe('UsaSpendingService', () => {
   let fetchMock: jest.SpyInstance;
   let svc: UsaSpendingService;
@@ -160,10 +187,9 @@ describe('UsaSpendingService', () => {
       const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      await svc.fetchGeoSnapshots({
-        agency: '080',
+      await svc.fetchSpendingByAgency({
+        toptierCode: '080',
         fiscalYear: 2024,
-        scope: 'recipient_location',
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
@@ -231,10 +257,9 @@ describe('UsaSpendingService', () => {
         page_metadata: { has_next: false, page: 2 },
       }));
 
-      const result = await svc.fetchGeoSnapshots({
-        agency: '080',
+      const result = await svc.fetchSpendingByAgency({
+        toptierCode: '080',
         fiscalYear: 2024,
-        scope: 'recipient_location',
       });
 
       expect(result).toBeDefined();
@@ -292,18 +317,18 @@ describe('UsaSpendingService', () => {
     it.each(retryTable)('$name', async ({ responses, shouldSucceed, expectedAttempts }) => {
       for (const resp of responses) {
         const body = resp.status === 200
-          ? { results: [], meta: { total: 0, page: 1, pageSize: 10 } }
+          ? { results: [] }
           : { error: 'server error' };
         fetchMock.mockResolvedValueOnce(createResponse(body, resp.status));
       }
 
       if (shouldSucceed) {
         await expect(
-          svc.fetchGeoSnapshots({ agency: '080', fiscalYear: 2024, scope: 'recipient_location' }),
+          svc.fetchSpendingByAgency({ toptierCode: '080', fiscalYear: 2024 }),
         ).resolves.toBeDefined();
       } else {
         await expect(
-          svc.fetchGeoSnapshots({ agency: '080', fiscalYear: 2024, scope: 'recipient_location' }),
+          svc.fetchSpendingByAgency({ toptierCode: '080', fiscalYear: 2024 }),
         ).rejects.toThrow();
       }
 
@@ -323,6 +348,119 @@ describe('UsaSpendingService', () => {
       const body = JSON.parse(call[1].body as string);
       expect(body.filters.def_codes).toContain('L');
     });
+  });
+
+  interface FetchSpendingByAgencyTestCase {
+    name: string;
+    toptierCode: string;
+    fiscalYear: number;
+    responseBody: unknown;
+    expectedStatus: string;
+    expectedUrl?: string;
+    expectedBody?: Record<string, unknown>;
+    expectedRowCount?: number;
+  }
+
+  const spendingByAgencyTable: FetchSpendingByAgencyTestCase[] = [
+    {
+      name: 'includes toptier_code in agencies filter',
+      toptierCode: '097',
+      fiscalYear: 2024,
+      responseBody: { results: [] },
+      expectedStatus: 'not_found',
+      expectedUrl: '/search/spending_by_geography/',
+      expectedBody: {
+        filters: {
+          time_period: [{
+            start_date: '2024-10-01',
+            end_date: '2025-09-30',
+          }],
+          agencies: [{
+            type: 'awarding',
+            tier: 'toptier',
+            toptier_code: '097',
+          }],
+        },
+        geo_layer: 'state',
+      },
+    },
+    {
+      name: 'returns success with rows and total when data exists',
+      toptierCode: '080',
+      fiscalYear: 2025,
+      responseBody: {
+        results: [
+          { shape_code: 'CA', aggregated_amount: 1234.56 },
+          { shape_code: 'NY', aggregated_amount: 789.01 },
+        ],
+      },
+      expectedStatus: 'success',
+      expectedUrl: '/search/spending_by_geography/',
+      expectedRowCount: 2,
+    },
+    {
+      name: 'sets fiscal year time period from input',
+      toptierCode: '049',
+      fiscalYear: 2023,
+      responseBody: { results: [] },
+      expectedStatus: 'not_found',
+      expectedBody: {
+        filters: {
+          time_period: [{
+            start_date: '2023-10-01',
+            end_date: '2024-09-30',
+          }],
+          agencies: [{
+            type: 'awarding',
+            tier: 'toptier',
+            toptier_code: '049',
+          }],
+        },
+        geo_layer: 'state',
+      },
+    },
+    {
+      name: 'uses recipient_location as scope',
+      toptierCode: '019',
+      fiscalYear: 2024,
+      responseBody: { results: [] },
+      expectedStatus: 'not_found',
+      expectedUrl: '/search/spending_by_geography/',
+    },
+  ];
+
+  it.each(spendingByAgencyTable)('$name', async ({ toptierCode, fiscalYear, responseBody, expectedStatus, expectedUrl, expectedBody, expectedRowCount }) => {
+    fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+
+    const result = await svc.fetchSpendingByAgency({ toptierCode, fiscalYear });
+
+    expect(result).toBeDefined();
+    const call = fetchMock.mock.calls[0];
+    const body = JSON.parse(call[1].body as string);
+
+    if (expectedUrl) {
+      expect((call[0] as string)).toContain(expectedUrl);
+    }
+
+    if (expectedBody) {
+      const expectedKeys = Object.keys(expectedBody);
+      for (const key of expectedKeys) {
+        if (typeof expectedBody[key] === 'object') {
+          expect(body[key]).toEqual(expectedBody[key]);
+        } else {
+          expect(body[key]).toBe(expectedBody[key]);
+        }
+      }
+    }
+
+    if (expectedStatus === 'success') {
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.rows.length).toBe(expectedRowCount);
+      }
+    } else {
+      expect(result.status).toBe('not_found');
+    }
   });
 
   describe('def codes endpoint', () => {

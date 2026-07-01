@@ -137,15 +137,18 @@ export class UsaSpendingService {
   }
 
   async fetchSpendingByAgency(
-    params: { agency: string; fiscalYear: number },
+    params: { toptierCode: string; fiscalYear: number },
   ): Promise<FetchSpendingResult> {
-    if (!params.agency) return { status: 'not_found' };
-
     const body = {
       filters: {
         time_period: [{
           start_date: `${params.fiscalYear}-10-01`,
           end_date: `${params.fiscalYear + 1}-09-30`,
+        }],
+        agencies: [{
+          type: 'awarding',
+          tier: 'toptier',
+          toptier_code: params.toptierCode,
         }],
       },
       geo_layer: 'state',
@@ -162,10 +165,10 @@ export class UsaSpendingService {
       (r) => ({
         ...r,
         id: undefined as any,
-        agencyId: parseInt(params.agency, 10) || 0,
+        agencyId: 0,
         fiscalYear: params.fiscalYear,
         quarter: 1,
-        awardTypeLabel: '',
+        awardTypeLabel: 'Total',
         awardTypeCodes: '',
         outlayAmount: 0,
       }) as SpendingRecord,
