@@ -1,0 +1,137 @@
+{
+  "story": "E13-S01",
+  "epic": "E13",
+  "title": "Dashboard chart: Top-N + Other consolidation",
+  "goal": "Replace the flat 111-agency bar chart with a Top-5 + 'Other' consolidation. The 5 agencies with highest spending get individual bars; all remaining agencies are summed into a single 'Other' bar. Click on a top-5 bar navigates to that agency's spotlight page.",
+  "notes": "The dashboard chart currently plots all 111 agencies — 105 are invisible (totalCents=0). Replace with a Top-N + Other consolidation.\n\nALGORITHM:\n1. Sort agencies by totalCents descending\n2. Take top 5 (TOP_N = 5) as individual bars\n3. Sum remaining agencies' totalCents into one 'Other' bar\n4. Set chartLabels = [name1, name2, name3, name4, name5, 'Other']\n5. Set chartDatasets = [{ label: 'Obligated (cents)', data: [c1, c2, c3, c4, c5, sumRest] }]\n6. Store top agency ids in a separate array (chartAgencyIds) for click resolution\n7. If fewer than TOP_N agencies have data, show only those + Other\n\nCLICK HANDLER:\n- onChartClick: get clicked index. If index < chartAgencyIds.length, navigate to /agencies/chartAgencyIds[index]. If 'Other' bar clicked, do nothing.\n\nSPEC TEST TABLE:\n- 6 agencies with data, TOP_N=3: 3 bars + 'Other' with sum of remaining 3\n- All agencies $0: single 'Other' bar at $0, chartAgencyIds is empty\n- 2 agencies with data, TOP_N=5: 2 bars + 'Other'\n- Click on top bar: navigate to that agency id\n- Click on 'Other' bar: no navigation\n\nDo NOT change dashboard.component.html or dashboard.component.scss. The chart template already binds [data] and (chartClick) — just wire the component logic. Keep CurrencyFormatPipe, cards, nav cards untouched.",
+  "dependencies": "E12-S01",
+  "acceptanceCriteria": [
+    {
+      "text": "chartLabels includes 'Other' as last element",
+      "check": "cd frontend && grep -q 'Other' src/app/dashboard/dashboard.component.ts"
+    },
+    {
+      "text": "component has a buildChart method that groups agencies",
+      "check": "cd frontend && grep -qE '(buildChart|topN|top.*agenc|slice|Other)' src/app/dashboard/dashboard.component.ts"
+    },
+    {
+      "text": "dashboard.component.spec.ts passes (table-driven: top-N grouping, all-zero, fewer-than-N, click navigation)",
+      "check": "cd frontend && pnpm test --testPathPatterns=dashboard.component.spec.ts --passWithNoTests"
+    },
+    {
+      "text": "frontend builds",
+      "check": "cd frontend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/dashboard/dashboard.component.ts",
+      "mode": "full",
+      "contents": "import { Component, OnInit } from '@angular/core';\nimport { Router, RouterLink } from '@angular/router';\nimport { BaseChartDirective, provideCharts, withDefaultRegisterables } from 'ng2-charts';\nimport { MatIconModule } from '@angular/material/icon';\nimport { CurrencyFormatPipe } from '../currency-format.pipe';\nimport { ApiService } from '../api.service';\n\nexport interface ChartDataset {\n  label: string;\n  data: number[];\n}\n\n@Component({\n  selector: 'app-dashboard',\n  standalone: true,\n  imports: [BaseChartDirective, CurrencyFormatPipe, RouterLink, MatIconModule],\n  providers: [provideCharts(withDefaultRegisterables())],\n  templateUrl: './dashboard.component.html',\n  styleUrl: './dashboard.component.scss',\n})\nexport class DashboardComponent implements OnInit {\n  totalObligated = 0;\n  largestAgency: { name: string; totalCents: number } | null = null;\n  coverageGapCount = 0;\n  lastSync: string | null = null;\n\n  chartLabels: string[] = [];\n  chartDatasets: ChartDataset[] = [];\n\n  private agencies: Array<{ id: number; name: string; totalCents: number }> = [];\n\n  constructor(\n    private readonly api: ApiService,\n    private readonly router: Router,\n  ) {}\n\n  ngOnInit(): void {\n    this.api.getAgencies().subscribe(\n      agencies => {\n        this.agencies = agencies;\n        this.totalObligated = agencies.reduce((sum, a) => sum + a.totalCents, 0);\n        const largest = agencies.reduce<{ name: string; totalCents: number } | null>(\n          (best, a) => (!best || a.totalCents > best.totalCents ? a : best),\n          null,\n        );\n        this.largestAgency = largest ? { name: largest.name, totalCents: largest.totalCents } : null;\n        this.chartLabels = agencies.map(a => a.name);\n        this.chartDatasets = [{ label: 'Obligated (cents)', data: agencies.map(a => a.totalCents) }];\n      },\n    );\n\n    this.api.getDisasterRecoveryRatios({}).subscribe(\n      ratios => {\n        const gapStates = new Set(ratios.filter(r => r.recoveryRatio < 0.5).map(r => r.stateCode));\n        this.coverageGapCount = gapStates.size;\n      },\n    );\n\n    this.api.getLastSync().subscribe(\n      ts => { this.lastSync = ts; },\n    );\n  }\n\n  onChartClick(event: any): void {\n    const clicked = event.active[0];\n    if (!clicked) return;\n    const agency = this.agencies[clicked.datasetIndex];\n    if (!agency) return;\n    this.router.navigate(['/agencies', agency.id]);\n  }\n\n  onNavClick(route: string, event: Event): void {\n    event.preventDefault();\n    this.router.navigate([route]);\n  }\n}\n"
+    },
+    {
+      "path": "frontend/src/app/dashboard/dashboard.component.spec.ts",
+      "mode": "full",
+      "contents": "import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';\nimport { Router, RouterLink, ActivatedRoute } from '@angular/router';\nimport { MatIconModule } from '@angular/material/icon';\nimport { of, Subject } from 'rxjs';\nimport { provideCharts, withDefaultRegisterables } from 'ng2-charts';\n\nimport { DashboardComponent } from './dashboard.component';\nimport { ApiService } from '../api.service';\nimport { CurrencyFormatPipe } from '../currency-format.pipe';\n\ndescribe('DashboardComponent', () => {\n  let routerSpy: {\n    navigate: jest.Mock;\n    createUrlTree: jest.Mock;\n    serializeUrl: jest.Mock;\n    navigateEnd: jest.Mock;\n    events: any;\n  };\n  let apiSpy: {\n    getAgencies: jest.Mock;\n    getDisasterRecoveryRatios: jest.Mock;\n    getLastSync: jest.Mock;\n  };\n\n  beforeEach(() => {\n    const events$ = new (require('rxjs')).Subject<any>();\n    routerSpy = {\n      navigate: jest.fn(),\n      createUrlTree: jest.fn((links: string[]) => links.length > 0 ? links[0] : '/'),\n      serializeUrl: jest.fn((url: string) => ({ toString: () => url })),\n      navigateEnd: jest.fn(),\n      events: events$,\n    };\n    apiSpy = {\n      getAgencies: jest.fn().mockReturnValue(of([])),\n      getDisasterRecoveryRatios: jest.fn().mockReturnValue(of([])),\n      getLastSync: jest.fn().mockReturnValue(of(null)),\n    };\n\n    TestBed.configureTestingModule({\n      imports: [DashboardComponent, CurrencyFormatPipe, RouterLink, MatIconModule],\n      providers: [\n        { provide: Router, useValue: routerSpy },\n        { provide: ApiService, useValue: apiSpy },\n        { provide: ActivatedRoute, useValue: { snapshot: { data: {} } } },\n        provideCharts(withDefaultRegisterables()),\n      ],\n    });\n  });\n\n  interface CardTestCase {\n    name: string;\n    agencies: Array<{ id: number; name: string; totalCents: number }>;\n    ratios: Array<{ stateCode: string; recoveryRatio: number }>;\n    expectedTotal: number;\n    expectedLargest: { name: string; totalCents: number } | null;\n    expectedGapCount: number;\n  }\n\n  const testTable: CardTestCase[] = [\n    {\n      name: 'computes total obligated across all agencies',\n      agencies: [\n        { id: 1, name: 'Agency A', totalCents: 100000 },\n        { id: 2, name: 'Agency B', totalCents: 200000 },\n        { id: 3, name: 'Agency C', totalCents: 300000 },\n      ],\n      ratios: [],\n      expectedTotal: 600000,\n      expectedLargest: { name: 'Agency C', totalCents: 300000 },\n      expectedGapCount: 0,\n    },\n    {\n      name: 'identifies largest agency by highest totalCents',\n      agencies: [\n        { id: 1, name: 'Small', totalCents: 50000 },\n        { id: 2, name: 'Medium', totalCents: 150000 },\n        { id: 3, name: 'Large', totalCents: 500000 },\n      ],\n      ratios: [],\n      expectedTotal: 700000,\n      expectedLargest: { name: 'Large', totalCents: 500000 },\n      expectedGapCount: 0,\n    },\n    {\n      name: 'counts distinct states with coverage gap ratio below 0.5',\n      agencies: [],\n      ratios: [\n        { stateCode: '06', recoveryRatio: 0.3 },\n        { stateCode: '12', recoveryRatio: 0.8 },\n        { stateCode: '48', recoveryRatio: 0.2 },\n        { stateCode: '06', recoveryRatio: 0.4 },\n        { stateCode: '36', recoveryRatio: 1.5 },\n      ],\n      expectedTotal: 0,\n      expectedLargest: null,\n      expectedGapCount: 2,\n    },\n    {\n      name: 'handles empty agencies and ratios gracefully',\n      agencies: [],\n      ratios: [],\n      expectedTotal: 0,\n      expectedLargest: null,\n      expectedGapCount: 0,\n    },\n  ];\n\n  it.each(testTable)('$name', ({ agencies, ratios, expectedTotal, expectedLargest, expectedGapCount }) => {\n    apiSpy.getAgencies.mockReturnValue(of(agencies));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    expect(component.totalObligated).toBe(expectedTotal);\n    expect(component.largestAgency).toEqual(expectedLargest);\n    expect(component.coverageGapCount).toBe(expectedGapCount);\n  });\n\n  it('navigates to agency detail on chart bar click', () => {\n    apiSpy.getAgencies.mockReturnValue(of([\n      { id: 1, name: 'Agency A', totalCents: 100000 },\n      { id: 2, name: 'Agency B', totalCents: 200000 },\n    ]));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    component.onChartClick({ active: [{ datasetIndex: 1, index: 0 }] });\n    expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies', 2]);\n  });\n\n  it('does nothing on chart click with no active bar', () => {\n    apiSpy.getAgencies.mockReturnValue(of([]));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    component.onChartClick({ active: [] });\n    expect(routerSpy.navigate).not.toHaveBeenCalled();\n  });\n\n  it('fetches agencies, ratios, and last sync on init', () => {\n    apiSpy.getAgencies.mockReturnValue(of([]));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));\n    apiSpy.getLastSync.mockReturnValue(of('2024-01-15T10:00:00Z'));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    expect(apiSpy.getAgencies).toHaveBeenCalled();\n    expect(apiSpy.getDisasterRecoveryRatios).toHaveBeenCalled();\n    expect(apiSpy.getLastSync).toHaveBeenCalled();\n    expect(component.lastSync).toBe('2024-01-15T10:00:00Z');\n  });\n\n  it('renders 3 nav cards with correct routerLink targets', () => {\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    const cards = fixture.nativeElement.querySelectorAll('.card-body');\n    expect(cards.length).toBe(3);\n\n    const links = fixture.nativeElement.querySelectorAll('a[href]');\n    expect(links.length).toBe(3);\n\n    const routes = Array.from(links as NodeListOf<Element>).map(l => l.getAttribute('href'));\n    expect(routes).toContain('/geography');\n    expect(routes).toContain('/agencies');\n    expect(routes).toContain('/disaster');\n  });\n\n  it('navigates to /geography when geography card is clicked', () => {\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    const link = fixture.nativeElement.querySelector('.nav-card:nth-child(1)');\n    link.dispatchEvent(new Event('click', { bubbles: true }));\n    expect(routerSpy.navigate).toHaveBeenCalledWith(['/geography']);\n  });\n\n  it('navigates to /agencies when agencies card is clicked', () => {\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    const link = fixture.nativeElement.querySelector('.nav-card:nth-child(2)');\n    link.dispatchEvent(new Event('click', { bubbles: true }));\n    expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies']);\n  });\n\n  it('navigates to /disaster when disaster card is clicked', () => {\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    const link = fixture.nativeElement.querySelector('.nav-card:nth-child(3)');\n    link.dispatchEvent(new Event('click', { bubbles: true }));\n    expect(routerSpy.navigate).toHaveBeenCalledWith(['/disaster']);\n  });\n\n  it('each nav card has title, description, and icon', () => {\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    fixture.detectChanges();\n\n    const cards = fixture.nativeElement.querySelectorAll('.card-body');\n    expect(cards.length).toBe(3);\n\n    for (const card of cards) {\n      expect(card.querySelector('h2')).toBeTruthy();\n      expect(card.querySelector('p')).toBeTruthy();\n      expect(card.parentElement.querySelector('mat-icon')).toBeTruthy();\n    }\n  });\n\n  it('page load completes in under 2 seconds', fakeAsync(() => {\n    apiSpy.getAgencies.mockReturnValue(of([]));\n    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));\n    apiSpy.getLastSync.mockReturnValue(of(null));\n\n    const fixture = TestBed.createComponent(DashboardComponent);\n    const component = fixture.componentInstance;\n    const start = Date.now();\n    fixture.detectChanges();\n    tick(100);\n    const elapsed = Date.now() - start;\n\n    expect(elapsed).toBeLessThan(2000);\n  }));\n});\n"
+    }
+  ]
+}

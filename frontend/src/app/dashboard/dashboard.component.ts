@@ -26,8 +26,11 @@ export class DashboardComponent implements OnInit {
 
   chartLabels: string[] = [];
   chartDatasets: ChartDataset[] = [];
+  chartAgencyIds: number[] = [];
 
   private agencies: Array<{ id: number; name: string; totalCents: number }> = [];
+
+  private static readonly TOP_N = 5;
 
   constructor(
     private readonly api: ApiService,
@@ -44,8 +47,7 @@ export class DashboardComponent implements OnInit {
           null,
         );
         this.largestAgency = largest ? { name: largest.name, totalCents: largest.totalCents } : null;
-        this.chartLabels = agencies.map(a => a.name);
-        this.chartDatasets = [{ label: 'Obligated (cents)', data: agencies.map(a => a.totalCents) }];
+        this.buildChart(this.agencies);
       },
     );
 
@@ -61,12 +63,27 @@ export class DashboardComponent implements OnInit {
     );
   }
 
+  buildChart(agencies: Array<{ id: number; name: string; totalCents: number }>): void {
+    const withData = agencies.filter(a => a.totalCents > 0);
+    const sorted = [...withData].sort((a, b) => b.totalCents - a.totalCents);
+    const top = sorted.slice(0, DashboardComponent.TOP_N);
+    const otherTotal = sorted.length > DashboardComponent.TOP_N
+      ? sorted.slice(DashboardComponent.TOP_N).reduce((sum, a) => sum + a.totalCents, 0)
+      : sorted.reduce((sum, a) => sum + a.totalCents, 0);
+    const labels = top.map(a => a.name).concat(['Other']);
+    const data = top.map(a => a.totalCents).concat([otherTotal]);
+    this.chartLabels = labels;
+    this.chartDatasets = [{ label: 'Obligated (cents)', data }];
+    this.chartAgencyIds = top.map(a => a.id);
+  }
+
   onChartClick(event: any): void {
     const clicked = event.active[0];
     if (!clicked) return;
-    const agency = this.agencies[clicked.datasetIndex];
-    if (!agency) return;
-    this.router.navigate(['/agencies', agency.id]);
+    const index = clicked.index;
+    if (index < this.chartAgencyIds.length) {
+      this.router.navigate(['/agencies', this.chartAgencyIds[index]]);
+    }
   }
 
   onNavClick(route: string, event: Event): void {

@@ -119,10 +119,14 @@ describe('DashboardComponent', () => {
     expect(component.coverageGapCount).toBe(expectedGapCount);
   });
 
-  it('navigates to agency detail on chart bar click', () => {
+  it('groups 6 agencies into top-5 bars plus Other bar', () => {
     apiSpy.getAgencies.mockReturnValue(of([
-      { id: 1, name: 'Agency A', totalCents: 100000 },
-      { id: 2, name: 'Agency B', totalCents: 200000 },
+      { id: 1, name: 'Agency A', totalCents: 500000 },
+      { id: 2, name: 'Agency B', totalCents: 300000 },
+      { id: 3, name: 'Agency C', totalCents: 200000 },
+      { id: 4, name: 'Agency D', totalCents: 100000 },
+      { id: 5, name: 'Agency E', totalCents: 50000 },
+      { id: 6, name: 'Agency F', totalCents: 10000 },
     ]));
     apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
 
@@ -130,8 +134,84 @@ describe('DashboardComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
 
-    component.onChartClick({ active: [{ datasetIndex: 1, index: 0 }] });
-    expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies', 2]);
+    expect(component.chartLabels).toEqual([
+      'Agency A', 'Agency B', 'Agency C', 'Agency D', 'Agency E', 'Other',
+    ]);
+    expect(component.chartDatasets[0].data).toEqual([500000, 300000, 200000, 100000, 50000, 10000]);
+    expect(component.chartAgencyIds).toEqual([1, 2, 3, 4, 5]);
+    expect(component.chartLabels.length).toBe(6);
+  });
+
+  it('shows single Other bar when all agencies have zero spending', () => {
+    apiSpy.getAgencies.mockReturnValue(of([
+      { id: 1, name: 'Agency A', totalCents: 0 },
+      { id: 2, name: 'Agency B', totalCents: 0 },
+      { id: 3, name: 'Agency C', totalCents: 0 },
+    ]));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.chartLabels).toEqual(['Other']);
+    expect(component.chartDatasets[0].data).toEqual([0]);
+    expect(component.chartAgencyIds).toEqual([]);
+    expect(component.chartLabels.length).toBe(1);
+  });
+
+  it('shows fewer bars than TOP_N plus Other when fewer agencies have data', () => {
+    apiSpy.getAgencies.mockReturnValue(of([
+      { id: 1, name: 'Agency A', totalCents: 500000 },
+      { id: 2, name: 'Agency B', totalCents: 300000 },
+    ]));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.chartLabels).toEqual(['Agency A', 'Agency B', 'Other']);
+    expect(component.chartDatasets[0].data).toEqual([500000, 300000, 800000]);
+    expect(component.chartAgencyIds).toEqual([1, 2]);
+    expect(component.chartLabels.length).toBe(3);
+  });
+
+  it('navigates to top bar agency on chart click', () => {
+    apiSpy.getAgencies.mockReturnValue(of([
+      { id: 1, name: 'Agency A', totalCents: 500000 },
+      { id: 2, name: 'Agency B', totalCents: 300000 },
+      { id: 3, name: 'Agency C', totalCents: 200000 },
+      { id: 4, name: 'Agency D', totalCents: 100000 },
+      { id: 5, name: 'Agency E', totalCents: 50000 },
+      { id: 6, name: 'Agency F', totalCents: 10000 },
+    ]));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    component.onChartClick({ active: [{ datasetIndex: 0, index: 0 }] });
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies', 1]);
+
+    component.onChartClick({ active: [{ datasetIndex: 0, index: 3 }] });
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies', 4]);
+  });
+
+  it('does not navigate when Other bar is clicked', () => {
+    apiSpy.getAgencies.mockReturnValue(of([
+      { id: 1, name: 'Agency A', totalCents: 500000 },
+      { id: 2, name: 'Agency B', totalCents: 300000 },
+    ]));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    component.onChartClick({ active: [{ datasetIndex: 0, index: 2 }] });
+    expect(routerSpy.navigate).not.toHaveBeenCalled();
   });
 
   it('does nothing on chart click with no active bar', () => {
