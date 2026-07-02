@@ -74,6 +74,6 @@ export class AgenciesService {
   }
 
   private currentFiscalYear(): number {
-    return this.configService.get<number>('currentFy') ?? 2026;
+    return this.configService.get<number>('currentFy') ?? 2024;
   }
 }
