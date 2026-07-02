@@ -1,6 +1,4 @@
-@use '@angular/material' as mat;
-
-@include mat.core();
+@use '@angular/material/prebuilt-themes/indigo-pink.css';
 
 $light-bg: #fafafa;
 $light-text: #1a1a1a;
@@ -17,18 +15,6 @@ $dark-text: #e0e0e0;
 $dark-border: #333;
 $dark-toolbar: #0d47a1;
 
-$light-theme: mat.define-theme();
-$dark-theme: mat.define-theme((color: (theme-type: dark)));
-
-html {
-  @include mat.all-component-themes($light-theme);
-}
-
-.dark-theme {
-  @include mat.all-component-colors($dark-theme);
-  --card-bg: #{$dark-surface};
-}
-
 body {
   background-color: $light-bg;
   color: $light-text;
@@ -41,10 +27,8 @@ body.dark-theme {
   color: $dark-text !important;
 }
 
-.dark-theme mat-toolbar {
-  --mat-toolbar-container-background-color: #{$dark-toolbar};
-  --mat-toolbar-container-text-color: #{$dark-text};
-  border-bottom: 1px solid $dark-border;
+.dark-theme .mat-toolbar-background {
+  background-color: $dark-toolbar !important;
 }
 
 .dark-theme footer {
@@ -52,12 +36,9 @@ body.dark-theme {
   color: $muted-text;
 }
 
-.dark-theme mat-card {
+.dark-theme mat-card,
+.dark-theme .mat-mdc-card {
   background-color: $dark-surface !important;
-  color: $dark-text !important;
-}
-
-.dark-theme mat-card-content {
   color: $dark-text !important;
 }
 
@@ -82,25 +63,19 @@ body.dark-theme {
   color: $dark-text !important;
 }
 
-.dark-theme mat-tab-body h1, .dark-theme mat-tab-body h2, .dark-theme mat-tab-body h3 {
-  color: $dark-text !important;
-}
-
-.dark-theme mat-tab-body .page-header {
-  color: $dark-text !important;
-}
-
 .dark-theme mat-paginator {
   color: $dark-text !important;
   background-color: $dark-surface !important;
 }
 
-.dark-theme .mat-mdc-select-panel {
+.dark-theme .mat-mdc-select-panel,
+.dark-theme .mat-select-panel {
   background-color: $dark-surface !important;
   color: $dark-text !important;
 }
 
-.dark-theme mat-option {
+.dark-theme mat-option,
+.dark-theme .mat-mdc-option {
   color: $dark-text !important;
 }
 
@@ -108,19 +83,29 @@ body.dark-theme {
   border-color: $dark-border !important;
 }
 
-mat-toolbar {
-  --mat-toolbar-container-background-color: #{$light-toolbar};
-  --mat-toolbar-container-text-color: #{$light-toolbar-text};
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+mat-toolbar,
+.mat-toolbar,
+.mat-toolbar-multiple-rows,
+.mat-toolbar-single-row {
+  background-color: $light-toolbar;
+  color: $light-toolbar-text;
+}
+
+.dark-theme mat-toolbar,
+.dark-theme .mat-toolbar,
+.dark-theme .mat-toolbar-multiple-rows,
+.dark-theme .mat-toolbar-single-row {
+  background-color: $dark-toolbar !important;
+  color: $dark-text !important;
+  border-bottom: 1px solid $dark-border;
 }
 
 .muted { color: $muted-text; font-style: italic; }
 
-mat-toolbar a {
+mat-toolbar a,
+.mat-toolbar a {
   text-decoration: none;
-  color: $light-toolbar-text !important;
+  color: $light-toolbar-text;
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
   font-size: 0.95rem;
