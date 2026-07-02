@@ -2378,6 +2378,42 @@
         }
       ],
       "notes": "E9 stories created the render.yaml and prod config but were never tested on actual Render infra. This story verifies the config is correct. The render.yaml should define: (1) backend service running nest start -- from dist/backend/src/main.js, (2) static site for frontend dist/. environment.prod.ts apiUrl should be '' (empty \u2014 same-origin). DATABASE_URL will be set by Render's Postgres addon."
+    },
+    {
+      "id": "E13-S01",
+      "epic": "E13",
+      "title": "Dashboard chart: Top-N + Other consolidation",
+      "goal": "Replace the flat 111-agency bar chart with a Top-5 + 'Other' consolidation. The 5 agencies with highest spending get individual bars; all remaining agencies are summed into a single 'Other' bar. Click on a top-5 bar navigates to that agency's spotlight page.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E12-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "frontend/src/app/dashboard/dashboard.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "chartLabels includes 'Other' as last element",
+          "check": "cd frontend && grep -q 'Other' src/app/dashboard/dashboard.component.ts"
+        },
+        {
+          "text": "component has a buildChart method that groups agencies",
+          "check": "cd frontend && grep -qE '(buildChart|topN|top.*agenc|slice|Other)' src/app/dashboard/dashboard.component.ts"
+        },
+        {
+          "text": "dashboard.component.spec.ts passes (table-driven: top-N grouping, all-zero, fewer-than-N, click navigation)",
+          "check": "cd frontend && pnpm test --testPathPatterns=dashboard.component.spec.ts --passWithNoTests"
+        },
+        {
+          "text": "frontend builds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "The dashboard chart currently plots all 111 agencies \u2014 105 are invisible (totalCents=0). Replace with a Top-N + Other consolidation.\n\nALGORITHM:\n1. Sort agencies by totalCents descending\n2. Take top 5 (TOP_N = 5) as individual bars\n3. Sum remaining agencies' totalCents into one 'Other' bar\n4. Set chartLabels = [name1, name2, name3, name4, name5, 'Other']\n5. Set chartDatasets = [{ label: 'Obligated (cents)', data: [c1, c2, c3, c4, c5, sumRest] }]\n6. Store top agency ids in a separate array (chartAgencyIds) for click resolution\n7. If fewer than TOP_N agencies have data, show only those + Other\n\nCLICK HANDLER:\n- onChartClick: get clicked index. If index < chartAgencyIds.length, navigate to /agencies/chartAgencyIds[index]. If 'Other' bar clicked, do nothing.\n\nSPEC TEST TABLE:\n- 6 agencies with data, TOP_N=3: 3 bars + 'Other' with sum of remaining 3\n- All agencies $0: single 'Other' bar at $0, chartAgencyIds is empty\n- 2 agencies with data, TOP_N=5: 2 bars + 'Other'\n- Click on top bar: navigate to that agency id\n- Click on 'Other' bar: no navigation\n\nDo NOT change dashboard.component.html or dashboard.component.scss. The chart template already binds [data] and (chartClick) \u2014 just wire the component logic. Keep CurrencyFormatPipe, cards, nav cards untouched."
     }
   ],
   "storyOrder": [
