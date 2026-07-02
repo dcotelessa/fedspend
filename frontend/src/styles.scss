@@ -42,8 +42,8 @@ body.dark-theme {
 }
 
 .dark-theme mat-toolbar {
-  background-color: $dark-toolbar !important;
-  color: $dark-text !important;
+  --mat-toolbar-container-background-color: #{$dark-toolbar};
+  --mat-toolbar-container-text-color: #{$dark-text};
   border-bottom: 1px solid $dark-border;
 }
 
@@ -109,11 +109,11 @@ body.dark-theme {
 }
 
 mat-toolbar {
+  --mat-toolbar-container-background-color: #{$light-toolbar};
+  --mat-toolbar-container-text-color: #{$light-toolbar-text};
   display: flex;
   align-items: center;
   gap: 1rem;
-  background-color: $light-toolbar !important;
-  color: $light-toolbar-text !important;
 }
 
 .muted { color: $muted-text; font-style: italic; }
