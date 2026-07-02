@@ -304,7 +304,86 @@ export class AgencyService {
 }
 ```
 
-## Data Conventions (from plan.json resolutions — do not contradict)
+## Skill 4: Angular Material v20 M3 Theming (`m3_theming`)
+Angular Material v20 uses the M3 (Material Design 3) theming system. Getting
+this wrong causes invisible components, broken dark mode, and Firefox
+rendering failures. These rules are learned from real debugging sessions.
+
+- **Use `mat.theme()` with `theme-type: color-scheme`:**
+  ```scss
+  html {
+    @include mat.theme((
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$blue-palette,
+        theme-type: color-scheme,
+      ),
+      typography: Roboto,
+      density: 0,
+    ));
+    color-scheme: light;
+  }
+  .dark-theme { color-scheme: dark; }
+  ```
+  This emits `light-dark()` CSS design tokens. Dark mode is a SINGLE
+  `color-scheme` property flip — every component re-resolves automatically.
+
+- **NEVER use `!important` for dark-mode overrides.** The `color-scheme`
+  approach replaces ALL manual color overrides. If you find yourself writing
+  `.dark-theme .mat-xxx { background: #xxx !important }`, stop — the
+  `color-scheme: dark` rule handles it natively.
+
+- **NEVER use prebuilt themes** (`@use '@angular/material/prebuilt-themes/...'`)
+  in an M3 project. They are M2 themes that conflict with M3 tokens and
+  don't support `color-scheme` switching.
+
+- **Use Material system tokens, not hardcoded colors:**
+  ```
+  var(--mat-sys-primary)           not #1976d2
+  var(--mat-sys-background)        not #fafafa
+  var(--mat-sys-surface-container) not #f5f5f5
+  var(--mat-sys-on-surface)        not #1a1a1a
+  var(--mat-sys-level1)            not box-shadow: 0 2px 8px rgba(...)
+  ```
+
+- **Toolbar must use `color="primary"`:**
+  ```html
+  <mat-toolbar color="primary" class="app-toolbar">
+  ```
+  This tells Material to apply the primary palette automatically.
+
+- **Google Fonts are required.** Material v20 components expect Roboto for
+  text and Material Icons font for icons. Both must be loaded in `index.html`:
+  ```html
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  ```
+  Without these, components render with incorrect sizing and icons are blank.
+
+- **Angular 20 naming convention:** Root component is `App` in `app.ts`,
+  template is `app.html`, spec is `app.spec.ts` — NOT `AppComponent` in
+  `app.component.ts`. Feature components CAN use `.component.ts` but the
+  root component follows the Angular 20 CLI default.
+
+- **Dark mode toggle:** The ThemeService toggles `dark-theme` class on
+  `document.body` AND on the CDK overlay container (for dropdown overlays).
+  The service uses Angular `effect()` to react to signal changes:
+  ```typescript
+  constructor() {
+    const apply = (isDark: boolean) => {
+      document.body.classList.toggle('dark-theme', isDark);
+      this.overlayContainer.getContainerElement()
+        .classList.toggle('dark-theme', isDark);
+    };
+    apply(this.isDark$());
+    effect(() => apply(this.isDark$()));
+  }
+  ```
+
+- **Firefox compatibility:** Firefox follows CSS spec strictly — custom
+  elements without explicit `display: block` and `width` collapse to 0x0px.
+  Chrome auto-applies fallbacks. Ensure `box-sizing: border-box` globally
+  and explicit dimensions on Material containers.
 - All MONETARY values are integers (cents), never floats. This includes
   perCapita (stored as cents-per-person).
 - recoveryRatio is a dimensionless ratio (fedSpending/fema) — store as
