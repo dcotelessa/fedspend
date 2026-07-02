@@ -34,7 +34,7 @@
       "tierMaxAttempts": 2,
       "elapsedSec": 0,
       "timestamp": "2026-06-22T00:51:44Z",
-      "note": "1 real tool call (read with filePath, rejected), then reverted to run_shell_command hallucination + /testbed path. T3 attempt 2 skipped \u2014 same model, same failure expected."
+      "note": "1 real tool call (read with filePath, rejected), then reverted to run_shell_command hallucination + /testbed path. T3 attempt 2 skipped — same model, same failure expected."
     },
     {
       "story": "E1-S01",
@@ -46,7 +46,7 @@
       "tierMaxAttempts": 2,
       "elapsedSec": 0,
       "timestamp": "2026-06-22T00:51:44Z",
-      "note": "skipped \u2014 escalating to T4 after T3 attempt 1 showed same tool-hallucination pattern as T1/T2"
+      "note": "skipped — escalating to T4 after T3 attempt 1 showed same tool-hallucination pattern as T1/T2"
     },
     {
       "story": "E1-S01",
@@ -96,7 +96,7 @@
       "result": "FAIL",
       "criteriaPass": 0,
       "criteriaFail": 6,
-      "errors": "0 real tool calls; emitted empty <tool_code> block \u2014 same explain-mode/tool-call paralysis as all qwen variants in pi. Model understood task in thinking but could not act.",
+      "errors": "0 real tool calls; emitted empty <tool_code> block — same explain-mode/tool-call paralysis as all qwen variants in pi. Model understood task in thinking but could not act.",
       "timestamp": "2026-06-22T04:41:26Z"
     },
     {
@@ -985,6 +985,19 @@
       "thinking": "medium",
       "timestamp": "2026-07-01T23:55:56Z",
       "note": "Manual task: git push completed. Criterion passed after push."
+    },
+    {
+      "story": "E12-S05",
+      "epic": "E12",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 243,
+      "thinking": "medium",
+      "timestamp": "2026-07-02T00:12:35Z"
     }
   ]
 }

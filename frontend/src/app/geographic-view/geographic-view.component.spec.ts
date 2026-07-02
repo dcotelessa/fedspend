@@ -32,9 +32,9 @@ describe('GeographicViewComponent', () => {
     const testBedRef = TestBed.createComponent(GeographicViewComponent);
     component = testBedRef.componentInstance;
 
-    const req1 = httpMock.expectOne(/geography\/states/);
+    const req1 = httpMock.expectOne(req => /geography\/states/.test(req.url));
     req1.flush([]);
-    const req2 = httpMock.expectOne(/geography\/states/);
+    const req2 = httpMock.expectOne(req => /geography\/states/.test(req.url));
     req2.flush([]);
   });
 

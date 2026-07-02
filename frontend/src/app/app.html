@@ -1,1 +1,21 @@
-<router-outlet />
+<mat-toolbar color="primary" class="app-toolbar">
+  <a routerLink="/" class="nav-link home-link">FedSpend</a>
+  <a routerLink="/geography" class="nav-link">Geography</a>
+  <a routerLink="/agencies" class="nav-link">Agencies</a>
+  <a routerLink="/disaster" class="nav-link">Disaster</a>
+  <span class="spacer"></span>
+  <mat-icon aria-hidden="true">{{ theme.isDark$() ? 'dark_mode' : 'light_mode' }}</mat-icon>
+  <mat-slide-toggle
+    [checked]="theme.isDark$()"
+    (change)="theme.toggle()"
+    aria-label="Toggle dark theme">
+  </mat-slide-toggle>
+</mat-toolbar>
+
+<main class="app-content">
+  <router-outlet />
+</main>
+
+<footer class="app-footer">
+  Data: USASpending.gov (U.S. Treasury) · OpenFEMA (FEMA) · Updated nightly
+</footer>

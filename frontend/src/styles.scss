@@ -1,184 +1,79 @@
-@use '@angular/material/prebuilt-themes/indigo-pink.css';
 @use '@angular/material' as mat;
 
-@include mat.core();
+// Angular Material 20 (M3) theming.
+// `theme-type: color-scheme` emits `light-dark()` design tokens, so switching
+// between light and dark is a single `color-scheme` flip — no `!important`
+// overrides, no fighting a prebuilt theme.
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$blue-palette,
+      theme-type: color-scheme,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
 
-$light-bg: #fafafa;
-$light-text: #1a1a1a;
-$light-toolbar: #1976d2;
-$light-toolbar-text: #fff;
-$light-footer-border: #e0e0e0;
-$light-footer-text: #666;
-$muted-text: #999;
+  color-scheme: light;
+}
 
-$dark-bg: #121212;
-$dark-surface: #1e1e1e;
-$dark-elevated: #2a2a2a;
-$dark-text: #e0e0e0;
-$dark-border: #333;
-$dark-toolbar: #0d47a1;
+// Dark mode: the ThemeService toggles `.dark-theme` on <body> and on the CDK
+// overlay container. Flipping `color-scheme` re-resolves every `light-dark()`
+// token to its dark value automatically.
+.dark-theme {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
 
 body {
-  background-color: $light-bg;
-  color: $light-text;
-  min-height: 100vh;
   margin: 0;
+  min-height: 100vh;
   font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background-color: var(--mat-sys-background);
+  color: var(--mat-sys-on-background);
 }
 
-mat-toolbar,
-.mat-toolbar,
-.mat-toolbar-multiple-rows,
-.mat-toolbar-single-row {
-  background-color: $light-toolbar;
-  color: $light-toolbar-text;
+// --- App shell ------------------------------------------------------------
+
+mat-toolbar.app-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
-  width: 100%;
-  min-height: 64px;
-  gap: 1rem;
-  box-sizing: border-box;
+  gap: 0.5rem;
+  box-shadow: var(--mat-sys-level2);
 }
 
-mat-form-field,
-.mat-mdc-form-field {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-mat-select,
-.mat-mdc-select {
-  display: block;
-  min-width: 120px;
-}
-
-mat-card,
-.mat-mdc-card {
-  display: block;
-  box-sizing: border-box;
-}
-
-mat-table,
-.mat-mdc-table {
-  width: 100%;
-  display: table;
-  box-sizing: border-box;
-}
-
-.bar-chart-container {
-  position: relative;
-  width: 100%;
-  height: 350px;
-  max-width: 100%;
-  display: block;
-}
-
-.bar-chart-container canvas {
-  max-width: 100%;
-}
-
-body.dark-theme {
-  background-color: $dark-bg !important;
-  color: $dark-text !important;
-}
-
-.dark-theme .mat-toolbar-background {
-  background-color: $dark-toolbar !important;
-}
-
-.dark-theme footer {
-  border-top-color: $dark-border;
-  color: $muted-text;
-}
-
-.dark-theme mat-card,
-.dark-theme .mat-mdc-card {
-  background-color: $dark-surface !important;
-  color: $dark-text !important;
-}
-
-.dark-theme .mat-mdc-table {
-  background-color: $dark-surface !important;
-  color: $dark-text !important;
-}
-
-.dark-theme .mat-mdc-table-row {
-  color: $dark-text !important;
-
-  &:hover {
-    background-color: $dark-elevated !important;
-  }
-}
-
-.dark-theme h2, .dark-theme h3 {
-  color: $dark-text !important;
-}
-
-.dark-theme mat-tab-body {
-  color: $dark-text !important;
-}
-
-.dark-theme mat-paginator {
-  color: $dark-text !important;
-  background-color: $dark-surface !important;
-}
-
-.dark-theme .mat-mdc-select-panel,
-.dark-theme .mat-select-panel {
-  background-color: $dark-surface !important;
-  color: $dark-text !important;
-}
-
-.dark-theme mat-option,
-.dark-theme .mat-mdc-option {
-  color: $dark-text !important;
-}
-
-.dark-theme mat-divider {
-  border-color: $dark-border !important;
-}
-
-mat-toolbar,
-.mat-toolbar,
-.mat-toolbar-multiple-rows,
-.mat-toolbar-single-row {
-  background-color: $light-toolbar;
-  color: $light-toolbar-text;
-}
-
-.dark-theme mat-toolbar,
-.dark-theme .mat-toolbar,
-.dark-theme .mat-toolbar-multiple-rows,
-.dark-theme .mat-toolbar-single-row {
-  background-color: $dark-toolbar !important;
-  color: $dark-text !important;
-  border-bottom: 1px solid $dark-border;
-}
-
-.muted { color: $muted-text; font-style: italic; }
-
-mat-toolbar a,
-.mat-toolbar a {
+mat-toolbar.app-toolbar a.nav-link {
   text-decoration: none;
-  color: $light-toolbar-text;
+  color: inherit;
   padding: 0.5rem 0.75rem;
-  border-radius: 4px;
+  border-radius: var(--mat-sys-corner-small, 4px);
   font-size: 0.95rem;
+  line-height: 1;
 
   &:hover {
-    text-decoration: underline;
-    background: rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, currentColor 14%, transparent);
   }
 }
 
-mat-toolbar .home-link {
+mat-toolbar.app-toolbar a.home-link {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   margin-right: 0.5rem;
 }
 
-mat-toolbar .spacer {
+mat-toolbar.app-toolbar .spacer {
   flex: 1 1 auto;
 }
 
@@ -187,11 +82,37 @@ mat-toolbar .spacer {
   margin: 0;
 }
 
-footer {
+main.app-content {
+  display: block;
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+footer.app-footer {
   text-align: center;
-  padding: 1rem;
+  padding: 1.5rem 1rem;
   margin-top: 2rem;
-  border-top: 1px solid $light-footer-border;
+  border-top: 1px solid var(--mat-sys-outline-variant);
   font-size: 0.875rem;
-  color: $light-footer-text;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// --- Shared helpers -------------------------------------------------------
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+  font-style: italic;
+}
+
+.bar-chart-container {
+  position: relative;
+  width: 100%;
+  height: 350px;
+  max-width: 100%;
+  display: block;
+
+  canvas {
+    max-width: 100%;
+  }
 }

@@ -1,33 +1,114 @@
+:host {
+  display: block;
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  font: var(--mat-sys-headline-medium);
+  color: var(--mat-sys-on-background);
+}
+
+// --- Navigation cards -----------------------------------------------------
+
 .nav-cards {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .nav-card {
+  display: flex;
+  flex-direction: column;
   text-decoration: none;
-  color: inherit;
+  color: var(--mat-sys-on-surface);
+  padding: 1.5rem;
+  border-radius: var(--mat-sys-corner-large, 16px);
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  box-shadow: var(--mat-sys-level1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--mat-sys-level3);
+  }
+
+  h2 {
+    margin: 0 0 0.25rem;
+    font: var(--mat-sys-title-medium);
+  }
+
+  p {
+    margin: 0;
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-body-medium);
   }
 }
 
-.nav-card .mat-card {
-  width: 280px;
-  padding: 1.5rem;
-  border-radius: 8px;
-  background: var(--card-bg, #fff);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+.card-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 0.75rem;
+  color: var(--mat-sys-primary);
 }
 
-.nav-card .card-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 0.5rem;
-  color: var(--primary, #1976d2);
+// --- KPI stat tiles -------------------------------------------------------
+// Magnitude reads by size/weight; text stays in ink tokens, not a series color.
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+.cards-grid .card {
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--mat-sys-corner-medium, 12px);
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  h2 {
+    margin: 0 0 0.5rem;
+    font: var(--mat-sys-label-large);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  .value {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--mat-sys-on-surface);
+  }
+
+  .sub {
+    margin: 0.25rem 0 0;
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+// --- Chart section --------------------------------------------------------
+
+.chart-section {
+  padding: 1.5rem;
+  border-radius: var(--mat-sys-corner-medium, 12px);
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+
+  h2 {
+    margin: 0 0 1rem;
+    font: var(--mat-sys-title-medium);
+    color: var(--mat-sys-on-surface);
+  }
+
+  canvas {
+    max-width: 100%;
+    height: 360px !important;
+  }
 }

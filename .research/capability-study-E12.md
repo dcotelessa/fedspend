@@ -6,10 +6,10 @@ Auto-updated after each story PASS. Source: `build-log.json`.
 
 ```
   T1 pi/ornith:35b: 2
-  T1 pi/ornith:9b: 1
+  T1 pi/ornith:9b: 3
 ```
 
-Total PASS in epic: **3**
+Total PASS in epic: **5**
 
 ## Full per-story history
 
@@ -20,4 +20,10 @@ Total PASS in epic: **3**
   - T1 pi/ornith:35b: PASS
 
 ### E12-S03 — PASS
+  - T1 pi/ornith:9b: PASS
+
+### E12-S04 — PASS
+  - T1 pi/ornith:9b: PASS
+
+### E12-S05 — PASS
   - T1 pi/ornith:9b: PASS

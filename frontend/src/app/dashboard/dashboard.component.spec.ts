@@ -172,7 +172,7 @@ describe('DashboardComponent', () => {
     const links = fixture.nativeElement.querySelectorAll('a[href]');
     expect(links.length).toBe(3);
 
-    const routes = Array.from(links).map(l => l.getAttribute('href'));
+    const routes = Array.from(links as NodeListOf<Element>).map(l => l.getAttribute('href'));
     expect(routes).toContain('/geography');
     expect(routes).toContain('/agencies');
     expect(routes).toContain('/disaster');
