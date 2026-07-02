@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Unique, OneToMany } from 'typeorm';
+import { SpendingRecord } from '../spending/spending-record.entity';
 
 @Entity()
 @Unique(['toptierCode'])
@@ -14,4 +15,7 @@ export class Agency {
 
   @Column({ type: 'varchar', length: 10 })
   toptierCode: string;
+
+  @OneToMany(() => SpendingRecord, sr => sr.agency)
+  spendingRecords?: SpendingRecord[];
 }
