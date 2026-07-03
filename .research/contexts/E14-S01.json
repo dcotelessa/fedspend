@@ -1,0 +1,168 @@
+{
+  "story": "E14-S01",
+  "epic": "E14",
+  "title": "Geography: dynamic agency + FY dropdowns, latest-year default, reliable delta insight",
+  "goal": "Make the /geography page render real data on first load. Replace the hardcoded 7-item agencyList and 5-item fiscalYearList with values derived from the API and the loaded snapshots, default the fiscal year to the latest year present in the data, and make the delta insight line reliably render the requested prose.",
+  "notes": "The dev DB currently contains 114 geo rows, all FY2024 / agencyId=null / scope=recipient; the page renders blank today because fiscalYear defaults to 2020. Resolve by deriving fiscalYearList client-side from distinct fiscalYear values seen in the loaded snapshots and defaulting to Math.max of those years. Agencies come from ApiService.getAgencies(); cache them in a field populated on first load (do not refetch on every control change). Delta prose target: \"Top state <State> contractors receive $X while only $Y is performed in-state (delta $Z).\" Do NOT add a new backend endpoint for years (resolution: client-side derivation). Do NOT add a spec for the HTML string beyond the grep check.",
+  "dependencies": "",
+  "acceptanceCriteria": [
+    {
+      "text": "agencyList is no longer a hardcoded static array (fetched from ApiService.getAgencies)",
+      "check": "cd frontend && grep -q 'getAgencies' src/app/geographic-view/geographic-view.component.ts"
+    },
+    {
+      "text": "fiscalYearList is derived dynamically (not a hardcoded literal array)",
+      "check": "cd frontend && ! grep -qE 'return \\[2020, 2021, 2022, 2023, 2024\\]' src/app/geographic-view/geographic-view.component.ts"
+    },
+    {
+      "text": "default fiscalYear resolves to the latest year present in the data (2024), not a hardcoded 2020 literal",
+      "check": "cd frontend && ! grep -qE 'fiscalYear = signal\\\\(<number>2020\\\\)' src/app/geographic-view/geographic-view.component.ts"
+    },
+    {
+      "text": "delta insight prose names the top state and references contractors receive / performance",
+      "check": "cd frontend && grep -qiE 'contractors? receive' src/app/geographic-view/geographic-view.component.html"
+    },
+    {
+      "text": "component no longer nulls this.delta inside processData on the primary load path",
+      "check": "cd frontend && ! grep -n 'this.delta = null' src/app/geographic-view/geographic-view.component.ts | grep -v 'computeDelta'"
+    },
+    {
+      "text": "geographic-view.component.spec.ts passes (table-driven: agency list populated from mock ApiService, FY list derived from snapshots, default FY = max year, delta positive/negative/zero)",
+      "check": "cd frontend && pnpm test --testPathPatterns=geographic-view --passWithNoTests"
+    },
+    {
+      "text": "frontend builds cleanly",
+      "check": "cd frontend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.ts",
+      "mode": "slice",
+      "start": 26,
+      "end": 60,
+      "reason": "Component fields + agencyList/fiscalYearList getters — replace static getters with cached API values; derive fiscalYearList from loaded snapshots; default fiscalYear to latest available year.",
+      "excerpt": "  24:   templateUrl: './geographic-view.component.html',\n  25: })\n  26: export class GeographicViewComponent {\n  27:   agencyId = signal<number | null>(null);\n  28:   fiscalYear = signal<number>(2020);\n  29:   scope = signal<'recipient' | 'performance'>('recipient');\n  30: \n  31:   top10: Array<{ stateName: string; obligatedAmount: number }> = [];\n  32:   allStates: GeoSpendingSnapshot[] = [];\n  33:   vsAvg: number[] = [];\n  34:   chartLabels: string[] = [];\n  35:   chartData: ChartDataset[] = [];\n  36:   delta: number | null = null;\n  37: \n  38:   paginator = { pageSize: 15, length: 0, pageIndex: 0 } as { pageSize: number; length: number; pageIndex: number };\n  39: \n  40:   displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'awardCount', 'vsAvg'];\n  41: \n  42:   constructor(private readonly apiService: ApiService) {\n  43:     this.loadData();\n  44:   }\n  45: \n  46:   get agencyList(): Agency[] {\n  47:     return [\n  48:       { id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },\n  49:       { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },\n  50:       { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },\n  51:       { id: 4, name: 'Department of Health and Human Services', abbreviation: 'HHS', toptierCode: '04' },\n  52:       { id: 5, name: 'Department of Homeland Security', abbreviation: 'DHS', toptierCode: '05' },\n  53:       { id: 6, name: 'Department of State', abbreviation: 'STATE', toptierCode: '06' },\n  54:       { id: 7, name: 'Department of Transportation', abbreviation: 'DOT', toptierCode: '07' },\n  55:     ];\n  56:   }\n  57: \n  58:   get fiscalYearList(): number[] {\n  59:     return [2020, 2021, 2022, 2023, 2024];\n  60:   }\n  61: \n  62:   loadData(): void {"
+    },
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.ts",
+      "mode": "slice",
+      "start": 62,
+      "end": 146,
+      "reason": "loadData / computeDelta / processData / onScopeChange — stop resetting this.delta=null on primary load and on scope change; compute and retain the recipient-vs-performance delta for the top state.",
+      "excerpt": "  60:   }\n  61: \n  62:   loadData(): void {\n  63:     const agencyIdVal = this.agencyId();\n  64:     const params: { fiscalYear: number; agencyId?: number; scope: 'recipient' | 'performance' } = {\n  65:       fiscalYear: this.fiscalYear(),\n  66:       scope: this.scope(),\n  67:     };\n  68:     if (agencyIdVal !== null) {\n  69:       params.agencyId = agencyIdVal;\n  70:     }\n  71: \n  72:     const oppositeScope = this.scope() === 'recipient' ? 'performance' : 'recipient';\n  73:     const oppParams = { ...params, scope: oppositeScope };\n  74: \n  75:     this.apiService.getGeographyStates(params).subscribe(primary => {\n  76:       this.processData(primary);\n  77: \n  78:       this.apiService.getGeographyStates(oppParams).subscribe(secondary => {\n  79:         this.computeDelta(primary, secondary);\n  80:       });\n  81:     });\n  82:   }\n  83: \n  84:   computeDelta(primary: GeoSpendingSnapshot[], secondary: GeoSpendingSnapshot[]): void {\n  85:     if (primary.length === 0 || secondary.length === 0) {\n  86:       this.delta = null;\n  87:       return;\n  88:     }\n  89: \n  90:     const sorted = [...primary].sort((a, b) => b.obligatedAmount - a.obligatedAmount);\n  91:     const topState = sorted[0];\n  92: \n  93:     const recipientData = primary.some(d => d.scope === 'recipient') ? primary : secondary;\n  94:     const performanceData = primary.some(d => d.scope === 'performance') ? primary : secondary;\n  95: \n  96:     const recipientMatch = recipientData.find(s => s.stateCode === topState.stateCode);\n  97:     const performanceMatch = performanceData.find(s => s.stateCode === topState.stateCode);\n  98: \n  99:     if (!recipientMatch || !performanceMatch) {\n 100:       this.delta = null;\n 101:       return;\n 102:     }\n 103: \n 104:     this.delta = recipientMatch.obligatedAmount - performanceMatch.obligatedAmount;\n 105:   }\n 106: \n 107:   processData(data: GeoSpendingSnapshot[]): void {\n 108:     const sorted = [...data].sort((a, b) => b.obligatedAmount - a.obligatedAmount);\n 109: \n 110:     this.top10 = sorted.slice(0, 10).map(s => ({\n 111:       stateName: s.stateName,\n 112:       obligatedAmount: s.obligatedAmount,\n 113:     }));\n 114: \n 115:     this.allStates = sorted;\n 116:     this.paginator.length = sorted.length;\n 117: \n 118:     const total = sorted.reduce((sum, s) => sum + s.obligatedAmount, 0);\n 119:     const avg = total / sorted.length;\n 120: \n 121:     this.vsAvg = sorted.map(s => ((s.obligatedAmount - avg) / avg) * 100);\n 122: \n 123:     this.chartLabels = this.top10.map(t => t.stateName);\n 124:     this.chartData = [{\n 125:       label: 'Obligated Amount (cents)',\n 126:       data: this.top10.map(t => t.obligatedAmount),\n 127:     }];\n 128: \n 129:     this.delta = null;\n 130:   }\n 131: \n 132:   onAgencyChange(value: number | null): void {\n 133:     this.agencyId.set(value);\n 134:     this.loadData();\n 135:   }\n 136: \n 137:   onFiscalYearChange(value: number): void {\n 138:     this.fiscalYear.set(value);\n 139:     this.loadData();\n 140:   }\n 141: \n 142:   onScopeChange(value: 'recipient' | 'performance'): void {\n 143:     this.scope.set(value);\n 144:     this.loadData();\n 145:     this.delta = null;\n 146:   }\n 147: }"
+    },
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.html",
+      "mode": "slice",
+      "start": 3,
+      "end": 10,
+      "reason": "delta-insight block — replace generic numeric string with the requested prose naming the top state and the recipient-vs-performance delta.",
+      "excerpt": "   1: <h1>Geographic View</h1>\n   2: \n   3: <div *ngIf=\"delta !== null\" class=\"delta-insight\">\n   4:   <mat-icon>compare_arrows</mat-icon>\n   5:   <span>\n   6:     Top state receives {{ top10[0]?.obligatedAmount | number:'1.0-0' }} but only\n   7:     {{ (top10[0]?.obligatedAmount || 0) - delta | number:'1.0-0' }} in-state.\n   8:     Delta: {{ delta | number:'1.0-0' }}\n   9:   </span>\n  10: </div>\n  11: \n  12: <mat-form-field appearance=\"outline\" class=\"controls-bar\">"
+    },
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.spec.ts",
+      "mode": "full",
+      "contents": "import { TestBed } from '@angular/core/testing';\nimport { provideHttpClient } from '@angular/common/http';\nimport { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';\nimport { MatSelectModule } from '@angular/material/select';\nimport { MatButtonToggleModule } from '@angular/material/button-toggle';\nimport { of } from 'rxjs';\n\nimport { GeographicViewComponent } from './geographic-view.component';\nimport { ApiService } from '../api.service';\nimport { GeoSpendingSnapshot } from '@shared/interfaces';\n\ndescribe('GeographicViewComponent', () => {\n  let component: GeographicViewComponent;\n  let apiService: ApiService;\n  let httpMock: HttpTestingController;\n\n  beforeEach(() => {\n    TestBed.configureTestingModule({\n      imports: [\n        GeographicViewComponent,\n        MatSelectModule,\n        MatButtonToggleModule,\n      ],\n      providers: [\n        provideHttpClient(),\n        provideHttpClientTesting(),\n      ],\n    });\n    apiService = TestBed.inject(ApiService);\n    httpMock = TestBed.inject(HttpTestingController);\n\n    const testBedRef = TestBed.createComponent(GeographicViewComponent);\n    component = testBedRef.componentInstance;\n\n    const req1 = httpMock.expectOne(req => /geography\\/states/.test(req.url));\n    req1.flush([]);\n    const req2 = httpMock.expectOne(req => /geography\\/states/.test(req.url));\n    req2.flush([]);\n  });\n\n  afterEach(() => {\n    httpMock.verify();\n  });\n\n  interface TestCase {\n    name: string;\n    agencyId: number | null;\n    fiscalYear: number;\n    scope: 'recipient' | 'performance';\n    primaryData: GeoSpendingSnapshot[];\n    secondaryData: GeoSpendingSnapshot[];\n    expected: {\n      top10: { stateName: string; obligatedAmount: number }[];\n      allStates: number;\n      vsAvg: number[];\n      delta: number | null;\n    };\n  }\n\n  const testTable: TestCase[] = [\n    {\n      name: 'delta is recipient minus performance for top state',\n      agencyId: null,\n      fiscalYear: 2024,\n      scope: 'recipient',\n      primaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },\n        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 4000000000, awardCount: 80, population: 20200000, perCapita: 19801 },\n        { id: 3, stateCode: '48', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 3500000000, awardCount: 70, population: 29100000, perCapita: 12027 },\n      ],\n      secondaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },\n        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 2500000000, awardCount: 50, population: 20200000, perCapita: 12376 },\n        { id: 3, stateCode: '48', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 2000000000, awardCount: 40, population: 29100000, perCapita: 6873 },\n      ],\n      expected: {\n        top10: [\n          { stateName: 'California', obligatedAmount: 5000000000 },\n          { stateName: 'New York', obligatedAmount: 4000000000 },\n          { stateName: 'Texas', obligatedAmount: 3500000000 },\n        ],\n        allStates: 3,\n        vsAvg: [\n          20.0,\n          -4.0,\n          -16.0,\n        ],\n        delta: 2000000000,\n      },\n    },\n    {\n      name: 'delta is negative when performance exceeds recipient for top state',\n      agencyId: null,\n      fiscalYear: 2023,\n      scope: 'performance',\n      primaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2023, agencyId: null, scope: 'performance', obligatedAmount: 4500000000, awardCount: 90, population: 39500000, perCapita: 11392 },\n        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2023, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 20200000, perCapita: 14851 },\n      ],\n      secondaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 3500000000, awardCount: 70, population: 39500000, perCapita: 8860 },\n        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 2000000000, awardCount: 40, population: 20200000, perCapita: 9900 },\n      ],\n      expected: {\n        top10: [\n          { stateName: 'California', obligatedAmount: 4500000000 },\n          { stateName: 'New York', obligatedAmount: 3000000000 },\n        ],\n        allStates: 2,\n        vsAvg: [\n          20.0,\n          -20.0,\n        ],\n        delta: -1000000000,\n      },\n    },\n    {\n      name: 'delta is null when secondary scope returns empty data',\n      agencyId: null,\n      fiscalYear: 2022,\n      scope: 'recipient',\n      primaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 4500000000, awardCount: 90, population: 39500000, perCapita: 11392 },\n      ],\n      secondaryData: [],\n      expected: {\n        top10: [\n          { stateName: 'California', obligatedAmount: 4500000000 },\n        ],\n        allStates: 1,\n        vsAvg: [\n          0.0,\n        ],\n        delta: null,\n      },\n    },\n    {\n      name: 'delta is null when primary scope returns empty data',\n      agencyId: 5,\n      fiscalYear: 2021,\n      scope: 'recipient',\n      primaryData: [],\n      secondaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2021, agencyId: 5, scope: 'performance', obligatedAmount: 1000000000, awardCount: 20, population: 39500000, perCapita: 2531 },\n      ],\n      expected: {\n        top10: [],\n        allStates: 0,\n        vsAvg: [],\n        delta: null,\n      },\n    },\n    {\n      name: 'delta is null when top state not found in secondary scope',\n      agencyId: null,\n      fiscalYear: 2024,\n      scope: 'recipient',\n      primaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },\n        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 4000000000, awardCount: 80, population: 20200000, perCapita: 19801 },\n      ],\n      secondaryData: [\n        { id: 1, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 2500000000, awardCount: 50, population: 20200000, perCapita: 12376 },\n      ],\n      expected: {\n        top10: [\n          { stateName: 'California', obligatedAmount: 5000000000 },\n          { stateName: 'New York', obligatedAmount: 4000000000 },\n        ],\n        allStates: 2,\n        vsAvg: [\n          11.11111111111111,\n          -11.11111111111111,\n        ],\n        delta: null,\n      },\n    },\n    {\n      name: 'top10 sorts by obligatedAmount descending even when input is unordered',\n      agencyId: null,\n      fiscalYear: 2022,\n      scope: 'recipient',\n      primaryData: [\n        { id: 1, stateCode: '48', stateName: 'Texas', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 2500000000, awardCount: 50, population: 29100000, perCapita: 8591 },\n        { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 4500000000, awardCount: 90, population: 39500000, perCapita: 11392 },\n        { id: 3, stateCode: '36', stateName: 'New York', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 1500000000, awardCount: 30, population: 20200000, perCapita: 7425 },\n      ],\n      secondaryData: [\n        { id: 1, stateCode: '48', stateName: 'Texas', fiscalYear: 2022, agencyId: null, scope: 'performance', obligatedAmount: 1500000000, awardCount: 30, population: 29100000, perCapita: 5154 },\n        { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },\n        { id: 3, stateCode: '36', stateName: 'New York', fiscalYear: 2022, agencyId: null, scope: 'performance', obligatedAmount: 1000000000, awardCount: 20, population: 20200000, perCapita: 4950 },\n      ],\n      expected: {\n        top10: [\n          { stateName: 'California', obligatedAmount: 4500000000 },\n          { stateName: 'Texas', obligatedAmount: 2500000000 },\n          { stateName: 'New York', obligatedAmount: 1500000000 },\n        ],\n        allStates: 3,\n        vsAvg: [\n          58.82352941176471,\n          -11.764705882352942,\n          -47.05882352941176,\n        ],\n        delta: 1500000000,\n      },\n    },\n    {\n      name: 'delta is zero when recipient and performance match for top state',\n      agencyId: null,\n      fiscalYear: 2024,\n      scope: 'recipient',\n      primaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },\n        { id: 2, stateCode: '48', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 2000000000, awardCount: 40, population: 29100000, perCapita: 6873 },\n      ],\n      secondaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 55, population: 39500000, perCapita: 7594 },\n        { id: 2, stateCode: '48', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 2000000000, awardCount: 35, population: 29100000, perCapita: 6873 },\n      ],\n      expected: {\n        top10: [\n          { stateName: 'California', obligatedAmount: 3000000000 },\n          { stateName: 'Texas', obligatedAmount: 2000000000 },\n        ],\n        allStates: 2,\n        vsAvg: [\n          20.0,\n          -20.0,\n        ],\n        delta: 0,\n      },\n    },\n    {\n      name: 'top10 caps at ten entries when more than ten states are returned and delta reflects the true top state',\n      agencyId: null,\n      fiscalYear: 2020,\n      scope: 'recipient',\n      primaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 39500000, perCapita: 2531 },\n        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 20200000, perCapita: 4950 },\n        { id: 3, stateCode: '48', stateName: 'Texas', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 29100000, perCapita: 3436 },\n        { id: 4, stateCode: '12', stateName: 'Florida', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 22000000, perCapita: 4545 },\n        { id: 5, stateCode: '17', stateName: 'Illinois', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 12800000, perCapita: 7812 },\n        { id: 6, stateCode: '42', stateName: 'Pennsylvania', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 13000000, perCapita: 7692 },\n        { id: 7, stateCode: '39', stateName: 'Ohio', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 11800000, perCapita: 8474 },\n        { id: 8, stateCode: '13', stateName: 'Georgia', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 10700000, perCapita: 9345 },\n        { id: 9, stateCode: '37', stateName: 'North Carolina', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 10500000, perCapita: 9523 },\n        { id: 10, stateCode: '26', stateName: 'Michigan', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 10100000, perCapita: 9900 },\n        { id: 11, stateCode: '34', stateName: 'New Jersey', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 10, population: 9300000, perCapita: 10752 },\n      ],\n      secondaryData: [\n        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'performance', obligatedAmount: 700000000, awardCount: 7, population: 39500000, perCapita: 1772 },\n      ],\n      expected: {\n        top10: [\n          { stateName: 'California', obligatedAmount: 1000000000 },\n          { stateName: 'New York', obligatedAmount: 1000000000 },\n          { stateName: 'Texas', obligatedAmount: 1000000000 },\n          { stateName: 'Florida', obligatedAmount: 1000000000 },\n          { stateName: 'Illinois', obligatedAmount: 1000000000 },\n          { stateName: 'Pennsylvania', obligatedAmount: 1000000000 },\n          { stateName: 'Ohio', obligatedAmount: 1000000000 },\n          { stateName: 'Georgia', obligatedAmount: 1000000000 },\n          { stateName: 'North Carolina', obligatedAmount: 1000000000 },\n          { stateName: 'Michigan', obligatedAmount: 1000000000 },\n        ],\n        allStates: 11,\n        vsAvg: [\n          0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,\n        ],\n        delta: 300000000,\n      },\n    },\n  ];\n\n  it.each(testTable)('$name', ({ agencyId, fiscalYear, scope, primaryData, secondaryData, expected }) => {\n    jest.spyOn(apiService, 'getGeographyStates')\n      .mockReturnValueOnce(of(primaryData))\n      .mockReturnValueOnce(of(secondaryData));\n\n    component.agencyId.set(agencyId);\n    component.fiscalYear.set(fiscalYear);\n    component.scope.set(scope);\n\n    component.loadData();\n\n    expect(component.top10.length).toEqual(expected.top10.length);\n    for (let i = 0; i < expected.top10.length; i++) {\n      expect(component.top10[i].stateName).toEqual(expected.top10[i].stateName);\n      expect(component.top10[i].obligatedAmount).toEqual(expected.top10[i].obligatedAmount);\n    }\n\n    expect(component.allStates.length).toEqual(expected.allStates);\n    for (let i = 0; i < expected.vsAvg.length; i++) {\n      expect(Math.abs(component.vsAvg[i] - expected.vsAvg[i])).toBeLessThan(0.5);\n    }\n\n    expect(component.delta).toEqual(expected.delta);\n\n    jest.restoreAllMocks();\n  });\n\n  it('paginator defaults to 15 items per page', () => {\n    expect(component.paginator.pageSize).toEqual(15);\n  });\n});\n"
+    }
+  ]
+}
