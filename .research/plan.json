@@ -48,7 +48,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Use `npx @nestjs/cli new backend --package-manager pnpm --skip-git --strict` then surgically remove AppController/AppService. The CLI also generates app.controller.spec.ts and app.service.spec.ts \u2014 remove those too. The spec file app.module.spec.ts must import AppModule and assert it is a class decorated with @Module. Do NOT add TypeORM, ConfigModule, or any feature module here \u2014 those belong to later stories."
+      "notes": "Use `npx @nestjs/cli new backend --package-manager pnpm --skip-git --strict` then surgically remove AppController/AppService. The CLI also generates app.controller.spec.ts and app.service.spec.ts — remove those too. The spec file app.module.spec.ts must import AppModule and assert it is a class decorated with @Module. Do NOT add TypeORM, ConfigModule, or any feature module here — those belong to later stories."
     },
     {
       "id": "E1-S02",
@@ -70,7 +70,7 @@
             "file": "backend/tsconfig.json",
             "start": 1,
             "end": 30,
-            "reason": "compilerOptions.paths \u2014 add @shared/* mapping to ../shared/*"
+            "reason": "compilerOptions.paths — add @shared/* mapping to ../shared/*"
           }
         ]
       },
@@ -114,13 +114,13 @@
             "file": "backend/src/app.module.ts",
             "start": 1,
             "end": 20,
-            "reason": "imports block \u2014 add ConfigModule and TypeOrmModule imports"
+            "reason": "imports block — add ConfigModule and TypeOrmModule imports"
           },
           {
             "file": "backend/src/app.module.ts",
             "start": 22,
             "end": 35,
-            "reason": "@Module decorator imports array \u2014 register ConfigModule.forRoot() and TypeOrmModule.forRootAsync({useFactory: getTypeOrmConfig, inject: [ConfigService]})"
+            "reason": "@Module decorator imports array — register ConfigModule.forRoot() and TypeOrmModule.forRootAsync({useFactory: getTypeOrmConfig, inject: [ConfigService]})"
           }
         ]
       },
@@ -138,7 +138,7 @@
           "check": "cd backend && grep -q \"../\\\\*\\\\*/\\\\*.entity\" src/config/typeorm.config.ts"
         },
         {
-          "text": "typeorm.config.spec.ts passes (table-driven: DATABASE_URL set \u2192 postgres, unset \u2192 sqlite)",
+          "text": "typeorm.config.spec.ts passes (table-driven: DATABASE_URL set → postgres, unset → sqlite)",
           "check": "cd backend && pnpm test --testPathPatterns=typeorm.config.spec.ts --passWithNoTests"
         },
         {
@@ -150,7 +150,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Per resolution: the glob __dirname + '/../**/*.entity{.ts,.js}' is correct because at runtime typeorm.config.ts compiles to dist/config/, so __dirname = dist/config/, ../ = dist/, glob matches dist/**/*.entity.js. Per resolution: mkdirSync('data', {recursive:true}) MUST be called in the factory before returning the sqlite config \u2014 better-sqlite3 won't create the parent dir. The spec must mock ConfigService.get('DATABASE_URL') and assert both branches. Do NOT use synchronize:true in the postgres branch."
+      "notes": "Per resolution: the glob __dirname + '/../**/*.entity{.ts,.js}' is correct because at runtime typeorm.config.ts compiles to dist/config/, so __dirname = dist/config/, ../ = dist/, glob matches dist/**/*.entity.js. Per resolution: mkdirSync('data', {recursive:true}) MUST be called in the factory before returning the sqlite config — better-sqlite3 won't create the parent dir. The spec must mock ConfigService.get('DATABASE_URL') and assert both branches. Do NOT use synchronize:true in the postgres branch."
     },
     {
       "id": "E1-S04",
@@ -192,13 +192,13 @@
             "file": "backend/src/app.module.ts",
             "start": 1,
             "end": 15,
-            "reason": "imports block \u2014 add imports for the 6 feature modules"
+            "reason": "imports block — add imports for the 6 feature modules"
           },
           {
             "file": "backend/src/app.module.ts",
             "start": 17,
             "end": 30,
-            "reason": "@Module imports array \u2014 register all 6 feature modules"
+            "reason": "@Module imports array — register all 6 feature modules"
           }
         ]
       },
@@ -236,7 +236,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Per resolution: sync module is module + service only (NO controller) \u2014 sync API endpoints belong to Epic 2. Per resolution: health module is module + controller only (NO service). Per resolution: empty dto/ directories must have a .gitkeep so git tracks them. Controllers and services are EMPTY SCAFFOLDS in this story \u2014 just the class with @Controller()/@Injectable() decorator and an empty body. No endpoints, no methods. They get implemented in Epic 3 (query API). The modules.spec.ts must assert each module class exists, is decorated with @Module, and (where applicable) registers its controller/provider."
+      "notes": "Per resolution: sync module is module + service only (NO controller) — sync API endpoints belong to Epic 2. Per resolution: health module is module + controller only (NO service). Per resolution: empty dto/ directories must have a .gitkeep so git tracks them. Controllers and services are EMPTY SCAFFOLDS in this story — just the class with @Controller()/@Injectable() decorator and an empty body. No endpoints, no methods. They get implemented in Epic 3 (query API). The modules.spec.ts must assert each module class exists, is decorated with @Module, and (where applicable) registers its controller/provider."
     },
     {
       "id": "E1-S05",
@@ -322,13 +322,13 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Per resolution: perCapita stored as integer cents/person (not dollars). Per resolution: recoveryRatio is dimensionless float \u2014 the cents rule does NOT apply. Per resolution: GeoSpendingSnapshot unique constraint includes nullable agencyId; SQLite allows multiple NULL agencyId rows \u2014 accept this, dedupe at app level in Epic 2. Use the standard @Unique decorator. Entities use @Column({ type: 'integer' }) for cents fields in sqlite. Use TypeORM metadata in the spec (getMetadataArgsStorage) to assert columns and unique constraints declaratively \u2014 do NOT spin up a database for unit tests."
+      "notes": "Per resolution: perCapita stored as integer cents/person (not dollars). Per resolution: recoveryRatio is dimensionless float — the cents rule does NOT apply. Per resolution: GeoSpendingSnapshot unique constraint includes nullable agencyId; SQLite allows multiple NULL agencyId rows — accept this, dedupe at app level in Epic 2. Use the standard @Unique decorator. Entities use @Column({ type: 'integer' }) for cents fields in sqlite. Use TypeORM metadata in the spec (getMetadataArgsStorage) to assert columns and unique constraints declaratively — do NOT spin up a database for unit tests."
     },
     {
       "id": "E1-S06",
       "epic": "E1",
       "title": "Response wrapper interceptor + @Paginated() decorator",
-      "goal": "Create ResponseWrapperInterceptor that wraps paginated list responses as ApiResponse<T[]> = { data, meta: { total, page, pageSize } } and leaves single-item responses unwrapped. Opt-in via @Paginated() decorator. Import ApiResponse<T> from @shared/interfaces \u2014 do NOT duplicate it.",
+      "goal": "Create ResponseWrapperInterceptor that wraps paginated list responses as ApiResponse<T[]> = { data, meta: { total, page, pageSize } } and leaves single-item responses unwrapped. Opt-in via @Paginated() decorator. Import ApiResponse<T> from @shared/interfaces — do NOT duplicate it.",
       "build": "BUILD-DEEP",
       "dependencies": [
         "E1-S01",
@@ -364,7 +364,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Per resolution: do NOT create common/api-response.interface.ts. ApiResponse<T> already lives in @shared/interfaces/index.ts \u2014 import it from there. The interceptor checks for the @Paginated() metadata via reflect-metadata; if present and the response is an array, wrap as {data, meta:{total:arr.length, page, pageSize}}. If absent or response is not an array, pass through unchanged. The spec must mock ExecutionContext and the next handler, run the interceptor with a table of {input shape, hasPaginated, expected output shape}."
+      "notes": "Per resolution: do NOT create common/api-response.interface.ts. ApiResponse<T> already lives in @shared/interfaces/index.ts — import it from there. The interceptor checks for the @Paginated() metadata via reflect-metadata; if present and the response is an array, wrap as {data, meta:{total:arr.length, page, pageSize}}. If absent or response is not an array, pass through unchanged. The spec must mock ExecutionContext and the next handler, run the interceptor with a table of {input shape, hasPaginated, expected output shape}."
     },
     {
       "id": "E1-S07",
@@ -387,13 +387,13 @@
             "file": "backend/src/main.ts",
             "start": 1,
             "end": 15,
-            "reason": "top of file \u2014 add ValidationPipe and FRONTEND_URL imports"
+            "reason": "top of file — add ValidationPipe and FRONTEND_URL imports"
           },
           {
             "file": "backend/src/main.ts",
             "start": 17,
             "end": 40,
-            "reason": "bootstrap() \u2014 add app.useGlobalPipes(new ValidationPipe({whitelist:true, transform:true, forbidNonWhitelisted:true})) and app.enableCors({origin: process.env.FRONTEND_URL || '*'})"
+            "reason": "bootstrap() — add app.useGlobalPipes(new ValidationPipe({whitelist:true, transform:true, forbidNonWhitelisted:true})) and app.enableCors({origin: process.env.FRONTEND_URL || '*'})"
           }
         ]
       },
@@ -423,13 +423,13 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "HealthController injects DataSource (from typeorm) to verify the database connection is active. Return { status:'ok', timestamp: new Date().toISOString(), database: ds.isInitialized ? 'connected' : 'disconnected' }. The spec must mock DataSource and use a table of {isInitialized, expected database field}. ValidationPipe config goes in main.ts bootstrap() \u2014 do NOT register it as an APP_PIPE provider in AppModule (keeps the pipe at the HTTP boundary, matching AGENTS.md Skill 1)."
+      "notes": "HealthController injects DataSource (from typeorm) to verify the database connection is active. Return { status:'ok', timestamp: new Date().toISOString(), database: ds.isInitialized ? 'connected' : 'disconnected' }. The spec must mock DataSource and use a table of {isInitialized, expected database field}. ValidationPipe config goes in main.ts bootstrap() — do NOT register it as an APP_PIPE provider in AppModule (keeps the pipe at the HTTP boundary, matching AGENTS.md Skill 1)."
     },
     {
       "id": "E1-S08",
       "epic": "E1",
       "title": "End-to-end verification of Epic 1",
-      "goal": "Verify the full Epic 1 surface with one e2e spec that boots the NestJS app, hits /health, and asserts all 5 entity tables exist in the sqlite file. No new production code \u2014 only the spec and any small wiring fixes surfaced by the e2e run.",
+      "goal": "Verify the full Epic 1 surface with one e2e spec that boots the NestJS app, hits /health, and asserts all 5 entity tables exist in the sqlite file. No new production code — only the spec and any small wiring fixes surfaced by the e2e run.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E1-S01",
@@ -464,7 +464,7 @@
           "check": "cd backend && pnpm test --testPathPatterns=e2e.spec.ts --passWithNoTests"
         }
       ],
-      "notes": "The e2e spec uses Test.createTestingModule({ imports: [AppModule] }).compile() then app.getHttpServer() with supertest to GET /health. Then it queries the sqlite file (or DataSource.query) to assert the 5 entity tables exist. If the e2e surfaces a wiring gap (missing module registration, broken import path), fix it inside the files already in scope of prior stories \u2014 do NOT create new files. This story's scope is intentionally just the e2e spec; the model may edit previously-committed files only to close wiring gaps surfaced by the e2e."
+      "notes": "The e2e spec uses Test.createTestingModule({ imports: [AppModule] }).compile() then app.getHttpServer() with supertest to GET /health. Then it queries the sqlite file (or DataSource.query) to assert the 5 entity tables exist. If the e2e surfaces a wiring gap (missing module registration, broken import path), fix it inside the files already in scope of prior stories — do NOT create new files. This story's scope is intentionally just the e2e spec; the model may edit previously-committed files only to close wiring gaps surfaced by the e2e."
     },
     {
       "id": "E2-S01",
@@ -515,8 +515,8 @@
     {
       "id": "E2-S02",
       "epic": "E2",
-      "title": "UsaSpendingService \u2014 Fetch/Transform/Return deep module",
-      "goal": "Implement UsaSpendingService as ONE deep module that fetches from USASpending.gov, transforms raw rows into cents-integers, and returns typed entity-shaped objects. Methods: fetchAgencies(), fetchSpendingByAgency(agency, fiscalYear), fetchGeoSnapshots(agency, fiscalYear, scope), fetchDisasterSpending(defGroup). Private retry wrapper (3 attempts, exponential backoff). No upsert here \u2014 SyncService owns persistence.",
+      "title": "UsaSpendingService — Fetch/Transform/Return deep module",
+      "goal": "Implement UsaSpendingService as ONE deep module that fetches from USASpending.gov, transforms raw rows into cents-integers, and returns typed entity-shaped objects. Methods: fetchAgencies(), fetchSpendingByAgency(agency, fiscalYear), fetchGeoSnapshots(agency, fiscalYear, scope), fetchDisasterSpending(defGroup). Private retry wrapper (3 attempts, exponential backoff). No upsert here — SyncService owns persistence.",
       "build": "BUILD-DEEP",
       "dependencies": [
         "E2-S01"
@@ -532,7 +532,7 @@
             "file": "backend/src/sync/sync.module.ts",
             "start": 1,
             "end": 25,
-            "reason": "providers array \u2014 register UsaSpendingService"
+            "reason": "providers array — register UsaSpendingService"
           }
         ]
       },
@@ -562,12 +562,12 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Deep module per AGENTS.md Skill 3: ONE file, top-to-bottom legible. The Fetch (HTTP), Transform (raw dollars \u2192 cents), and Return (typed) steps stay together. Use global fetch() \u2014 no axios dependency. Mock fetch in the spec via jest.spyOn(global, 'fetch'). The spec testTable must cover: (a) raw dollar field 1234.56 \u2192 obligatedAmount 123456 cents, (b) pagination handled across multiple pages, (c) HTTP 500 then 200 \u2192 retry succeeds, (d) HTTP 500 thrice \u2192 throws after 3 attempts. Do NOT call the real USASpending API in unit tests \u2014 all fetches mocked."
+      "notes": "Deep module per AGENTS.md Skill 3: ONE file, top-to-bottom legible. The Fetch (HTTP), Transform (raw dollars → cents), and Return (typed) steps stay together. Use global fetch() — no axios dependency. Mock fetch in the spec via jest.spyOn(global, 'fetch'). The spec testTable must cover: (a) raw dollar field 1234.56 → obligatedAmount 123456 cents, (b) pagination handled across multiple pages, (c) HTTP 500 then 200 → retry succeeds, (d) HTTP 500 thrice → throws after 3 attempts. Do NOT call the real USASpending API in unit tests — all fetches mocked."
     },
     {
       "id": "E2-S03",
       "epic": "E2",
-      "title": "OpenFemaService \u2014 Fetch/Transform/Return deep module",
+      "title": "OpenFemaService — Fetch/Transform/Return deep module",
       "goal": "Implement OpenFemaService that fetches disaster declarations from OpenFEMA, aggregates them by state and fiscal year, and returns typed objects: { stateCode, stateName, fiscalYear, femaObligatedCents, declarationCount, dominantIncidentType }. Same retry pattern as UsaSpendingService.",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -584,7 +584,7 @@
             "file": "backend/src/sync/sync.module.ts",
             "start": 1,
             "end": 25,
-            "reason": "providers array \u2014 register OpenFemaService"
+            "reason": "providers array — register OpenFemaService"
           }
         ]
       },
@@ -619,8 +619,8 @@
     {
       "id": "E2-S04",
       "epic": "E2",
-      "title": "Recovery ratio calculator \u2014 pure module with edge cases",
-      "goal": "Implement a pure function computeRecoveryRatio(femaCents, fedCents) that returns DisasterRecoveryRatio shape. Handles 4 cases: both zero \u2192 1.0, fema zero fed positive \u2192 Infinity, fema positive fed zero \u2192 0, both positive \u2192 fed/fema. Table-driven spec covers all 4 + boundary values.",
+      "title": "Recovery ratio calculator — pure module with edge cases",
+      "goal": "Implement a pure function computeRecoveryRatio(femaCents, fedCents) that returns DisasterRecoveryRatio shape. Handles 4 cases: both zero → 1.0, fema zero fed positive → Infinity, fema positive fed zero → 0, both positive → fed/fema. Table-driven spec covers all 4 + boundary values.",
       "build": "BUILD-DEEP",
       "dependencies": [
         "E2-S01"
@@ -650,13 +650,13 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Edge cases per epic-02 spec: both 0 \u2192 1.0 (neutral); fema 0 fed >0 \u2192 Infinity (well-resourced); fema >0 fed 0 \u2192 0 (complete gap); both >0 \u2192 fed/fema. Spec testTable must include boundary values like {fema:1, fed:Number.MAX_SAFE_INTEGER} to verify no overflow. This is a pure helper \u2014 not @Injectable \u2014 because it has no dependencies. SyncService in E2-S05 imports and calls it."
+      "notes": "Edge cases per epic-02 spec: both 0 → 1.0 (neutral); fema 0 fed >0 → Infinity (well-resourced); fema >0 fed 0 → 0 (complete gap); both >0 → fed/fema. Spec testTable must include boundary values like {fema:1, fed:Number.MAX_SAFE_INTEGER} to verify no overflow. This is a pure helper — not @Injectable — because it has no dependencies. SyncService in E2-S05 imports and calls it."
     },
     {
       "id": "E2-S05",
       "epic": "E2",
-      "title": "SyncService \u2014 orchestration, upserts, retry coordination",
-      "goal": "Implement SyncService as the orchestrator: calls UsaSpendingService + OpenFemaService, transforms returned shapes into entities, upserts via TypeORM repositories, computes recovery ratios via computeRecoveryRatio, and exposes syncAll(), syncAgenciesAndSpending(), syncGeography(), syncDisaster() methods. Track per-module timestamps in an in-memory map (persisted via SyncStatusEntity is OUT of scope \u2014 Epic 2 uses in-memory only, surfaced by GET /sync/status).",
+      "title": "SyncService — orchestration, upserts, retry coordination",
+      "goal": "Implement SyncService as the orchestrator: calls UsaSpendingService + OpenFemaService, transforms returned shapes into entities, upserts via TypeORM repositories, computes recovery ratios via computeRecoveryRatio, and exposes syncAll(), syncAgenciesAndSpending(), syncGeography(), syncDisaster() methods. Track per-module timestamps in an in-memory map (persisted via SyncStatusEntity is OUT of scope — Epic 2 uses in-memory only, surfaced by GET /sync/status).",
       "build": "BUILD-DEEP",
       "dependencies": [
         "E2-S02",
@@ -674,7 +674,7 @@
             "file": "backend/src/sync/sync.module.ts",
             "start": 1,
             "end": 30,
-            "reason": "providers + imports \u2014 register SyncService, import feature modules for repository access (AgenciesModule etc. need exports)"
+            "reason": "providers + imports — register SyncService, import feature modules for repository access (AgenciesModule etc. need exports)"
           }
         ]
       },
@@ -704,12 +704,12 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "SyncService is the deep module that ties Epic 2 together. Inject UsaSpendingService, OpenFemaService, and 5 repositories (Agency, SpendingRecord, GeoSpendingSnapshot, DisasterFundingRecord, DisasterRecoveryRatio). Upsert = findOne by unique key + save (or repository.upsert if TypeORM supports the unique constraint natively). Mock all 5 repositories AND both upstream services in the spec \u2014 the spec must NOT hit any real DB or HTTP. The testTable should cover each of the 4 sync methods individually plus the orchestration of syncAll."
+      "notes": "SyncService is the deep module that ties Epic 2 together. Inject UsaSpendingService, OpenFemaService, and 5 repositories (Agency, SpendingRecord, GeoSpendingSnapshot, DisasterFundingRecord, DisasterRecoveryRatio). Upsert = findOne by unique key + save (or repository.upsert if TypeORM supports the unique constraint natively). Mock all 5 repositories AND both upstream services in the spec — the spec must NOT hit any real DB or HTTP. The testTable should cover each of the 4 sync methods individually plus the orchestration of syncAll."
     },
     {
       "id": "E2-S06",
       "epic": "E2",
-      "title": "SyncController \u2014 POST /sync/* endpoints",
+      "title": "SyncController — POST /sync/* endpoints",
       "goal": "Add SyncController with 5 endpoints: POST /sync, POST /sync/agencies, POST /sync/geography, POST /sync/disaster, GET /sync/status. Thin controllers per AGENTS.md: parse (no DTO for POST triggers, just an empty body), call one SyncService method, return result. Register in SyncModule.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -726,7 +726,7 @@
             "file": "backend/src/sync/sync.module.ts",
             "start": 1,
             "end": 30,
-            "reason": "controllers array \u2014 register SyncController"
+            "reason": "controllers array — register SyncController"
           }
         ]
       },
@@ -748,7 +748,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Thin controller: each method is 2-3 lines \u2014 parse DTO (empty for triggers), call one service method, return result. Use @Sse() or just @Post() per endpoint. GET /sync/status returns the in-memory timestamp map from SyncService. Spec mocks SyncService and asserts each endpoint calls the expected method with no args (for full sync) and returns the result. Use @Controller('sync') prefix."
+      "notes": "Thin controller: each method is 2-3 lines — parse DTO (empty for triggers), call one service method, return result. Use @Sse() or just @Post() per endpoint. GET /sync/status returns the in-memory timestamp map from SyncService. Spec mocks SyncService and asserts each endpoint calls the expected method with no args (for full sync) and returns the result. Use @Controller('sync') prefix."
     },
     {
       "id": "E2-S07",
@@ -770,19 +770,19 @@
             "file": "backend/src/app.module.ts",
             "start": 1,
             "end": 15,
-            "reason": "imports block \u2014 add ScheduleModule.forRoot() import"
+            "reason": "imports block — add ScheduleModule.forRoot() import"
           },
           {
             "file": "backend/src/app.module.ts",
             "start": 17,
             "end": 35,
-            "reason": "@Module imports array \u2014 register ScheduleModule.forRoot()"
+            "reason": "@Module imports array — register ScheduleModule.forRoot()"
           },
           {
             "file": "backend/src/sync/sync.service.ts",
             "start": 1,
             "end": 15,
-            "reason": "imports \u2014 add @Cron decorator import from @nestjs/schedule"
+            "reason": "imports — add @Cron decorator import from @nestjs/schedule"
           }
         ]
       },
@@ -804,7 +804,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Do NOT actually fire the cron in unit tests \u2014 that requires real time. The spec asserts presence of the @Cron decorator on syncAll via reflect-metadata, and that ScheduleModule is in AppModule imports. To verify the cron fires at the right time, you'd need an integration test that's out of scope for Epic 2. Just register it correctly."
+      "notes": "Do NOT actually fire the cron in unit tests — that requires real time. The spec asserts presence of the @Cron decorator on syncAll via reflect-metadata, and that ScheduleModule is in AppModule imports. To verify the cron fires at the right time, you'd need an integration test that's out of scope for Epic 2. Just register it correctly."
     },
     {
       "id": "E2-S08",
@@ -837,7 +837,7 @@
           "check": "cd backend && pnpm build"
         },
         {
-          "text": "sync e2e spec passes (POST /sync with mocked upstreams \u2192 rows in 5 tables)",
+          "text": "sync e2e spec passes (POST /sync with mocked upstreams → rows in 5 tables)",
           "check": "cd backend && pnpm test:e2e --testPathPatterns=sync"
         }
       ],
@@ -847,7 +847,7 @@
       "id": "E3-S01",
       "epic": "E3",
       "title": "Query DTOs with class-validator + global ValidationPipe wiring",
-      "goal": "Create DTOs for every query endpoint (PaginationDto, GeographyQueryDto, AgencySpotlightQueryDto, DisasterStatesQueryDto, DisasterRatiosQueryDto) with class-validator decorators. Fiscal year 2020-2024, page default 1, pageSize default 15 max 100, scope enum, defGroup enum. ValidationPipe already exists from E1-S07 \u2014 this story only adds DTOs.",
+      "goal": "Create DTOs for every query endpoint (PaginationDto, GeographyQueryDto, AgencySpotlightQueryDto, DisasterStatesQueryDto, DisasterRatiosQueryDto) with class-validator decorators. Fiscal year 2020-2024, page default 1, pageSize default 15 max 100, scope enum, defGroup enum. ValidationPipe already exists from E1-S07 — this story only adds DTOs.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E1-S07"
@@ -906,7 +906,7 @@
             "file": "backend/src/agencies/agencies.module.ts",
             "start": 1,
             "end": 25,
-            "reason": "exports \u2014 add AgenciesService to module exports so SyncModule can use it if needed; ensure controllers array has AgenciesController"
+            "reason": "exports — add AgenciesService to module exports so SyncModule can use it if needed; ensure controllers array has AgenciesController"
           }
         ]
       },
@@ -957,7 +957,7 @@
             "file": "backend/src/geography/geography.module.ts",
             "start": 1,
             "end": 25,
-            "reason": "exports + controllers \u2014 register GeographyService in exports and GeographyController in controllers"
+            "reason": "exports + controllers — register GeographyService in exports and GeographyController in controllers"
           }
         ]
       },
@@ -1012,7 +1012,7 @@
             "file": "backend/src/disaster/disaster.module.ts",
             "start": 1,
             "end": 25,
-            "reason": "exports + controllers \u2014 register DisasterService and DisasterController"
+            "reason": "exports + controllers — register DisasterService and DisasterController"
           }
         ]
       },
@@ -1128,13 +1128,13 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Use the Angular 20 standalone API (default \u2014 no NgModules). ng new flags: --skip-git (avoid a nested repo inside the build worktree), --skip-install (this is a pnpm workspace; register 'frontend' in pnpm-workspace.yaml then run `pnpm install` at the REPO ROOT so the single root pnpm-lock.yaml covers both backend and frontend). Add runtime deps to the frontend workspace package with `pnpm add --filter frontend @angular/material @angular/cdk ng2-charts chart.js`, and devDeps with `pnpm add -D --filter frontend jest-preset-angular jest @types/jest jsdom` (jest-preset-angular@latest requires Angular >=20, jest ^30, jsdom ^26). Remove karma.conf.js and the karma-related devDeps (karma, karma-chrome-launcher, karma-coverage, karma-jasmine, jasmine-core) and remove the 'test' builder entry in angular.json; set the frontend package.json 'test' script to jest. jest.config.js: preset 'jest-preset-angular', setupFilesAfterEnv ['<rootDir>/setup-jest.ts'], testEnvironment 'jsdom'. setup-jest.ts: `import 'jest-preset-angular/setup-jest';`. tsconfig.spec.json compilerOptions.types: ['jest','node']. Add to frontend/tsconfig.json compilerOptions.paths: \"@shared/*\": [\"../shared/*\"] (no baseUrl needed under TS5). app.spec.ts asserts the root AppComponent compiles. The whole frontend/ tree is committed via scope.commitAllUnder (you create it with the CLI); the root pnpm-lock.yaml is also auto-staged."
+      "notes": "Use the Angular 20 standalone API (default — no NgModules). ng new flags: --skip-git (avoid a nested repo inside the build worktree), --skip-install (this is a pnpm workspace; register 'frontend' in pnpm-workspace.yaml then run `pnpm install` at the REPO ROOT so the single root pnpm-lock.yaml covers both backend and frontend). Add runtime deps to the frontend workspace package with `pnpm add --filter frontend @angular/material @angular/cdk ng2-charts chart.js`, and devDeps with `pnpm add -D --filter frontend jest-preset-angular jest @types/jest jsdom` (jest-preset-angular@latest requires Angular >=20, jest ^30, jsdom ^26). Remove karma.conf.js and the karma-related devDeps (karma, karma-chrome-launcher, karma-coverage, karma-jasmine, jasmine-core) and remove the 'test' builder entry in angular.json; set the frontend package.json 'test' script to jest. jest.config.js: preset 'jest-preset-angular', setupFilesAfterEnv ['<rootDir>/setup-jest.ts'], testEnvironment 'jsdom'. setup-jest.ts: `import 'jest-preset-angular/setup-jest';`. tsconfig.spec.json compilerOptions.types: ['jest','node']. Add to frontend/tsconfig.json compilerOptions.paths: \"@shared/*\": [\"../shared/*\"] (no baseUrl needed under TS5). app.spec.ts asserts the root AppComponent compiles. The whole frontend/ tree is committed via scope.commitAllUnder (you create it with the CLI); the root pnpm-lock.yaml is also auto-staged."
     },
     {
       "id": "E4-S02",
       "epic": "E4",
       "title": "5 routes with placeholder standalone components",
-      "goal": "Create 5 standalone placeholder components (DashboardComponent, GeographicViewComponent, AgencyListComponent, AgencySpotlightComponent, DisasterLensComponent) and define the 5 routes in frontend/src/app/app.routes.ts. The Angular 20 scaffold already wires provideRouter via app.config.ts \u2014 do NOT add a second router provider and do NOT edit main.ts. Verify all 5 route->component mappings via a table-driven routing spec.",
+      "goal": "Create 5 standalone placeholder components (DashboardComponent, GeographicViewComponent, AgencyListComponent, AgencySpotlightComponent, DisasterLensComponent) and define the 5 routes in frontend/src/app/app.routes.ts. The Angular 20 scaffold already wires provideRouter via app.config.ts — do NOT add a second router provider and do NOT edit main.ts. Verify all 5 route->component mappings via a table-driven routing spec.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E4-S01"
@@ -1178,7 +1178,7 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Angular 20 standalone components. CRITICAL \u2014 the scaffold ALREADY wires routing: app.config.ts has providers: [provideBrowserGlobalErrorListeners(), provideZoneChangeDetection({eventCoalescing:true}), provideRouter(routes)] importing `routes` from './app.routes', and main.ts does bootstrapApplication(App, appConfig). So: DO NOT create a separate routes.ts; DO NOT add a second provideRouter anywhere (double-provisioning breaks the router at runtime); DO NOT edit main.ts or app.config.ts. Your ONLY routing change is populating frontend/src/app/app.routes.ts (replace `export const routes: Routes = [];`). Tasks: (1) Create 5 standalone placeholder components, each in <name>.component.ts exporting class <Name>Component \u2014 DashboardComponent (dashboard), GeographicViewComponent (geographic-view), AgencyListComponent (agency-list), AgencySpotlightComponent (agency-spotlight), DisasterLensComponent (disaster-lens). Components are standalone BY DEFAULT in Angular 20 (omit the `standalone` flag). Each @Component: selector 'app-<name>', templateUrl '<name>.component.html', and the .component.html contains a single <h1>heading</h1>. No imports needed for placeholders. (2) In app.routes.ts define: { path: '', component: DashboardComponent }, { path: 'geography', component: GeographicViewComponent }, { path: 'agencies', component: AgencyListComponent }, { path: 'agencies/:id', component: AgencySpotlightComponent }, { path: 'disaster', component: DisasterLensComponent } \u2014 import each component, use single-quoted path strings, eager `component:` mapping. (3) routes.spec.ts: TABLE-DRIVEN \u2014 import `routes` from './app.routes' and all 5 component classes; build a testTable of {path, expectedComponent} rows; for each row, find the route in `routes` with that path and assert route.component === expectedComponent. No RouterTestingModule/harness needed \u2014 assert directly on the routes array. The root component class is `App` (Angular 20 renamed it from AppComponent), referenced only by main.ts \u2014 leave it alone."
+      "notes": "Angular 20 standalone components. CRITICAL — the scaffold ALREADY wires routing: app.config.ts has providers: [provideBrowserGlobalErrorListeners(), provideZoneChangeDetection({eventCoalescing:true}), provideRouter(routes)] importing `routes` from './app.routes', and main.ts does bootstrapApplication(App, appConfig). So: DO NOT create a separate routes.ts; DO NOT add a second provideRouter anywhere (double-provisioning breaks the router at runtime); DO NOT edit main.ts or app.config.ts. Your ONLY routing change is populating frontend/src/app/app.routes.ts (replace `export const routes: Routes = [];`). Tasks: (1) Create 5 standalone placeholder components, each in <name>.component.ts exporting class <Name>Component — DashboardComponent (dashboard), GeographicViewComponent (geographic-view), AgencyListComponent (agency-list), AgencySpotlightComponent (agency-spotlight), DisasterLensComponent (disaster-lens). Components are standalone BY DEFAULT in Angular 20 (omit the `standalone` flag). Each @Component: selector 'app-<name>', templateUrl '<name>.component.html', and the .component.html contains a single <h1>heading</h1>. No imports needed for placeholders. (2) In app.routes.ts define: { path: '', component: DashboardComponent }, { path: 'geography', component: GeographicViewComponent }, { path: 'agencies', component: AgencyListComponent }, { path: 'agencies/:id', component: AgencySpotlightComponent }, { path: 'disaster', component: DisasterLensComponent } — import each component, use single-quoted path strings, eager `component:` mapping. (3) routes.spec.ts: TABLE-DRIVEN — import `routes` from './app.routes' and all 5 component classes; build a testTable of {path, expectedComponent} rows; for each row, find the route in `routes` with that path and assert route.component === expectedComponent. No RouterTestingModule/harness needed — assert directly on the routes array. The root component class is `App` (Angular 20 renamed it from AppComponent), referenced only by main.ts — leave it alone."
     },
     {
       "id": "E4-S03",
@@ -1220,7 +1220,7 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Single deep module per AGENTS.md Skill 3 \u2014 one ApiService, one method per use case, HttpClient injected, base URL from environment.apiUrl. provideHttpClient is NOT wired in this story (deferred to E4-S04); tests use provideHttpClientTesting + HttpTestingController, so do NOT edit app.config.ts. CRITICAL RESPONSE SHAPES \u2014 the backend has NO @Paginated decorator, so its ResponseWrapperInterceptor passes everything through RAW. ONLY GET /agencies returns a wrapped {data,meta} object (the service pre-wraps it); every other endpoint returns a raw array or raw object. So ONLY getAgencies maps r.data; the other 8 methods return the body directly (r). Per-method contract: getAgencies() GET /agencies -> {data,meta}; map r.data; the item shape is {id,name,totalCents} (NOT the shared Agency shape \u2014 backend drift), so define a local AgencyWithTotal interface. getAgencySummary(id) GET /agencies/:id/summary -> raw AgencySummary | null; return r. getAgencySpotlight(id) GET /agencies/:id/spotlight -> raw SpendingRecord[] | null; return r. getGeographyStates(params) GET /geography/states with HttpParams {fiscalYear?,agencyId?,scope?} -> raw GeoSpendingSnapshot[]; return r. getGeographyState(code) GET /geography/state/:code -> raw GeoSpendingSnapshot[]; return r. getDisasterOverview() GET /disaster/overview -> raw ARRAY DisasterOverview[] (note: array, not a single object); return r. getDisasterStates(params) GET /disaster/states with HttpParams {defGroup?,fiscalYear?} -> raw DisasterFundingRecord[]; return r. getDisasterRecoveryRatios(params) GET /disaster/recovery-ratios with HttpParams {fiscalYear?} -> raw DisasterRecoveryRatio[]; return r. getDisasterState(code) GET /disaster/state/:code -> raw state-profile object (no matching @shared/interfaces type \u2014 define a local DisasterStateProfile interface). Import matching types from @shared/interfaces (GeoSpendingSnapshot, DisasterRecoveryRatio, SpendingRecord, AgencySummary, DisasterOverview, ApiResponse). Build HttpParams skipping undefined values. catchError fallbacks: of([] as T[]) for list methods, of(null) for single/null methods. Spec (api.service.spec.ts) TABLE-DRIVEN: one testTable row per method {name, methodName, args, expectedUrl, mockBody, expected}; TestBed with provideHttpClientTesting, inject HttpTestingController; for each row call the method, expectOne(expectedUrl), flush mockBody (the REAL backend shape per the contract above), assert the emitted value equals expected (post-map: r.data for getAgencies, the body for the rest). No comments in code."
+      "notes": "Single deep module per AGENTS.md Skill 3 — one ApiService, one method per use case, HttpClient injected, base URL from environment.apiUrl. provideHttpClient is NOT wired in this story (deferred to E4-S04); tests use provideHttpClientTesting + HttpTestingController, so do NOT edit app.config.ts. CRITICAL RESPONSE SHAPES — the backend has NO @Paginated decorator, so its ResponseWrapperInterceptor passes everything through RAW. ONLY GET /agencies returns a wrapped {data,meta} object (the service pre-wraps it); every other endpoint returns a raw array or raw object. So ONLY getAgencies maps r.data; the other 8 methods return the body directly (r). Per-method contract: getAgencies() GET /agencies -> {data,meta}; map r.data; the item shape is {id,name,totalCents} (NOT the shared Agency shape — backend drift), so define a local AgencyWithTotal interface. getAgencySummary(id) GET /agencies/:id/summary -> raw AgencySummary | null; return r. getAgencySpotlight(id) GET /agencies/:id/spotlight -> raw SpendingRecord[] | null; return r. getGeographyStates(params) GET /geography/states with HttpParams {fiscalYear?,agencyId?,scope?} -> raw GeoSpendingSnapshot[]; return r. getGeographyState(code) GET /geography/state/:code -> raw GeoSpendingSnapshot[]; return r. getDisasterOverview() GET /disaster/overview -> raw ARRAY DisasterOverview[] (note: array, not a single object); return r. getDisasterStates(params) GET /disaster/states with HttpParams {defGroup?,fiscalYear?} -> raw DisasterFundingRecord[]; return r. getDisasterRecoveryRatios(params) GET /disaster/recovery-ratios with HttpParams {fiscalYear?} -> raw DisasterRecoveryRatio[]; return r. getDisasterState(code) GET /disaster/state/:code -> raw state-profile object (no matching @shared/interfaces type — define a local DisasterStateProfile interface). Import matching types from @shared/interfaces (GeoSpendingSnapshot, DisasterRecoveryRatio, SpendingRecord, AgencySummary, DisasterOverview, ApiResponse). Build HttpParams skipping undefined values. catchError fallbacks: of([] as T[]) for list methods, of(null) for single/null methods. Spec (api.service.spec.ts) TABLE-DRIVEN: one testTable row per method {name, methodName, args, expectedUrl, mockBody, expected}; TestBed with provideHttpClientTesting, inject HttpTestingController; for each row call the method, expectOne(expectedUrl), flush mockBody (the REAL backend shape per the contract above), assert the emitted value equals expected (post-map: r.data for getAgencies, the body for the rest). No comments in code."
     },
     {
       "id": "E4-S04",
@@ -1272,7 +1272,7 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Angular 20. CRITICAL: providers go in app.config.ts, NOT main.ts. main.ts just does bootstrapApplication(App, appConfig) \u2014 do NOT edit it. In app.config.ts add to the EXISTING providers array: provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])) AND provideAnimationsAsync() (import from @angular/platform-browser/animations/async \u2014 MatSnackBar needs animations at runtime; without it, opening a snack-bar throws). Keep the existing provideRouter(routes), provideBrowserGlobalErrorListeners(), and provideZoneChangeDetection. Interceptors are FUNCTIONAL (HttpInterceptorFn from @angular/common/http), NOT classes. LoadingService (@Injectable({providedIn:'root'})): a private counter field, increment()/decrement() methods, and readonly loading$ = signal(false) as a WritableSignal<boolean> (signal from @angular/core). decrement clamps counter at >=0; both methods call loading$.set(this.counter > 0). Only loading$ and increment/decrement are public. LoadingInterceptor (HttpInterceptorFn): inject(LoadingService), call increment() before forwarding, return next(req).pipe(finalize(() => loadingSvc.decrement())) so the counter decrements on BOTH success and error. ErrorInterceptor (HttpInterceptorFn): inject(MatSnackBar), return next(req).pipe(catchError((error: HttpErrorResponse) => { const msg = error.status ? error.status + ': ' + error.message : 'Network error'; snackBar.open(msg, 'Dismiss', { duration: 5000 }); return throwError(() => error); })) \u2014 RE-THROW after showing the snack-bar so the ApiService catchError fallbacks still fire (the service still returns [] / null to its subscribers); do NOT swallow. Specs: loading.service.spec.ts TABLE-DRIVEN over a testTable of {operations, expectedLoading} rows asserting loading$() after increment/decrement sequences. interceptors.spec.ts: TestBed with provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])) + provideHttpClientTesting, HttpTestingController; for LoadingInterceptor assert the LoadingService counter/loading$ toggles around a flushed request; for ErrorInterceptor spy on MatSnackBar.open (inject MatSnackBar, jest.spyOn) and assert open() is called with the message AND the error re-throws (subscribe with error handler). No comments in code."
+      "notes": "Angular 20. CRITICAL: providers go in app.config.ts, NOT main.ts. main.ts just does bootstrapApplication(App, appConfig) — do NOT edit it. In app.config.ts add to the EXISTING providers array: provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])) AND provideAnimationsAsync() (import from @angular/platform-browser/animations/async — MatSnackBar needs animations at runtime; without it, opening a snack-bar throws). Keep the existing provideRouter(routes), provideBrowserGlobalErrorListeners(), and provideZoneChangeDetection. Interceptors are FUNCTIONAL (HttpInterceptorFn from @angular/common/http), NOT classes. LoadingService (@Injectable({providedIn:'root'})): a private counter field, increment()/decrement() methods, and readonly loading$ = signal(false) as a WritableSignal<boolean> (signal from @angular/core). decrement clamps counter at >=0; both methods call loading$.set(this.counter > 0). Only loading$ and increment/decrement are public. LoadingInterceptor (HttpInterceptorFn): inject(LoadingService), call increment() before forwarding, return next(req).pipe(finalize(() => loadingSvc.decrement())) so the counter decrements on BOTH success and error. ErrorInterceptor (HttpInterceptorFn): inject(MatSnackBar), return next(req).pipe(catchError((error: HttpErrorResponse) => { const msg = error.status ? error.status + ': ' + error.message : 'Network error'; snackBar.open(msg, 'Dismiss', { duration: 5000 }); return throwError(() => error); })) — RE-THROW after showing the snack-bar so the ApiService catchError fallbacks still fire (the service still returns [] / null to its subscribers); do NOT swallow. Specs: loading.service.spec.ts TABLE-DRIVEN over a testTable of {operations, expectedLoading} rows asserting loading$() after increment/decrement sequences. interceptors.spec.ts: TestBed with provideHttpClient(withInterceptors([loadingInterceptor, errorInterceptor])) + provideHttpClientTesting, HttpTestingController; for LoadingInterceptor assert the LoadingService counter/loading$ toggles around a flushed request; for ErrorInterceptor spy on MatSnackBar.open (inject MatSnackBar, jest.spyOn) and assert open() is called with the message AND the error re-throws (subscribe with error handler). No comments in code."
     },
     {
       "id": "E4-S05",
@@ -1301,7 +1301,7 @@
           "check": "cd frontend && grep -q 'base-chart' src/app/bar-chart/bar-chart.component.html"
         },
         {
-          "text": "bar-chart.component.spec.ts passes (table-driven: input shapes \u2192 expected chart config)",
+          "text": "bar-chart.component.spec.ts passes (table-driven: input shapes → expected chart config)",
           "check": "cd frontend && pnpm test --testPathPatterns=bar-chart.component.spec.ts --passWithNoTests"
         },
         {
@@ -1309,13 +1309,13 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Pure presentation component. Spec asserts the computed chart config (type, indexAxis, data) from a table of input shapes. Set indexAxis='y' when horizontal=true. Do NOT try to render canvas in jsdom \u2014 assert the computed config instead."
+      "notes": "Pure presentation component. Spec asserts the computed chart config (type, indexAxis, data) from a table of input shapes. Set indexAxis='y' when horizontal=true. Do NOT try to render canvas in jsdom — assert the computed config instead."
     },
     {
       "id": "E4-S06",
       "epic": "E4",
-      "title": "CurrencyFormatPipe (cents \u2192 dollars) + app theme",
-      "goal": "Create CurrencyFormatPipe that transforms integer cents \u2192 formatted dollar string ($15,000,000.00). Apply Angular Material theme (prebuilt or custom). Wire the pipe into a shared module.",
+      "title": "CurrencyFormatPipe (cents → dollars) + app theme",
+      "goal": "Create CurrencyFormatPipe that transforms integer cents → formatted dollar string ($15,000,000.00). Apply Angular Material theme (prebuilt or custom). Wire the pipe into a shared module.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E4-S01"
@@ -1335,7 +1335,7 @@
           "check": "cd frontend && grep -q 'transform' src/app/currency-format.pipe.ts"
         },
         {
-          "text": "currency-format.pipe.spec.ts passes (table-driven: 0\u2192$0.00, 1500000000\u2192$15,000,000.00, negative, undefined)",
+          "text": "currency-format.pipe.spec.ts passes (table-driven: 0→$0.00, 1500000000→$15,000,000.00, negative, undefined)",
           "check": "cd frontend && pnpm test --testPathPatterns=currency-format.pipe.spec.ts --passWithNoTests"
         },
         {
@@ -1352,7 +1352,7 @@
     {
       "id": "E5-S01",
       "epic": "E5",
-      "title": "Geographic View \u2014 controls bar (agency, FY, scope selectors)",
+      "title": "Geographic View — controls bar (agency, FY, scope selectors)",
       "goal": "Top controls bar with 3 selectors: agency mat-select (All Agencies + 6), fiscal year mat-select (2020-2024), scope mat-button-toggle-group (recipient/performance). Emits a filter-changed signal that other parts of the view consume.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -1370,7 +1370,7 @@
             "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
             "start": 1,
             "end": 30,
-            "reason": "component \u2014 replace placeholder with real component that has filter signals"
+            "reason": "component — replace placeholder with real component that has filter signals"
           }
         ]
       },
@@ -1392,12 +1392,12 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Angular 17 signals for filter state (no NgModel boilerplate). On agency select \u2192 agencyId signal set; on FY select \u2192 fiscalYear signal; on scope toggle \u2192 scope signal. Component exposes a computed filter$ signal. Spec asserts each control change updates the filter correctly."
+      "notes": "Angular 17 signals for filter state (no NgModel boilerplate). On agency select → agencyId signal set; on FY select → fiscalYear signal; on scope toggle → scope signal. Component exposes a computed filter$ signal. Spec asserts each control change updates the filter correctly."
     },
     {
       "id": "E5-S02",
       "epic": "E5",
-      "title": "Geographic View \u2014 top 10 bar chart + 50-state table",
+      "title": "Geographic View — top 10 bar chart + 50-state table",
       "goal": "Top section: BarChartComponent showing top 10 states by obligatedAmount for current filter (horizontal). Bottom: mat-table with all states, columns State/Total/PerCapita/AwardCount/vsAvg, mat-paginator 15/page, mat-sort on all columns.",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -1447,12 +1447,12 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "vs All-Agencies Avg column = (state.obligatedAmount - allAgenciesAvgForState / total) * 100. Computed in component from the same dataset. Spec mocks ApiService and feeds a testTable of geo snapshots \u2192 asserts top10 + vsAvg computation."
+      "notes": "vs All-Agencies Avg column = (state.obligatedAmount - allAgenciesAvgForState / total) * 100. Computed in component from the same dataset. Spec mocks ApiService and feeds a testTable of geo snapshots → asserts top10 + vsAvg computation."
     },
     {
       "id": "E5-S03",
       "epic": "E5",
-      "title": "Geographic View \u2014 recipient vs performance delta insight",
+      "title": "Geographic View — recipient vs performance delta insight",
       "goal": "When scope is toggled, compute and show a delta stat for the top state: 'California contractors receive $X but only $Y worth of work happens in-state.' Requires loading both recipient and performance scope data for the comparison.",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -1498,12 +1498,12 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "When user selects scope=recipient, ALSO fetch performance data (and vice versa) to compute the delta. Show delta stat only when both scopes loaded successfully. Delta = recipient$ - performance$ for the top state.\n\nMUST FIX (from E5-S02 QA findings \u2014 .research/qa-findings/E5-S02.md):\n1. Delta-sign bug: E5-S02 computes delta = selectedScope - oppositeScope, which flips sign when scope=performance. Delta must ALWAYS be recipient - performance regardless of which scope is selected. The existing test row 2 (named \"negative\") asserts +1_000_000_000 \u2014 this assertion is WRONG and must be corrected to assert the negative value.\n2. agencyList getter bug: E5-S02 returns [] once an agency is selected (agencyId() === null ? [...] : []). The dropdown empties on selection. Fix: always return the full agency list."
+      "notes": "When user selects scope=recipient, ALSO fetch performance data (and vice versa) to compute the delta. Show delta stat only when both scopes loaded successfully. Delta = recipient$ - performance$ for the top state.\n\nMUST FIX (from E5-S02 QA findings — .research/qa-findings/E5-S02.md):\n1. Delta-sign bug: E5-S02 computes delta = selectedScope - oppositeScope, which flips sign when scope=performance. Delta must ALWAYS be recipient - performance regardless of which scope is selected. The existing test row 2 (named \"negative\") asserts +1_000_000_000 — this assertion is WRONG and must be corrected to assert the negative value.\n2. agencyList getter bug: E5-S02 returns [] once an agency is selected (agencyId() === null ? [...] : []). The dropdown empties on selection. Fix: always return the full agency list."
     },
     {
       "id": "E6-S01",
       "epic": "E6",
-      "title": "Agency Spotlight \u2014 header (name, current FY total, YoY badge)",
+      "title": "Agency Spotlight — header (name, current FY total, YoY badge)",
       "goal": "Header section: agency full name + abbreviation, current FY total obligated (large), YoY change percentage badge (green positive, red negative). Fetches via ApiService.getAgencySummary(id). Route param :id.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -1541,7 +1541,7 @@
     {
       "id": "E6-S02",
       "epic": "E6",
-      "title": "Agency Spotlight \u2014 stacked bar chart with FY range selector",
+      "title": "Agency Spotlight — stacked bar chart with FY range selector",
       "goal": "Stacked bar chart: X=fiscalYear, Y=obligatedAmount, segments per award type (Contracts/Grants/Direct Payments/Loans/IDVs). FY range selector (two mat-selects from/to, default 2020-2024). AWARD_COLORS constant for consistent colors. Fetches via getAgencySpotlight(id, {fiscalYearStart, fiscalYearEnd}).",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -1579,12 +1579,12 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Transform raw SpendingRecord[] \u2192 stacked chart dataset: group by fiscalYear, then per FY bucket each awardTypeLabel as a separate dataset. AWARD_COLORS maps award type \u2192 hex color."
+      "notes": "Transform raw SpendingRecord[] → stacked chart dataset: group by fiscalYear, then per FY bucket each awardTypeLabel as a separate dataset. AWARD_COLORS maps award type → hex color."
     },
     {
       "id": "E6-S03",
       "epic": "E6",
-      "title": "Agency Spotlight \u2014 award breakdown table + dynamic insight line",
+      "title": "Agency Spotlight — award breakdown table + dynamic insight line",
       "goal": "mat-table with columns: Award Type, FY2024 Obligated, % of Total, Award Count. Sorted by obligated desc. Below chart: dynamic insight line computed from data (e.g. 'In FY2024, NASA spent X% on Contracts').",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -1617,12 +1617,12 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Insight computation: percentage of largest award type for current FY. Or trend (increased/decreased) over the FY range. Keep simple \u2014 one insight line, computed from data.\n\nMUST FIX (from E6-S02 QA findings \u2014 .research/qa-findings/E6-S02.md):\n1. FY range dropdowns empty: availableYears is declared (= []) but never populated. Populate it (e.g. [2020, 2021, 2022, 2023, 2024] or derived from loaded records). Also fix [(ngModel)] over <option [value]> string coercion \u2014 use [ngModel] + (ngModelChange) with Number() or switch to mat-select as the story context specified.\n2. Agency header + badge empty: getAgencySummary(id) exists in ApiService but is never called. Add a fetch in ngOnInit, bind agency.name/abbreviation/currentFyTotal to the header, and compute badge color from yoyChange (green >= 0, red < 0).\n\nDEFERRED (cross-file/backend, separate story):\n- AWARD_COLORS not applied to chart (needs ChartDataset interface + bar-chart template change)\n- FY range not sent to API (client-side filtering works; server-side is optimization)"
+      "notes": "Insight computation: percentage of largest award type for current FY. Or trend (increased/decreased) over the FY range. Keep simple — one insight line, computed from data.\n\nMUST FIX (from E6-S02 QA findings — .research/qa-findings/E6-S02.md):\n1. FY range dropdowns empty: availableYears is declared (= []) but never populated. Populate it (e.g. [2020, 2021, 2022, 2023, 2024] or derived from loaded records). Also fix [(ngModel)] over <option [value]> string coercion — use [ngModel] + (ngModelChange) with Number() or switch to mat-select as the story context specified.\n2. Agency header + badge empty: getAgencySummary(id) exists in ApiService but is never called. Add a fetch in ngOnInit, bind agency.name/abbreviation/currentFyTotal to the header, and compute badge color from yoyChange (green >= 0, red < 0).\n\nDEFERRED (cross-file/backend, separate story):\n- AWARD_COLORS not applied to chart (needs ChartDataset interface + bar-chart template change)\n- FY range not sent to API (client-side filtering works; server-side is optimization)"
     },
     {
       "id": "E7-S01",
       "epic": "E7",
-      "title": "Disaster Lens \u2014 DEF group tabs + 4 summary cards",
+      "title": "Disaster Lens — DEF group tabs + 4 summary cards",
       "goal": "mat-tab-group with 5 DEF group tabs (COVID-19, Hurricane, Wildfire, Infrastructure, General). Fiscal year mat-select (optional, default all). 4 summary cards: total spending, state count, coverage gap count (ratio<0.5), highest per-capita state. Fetches via getDisasterOverview + getDisasterStates.",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -1655,12 +1655,12 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "4 cards display: totalObligated (via CurrencyFormatPipe), stateCount (length), coverageGapCount (states with ratio<0.5 from ratios endpoint), highestPerCapitaState (from overview response). Tab change \u2192 refetch states."
+      "notes": "4 cards display: totalObligated (via CurrencyFormatPipe), stateCount (length), coverageGapCount (states with ratio<0.5 from ratios endpoint), highestPerCapitaState (from overview response). Tab change → refetch states."
     },
     {
       "id": "E7-S02",
       "epic": "E7",
-      "title": "Disaster Lens \u2014 top 15 states bar chart",
+      "title": "Disaster Lens — top 15 states bar chart",
       "goal": "Horizontal bar chart showing top 15 states by obligatedAmount for the selected DEF group + FY filter. Uses shared BarChartComponent. Updates on tab change.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -1698,7 +1698,7 @@
     {
       "id": "E7-S03",
       "epic": "E7",
-      "title": "Disaster Lens \u2014 recovery ratio table with color chips + tooltip",
+      "title": "Disaster Lens — recovery ratio table with color chips + tooltip",
       "goal": "Recovery ratio mat-table: State, Declarations, FEMA, Fed DEF, Ratio (chip-colored), Dominant Incident. Sorted ratio ascending (worst first). Chip color: red <0.5, yellow 0.5-1.0, green >1.0. Tooltip explaining ratio calc. mat-paginator 15/page. getRatioColor helper.",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -1729,7 +1729,7 @@
           "check": "cd frontend && grep -q 'mat-table' src/app/disaster-lens/disaster-lens.component.html && grep -q 'mat-paginator' src/app/disaster-lens/disaster-lens.component.html"
         },
         {
-          "text": "ratio-color.spec.ts passes (table-driven: ratio \u2192 expected color)",
+          "text": "ratio-color.spec.ts passes (table-driven: ratio → expected color)",
           "check": "cd frontend && pnpm test --testPathPatterns=ratio-color.spec.ts --passWithNoTests"
         },
         {
@@ -1741,12 +1741,12 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "Tooltip text: 'Recovery Ratio = Federal DEF Spending \u00f7 FEMA Baseline. A ratio below 1.0 indicates federal spending has not yet matched FEMA\\'s initial obligation level.' getRatioColor is a pure helper \u2014 extracted because table tests need it isolated. Sort done client-side from getDisasterRecoveryRatios response."
+      "notes": "Tooltip text: 'Recovery Ratio = Federal DEF Spending ÷ FEMA Baseline. A ratio below 1.0 indicates federal spending has not yet matched FEMA\\'s initial obligation level.' getRatioColor is a pure helper — extracted because table tests need it isolated. Sort done client-side from getDisasterRecoveryRatios response."
     },
     {
       "id": "E8-S01",
       "epic": "E8",
-      "title": "Dashboard \u2014 4 summary cards + agency quick-compare chart",
+      "title": "Dashboard — 4 summary cards + agency quick-compare chart",
       "goal": "4 summary cards: total obligated (all 6 agencies all years), largest agency by FY2024 spend, coverage gap count (states with ratio<0.5), last sync timestamp. Grouped bar chart: all 6 agencies FY2024 obligated, click navigates to /agencies/:id.",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -1787,7 +1787,7 @@
     {
       "id": "E8-S02",
       "epic": "E8",
-      "title": "Dashboard \u2014 3 navigation cards",
+      "title": "Dashboard — 3 navigation cards",
       "goal": "3 nav cards linking to /geography, /agencies, /disaster with title + one-sentence description + icon. Click navigates via routerLink.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -1817,13 +1817,13 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "routerLink on the card host element. mat-card for consistent styling. Icons from Material Icons font. Page load target: under 2 seconds \u2014 assert in spec via fakeAsync + tick."
+      "notes": "routerLink on the card host element. mat-card for consistent styling. Icons from Material Icons font. Page load target: under 2 seconds — assert in spec via fakeAsync + tick."
     },
     {
       "id": "E9-S01",
       "epic": "E9",
       "title": "render.yaml + Render config",
-      "goal": "Create render.yaml at repo root with backend web service, frontend static site, postgres database. Build/start commands match the deployed structure. No production code changes \u2014 just config.",
+      "goal": "Create render.yaml at repo root with backend web service, frontend static site, postgres database. Build/start commands match the deployed structure. No production code changes — just config.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E8-S02"
@@ -1864,8 +1864,8 @@
     {
       "id": "E9-S02",
       "epic": "E9",
-      "title": "Backend prod config \u2014 migrations, env vars, health check",
-      "goal": "Generate initial TypeORM migration. Set NODE_ENV=production behavior: migrationsRun=true, synchronize=false. Verify /health endpoint works in prod mode (no FRONTEND_URL fallback to '*' \u2014 must be explicit). Document required env vars.",
+      "title": "Backend prod config — migrations, env vars, health check",
+      "goal": "Generate initial TypeORM migration. Set NODE_ENV=production behavior: migrationsRun=true, synchronize=false. Verify /health endpoint works in prod mode (no FRONTEND_URL fallback to '*' — must be explicit). Document required env vars.",
       "build": "BUILD-DEEP",
       "dependencies": [
         "E9-S01"
@@ -1890,7 +1890,7 @@
             "file": "backend/package.json",
             "start": 1,
             "end": 30,
-            "reason": "scripts \u2014 add typeorm:migrate script"
+            "reason": "scripts — add typeorm:migrate script"
           }
         ]
       },
@@ -1925,7 +1925,7 @@
     {
       "id": "E9-S03",
       "epic": "E9",
-      "title": "Frontend prod build config \u2014 environment.prod, _redirects in assets",
+      "title": "Frontend prod build config — environment.prod, _redirects in assets",
       "goal": "Configure angular.json to include _redirects in the build output assets. Confirm environment.prod.ts has empty apiUrl (same-origin). Verify production build completes and emits dist/frontend/browser/_redirects.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -1943,7 +1943,7 @@
             "file": "frontend/angular.json",
             "start": 1,
             "end": 100,
-            "reason": "assets array \u2014 add _redirects to be copied to dist"
+            "reason": "assets array — add _redirects to be copied to dist"
           }
         ]
       },
@@ -1969,13 +1969,13 @@
           "check": "cd frontend && pnpm test --testPathPatterns=build-output.spec.ts --passWithNoTests"
         }
       ],
-      "notes": "Configure angular.json production fileReplacements to swap environment.ts \u2192 environment.prod.ts (if not already). Add _redirects to assets array so it's copied verbatim to dist/frontend/browser/."
+      "notes": "Configure angular.json production fileReplacements to swap environment.ts → environment.prod.ts (if not already). Add _redirects to assets array so it's copied verbatim to dist/frontend/browser/."
     },
     {
       "id": "E10-S01",
       "epic": "E10",
-      "title": "App shell \u2014 top nav + footer",
-      "goal": "Top nav: route links for Dashboard, Geography, Agencies, Disaster. Footer: 'Data: USASpending.gov (U.S. Treasury) \u00b7 OpenFEMA (FEMA) \u00b7 Updated nightly'. Wrap all views in a consistent shell.",
+      "title": "App shell — top nav + footer",
+      "goal": "Top nav: route links for Dashboard, Geography, Agencies, Disaster. Footer: 'Data: USASpending.gov (U.S. Treasury) · OpenFEMA (FEMA) · Updated nightly'. Wrap all views in a consistent shell.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E8-S02"
@@ -2031,7 +2031,7 @@
             "file": "frontend/src/app/app.component.html",
             "start": 1,
             "end": 30,
-            "reason": "nav \u2014 add mat-slide-toggle bound to ThemeService"
+            "reason": "nav — add mat-slide-toggle bound to ThemeService"
           }
         ]
       },
@@ -2100,7 +2100,7 @@
     {
       "id": "E10-S04",
       "epic": "E10",
-      "title": "Polish tests \u2014 cross-layer unit coverage + final build pass",
+      "title": "Polish tests — cross-layer unit coverage + final build pass",
       "goal": "Add the 3 unit tests called out in epic-10: SyncService DEF code grouping, RecoveryRatioService edge cases (already in E2-S04 but verify), DisasterLensComponent table sort defaults. Run full backend + frontend test suites + builds to confirm demo-ready state.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -2141,7 +2141,7 @@
     {
       "id": "E11-S01",
       "epic": "E11",
-      "title": "Fix USASpending API sync \u2014 all endpoints 404",
+      "title": "Fix USASpending API sync — all endpoints 404",
       "goal": "Fix usa-spending.service.ts: every API URL is wrong (all return 404). Correct the endpoints, change from GET to POST where needed, and adapt response parsing to the actual USASpending API v2 response shapes.",
       "build": "BUILD-DEEP",
       "dependencies": [
@@ -2177,7 +2177,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "ALL URLs in this service are wrong \u2014 they 404 against the live API. Here are the CORRECT endpoints (verified live June 2026):\n\n1. AGENCIES: GET /references/toptier_agencies/\n   Response: { results: [{ agency_name, toptier_code, abbreviation }] }\n   Map: name=agency_name, toptierCode=toptier_code, abbreviation=abbreviation\n\n2. GEOGRAPHY: POST /search/spending_by_geography/\n   Body: { filters: { time_period: [{ start_date, end_date }] }, geo_layer: 'state', scope: 'recipient_location' }\n   Response: { results: [{ shape_code, display_data, aggregated_amount }] }\n   FY2024 = start 2024-10-01, end 2025-09-30\n\n3. DISASTER: Same endpoint, add def_codes to filters:\n   Body: { filters: { time_period: [...], def_codes: ['L'] }, geo_layer: 'state' }\n\n4. DEF CODES: GET /references/def_codes/\n   Response: { results: [{ code, label, group }] }\n\nCRITICAL: fetchWithRetry must support POST with JSON body (currently GET only). fetchAllPages must paginate via POST body { page: N }, not URL query.\nUpdate usa-spending.types.ts raw types to match new response shapes.\nDo NOT change return types of service methods \u2014 sync.service.ts depends on them."
+      "notes": "ALL URLs in this service are wrong — they 404 against the live API. Here are the CORRECT endpoints (verified live June 2026):\n\n1. AGENCIES: GET /references/toptier_agencies/\n   Response: { results: [{ agency_name, toptier_code, abbreviation }] }\n   Map: name=agency_name, toptierCode=toptier_code, abbreviation=abbreviation\n\n2. GEOGRAPHY: POST /search/spending_by_geography/\n   Body: { filters: { time_period: [{ start_date, end_date }] }, geo_layer: 'state', scope: 'recipient_location' }\n   Response: { results: [{ shape_code, display_data, aggregated_amount }] }\n   FY2024 = start 2024-10-01, end 2025-09-30\n\n3. DISASTER: Same endpoint, add def_codes to filters:\n   Body: { filters: { time_period: [...], def_codes: ['L'] }, geo_layer: 'state' }\n\n4. DEF CODES: GET /references/def_codes/\n   Response: { results: [{ code, label, group }] }\n\nCRITICAL: fetchWithRetry must support POST with JSON body (currently GET only). fetchAllPages must paginate via POST body { page: N }, not URL query.\nUpdate usa-spending.types.ts raw types to match new response shapes.\nDo NOT change return types of service methods — sync.service.ts depends on them."
     },
     {
       "id": "E11-S02",
@@ -2256,7 +2256,7 @@
           "check": "cd backend && pnpm build"
         }
       ],
-      "notes": "Current code: agencies.map(a => spendingRepo.find({ where: { agencyId: a.id } })) \u2014 111 queries. Replace with a single LEFT JOIN agency -> spending_record GROUP BY agency.id computing SUM(obligatedAmount). Use TypeORM QueryBuilder: agencyRepo.createQueryBuilder('agency').leftJoin('agency.spendingRecords', 'sr').select(['agency.id', 'agency.name', 'COALESCE(SUM(sr.obligatedAmount), 0) AS totalCents']).groupBy('agency.id').getRawMany(). Filter by current fiscal year in the JOIN condition."
+      "notes": "Current code: agencies.map(a => spendingRepo.find({ where: { agencyId: a.id } })) — 111 queries. Replace with a single LEFT JOIN agency -> spending_record GROUP BY agency.id computing SUM(obligatedAmount). Use TypeORM QueryBuilder: agencyRepo.createQueryBuilder('agency').leftJoin('agency.spendingRecords', 'sr').select(['agency.id', 'agency.name', 'COALESCE(SUM(sr.obligatedAmount), 0) AS totalCents']).groupBy('agency.id').getRawMany(). Filter by current fiscal year in the JOIN condition."
     },
     {
       "id": "E12-S02",
@@ -2326,7 +2326,7 @@
           "check": "cd frontend && pnpm test"
         }
       ],
-      "notes": "Dark mode CSS uses body.dark-theme with !important on background-color. Material M3 theme variables are scoped to .dark-theme. Remaining gaps to check: mat-card content text color, mat-table row hover, chart canvas background (Chart.js transparent \u2014 fine), mat-tab-body content, mat-paginator. Add overrides in styles.scss as needed. The ThemeService already toggles class on body + CDK overlay container via effect()."
+      "notes": "Dark mode CSS uses body.dark-theme with !important on background-color. Material M3 theme variables are scoped to .dark-theme. Remaining gaps to check: mat-card content text color, mat-table row hover, chart canvas background (Chart.js transparent — fine), mat-tab-body content, mat-paginator. Add overrides in styles.scss as needed. The ThemeService already toggles class on body + CDK overlay container via effect()."
     },
     {
       "id": "E12-S04",
@@ -2345,12 +2345,12 @@
           "check": "git log --oneline origin/main..main | wc -l | grep -q '^0$' || git push --dry-run 2>&1 | grep -qi 'success\\|up-to-date\\|Everything'"
         }
       ],
-      "notes": "Manual task \u2014 run: git push origin main. If the remote has diverged, rebase first. This is a verification gate, not a code story."
+      "notes": "Manual task — run: git push origin main. If the remote has diverged, rebase first. This is a verification gate, not a code story."
     },
     {
       "id": "E12-S05",
       "epic": "E12",
-      "title": "Deploy to Render \u2014 verify production build + health check",
+      "title": "Deploy to Render — verify production build + health check",
       "goal": "Verify the Render deployment works: backend serves the production build, frontend assets are served correctly, environment.prod.ts points to the right API URL, and /health returns ok.",
       "build": "BUILD-FAST",
       "dependencies": [
@@ -2377,7 +2377,7 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "E9 stories created the render.yaml and prod config but were never tested on actual Render infra. This story verifies the config is correct. The render.yaml should define: (1) backend service running nest start -- from dist/backend/src/main.js, (2) static site for frontend dist/. environment.prod.ts apiUrl should be '' (empty \u2014 same-origin). DATABASE_URL will be set by Render's Postgres addon."
+      "notes": "E9 stories created the render.yaml and prod config but were never tested on actual Render infra. This story verifies the config is correct. The render.yaml should define: (1) backend service running nest start -- from dist/backend/src/main.js, (2) static site for frontend dist/. environment.prod.ts apiUrl should be '' (empty — same-origin). DATABASE_URL will be set by Render's Postgres addon."
     },
     {
       "id": "E13-S01",
@@ -2413,7 +2413,251 @@
           "check": "cd frontend && pnpm build"
         }
       ],
-      "notes": "The dashboard chart currently plots all 111 agencies \u2014 105 are invisible (totalCents=0). Replace with a Top-N + Other consolidation.\n\nALGORITHM:\n1. Sort agencies by totalCents descending\n2. Take top 5 (TOP_N = 5) as individual bars\n3. Sum remaining agencies' totalCents into one 'Other' bar\n4. Set chartLabels = [name1, name2, name3, name4, name5, 'Other']\n5. Set chartDatasets = [{ label: 'Obligated (cents)', data: [c1, c2, c3, c4, c5, sumRest] }]\n6. Store top agency ids in a separate array (chartAgencyIds) for click resolution\n7. If fewer than TOP_N agencies have data, show only those + Other\n\nCLICK HANDLER:\n- onChartClick: get clicked index. If index < chartAgencyIds.length, navigate to /agencies/chartAgencyIds[index]. If 'Other' bar clicked, do nothing.\n\nSPEC TEST TABLE:\n- 6 agencies with data, TOP_N=3: 3 bars + 'Other' with sum of remaining 3\n- All agencies $0: single 'Other' bar at $0, chartAgencyIds is empty\n- 2 agencies with data, TOP_N=5: 2 bars + 'Other'\n- Click on top bar: navigate to that agency id\n- Click on 'Other' bar: no navigation\n\nDo NOT change dashboard.component.html or dashboard.component.scss. The chart template already binds [data] and (chartClick) \u2014 just wire the component logic. Keep CurrencyFormatPipe, cards, nav cards untouched."
+      "notes": "The dashboard chart currently plots all 111 agencies — 105 are invisible (totalCents=0). Replace with a Top-N + Other consolidation.\n\nALGORITHM:\n1. Sort agencies by totalCents descending\n2. Take top 5 (TOP_N = 5) as individual bars\n3. Sum remaining agencies' totalCents into one 'Other' bar\n4. Set chartLabels = [name1, name2, name3, name4, name5, 'Other']\n5. Set chartDatasets = [{ label: 'Obligated (cents)', data: [c1, c2, c3, c4, c5, sumRest] }]\n6. Store top agency ids in a separate array (chartAgencyIds) for click resolution\n7. If fewer than TOP_N agencies have data, show only those + Other\n\nCLICK HANDLER:\n- onChartClick: get clicked index. If index < chartAgencyIds.length, navigate to /agencies/chartAgencyIds[index]. If 'Other' bar clicked, do nothing.\n\nSPEC TEST TABLE:\n- 6 agencies with data, TOP_N=3: 3 bars + 'Other' with sum of remaining 3\n- All agencies $0: single 'Other' bar at $0, chartAgencyIds is empty\n- 2 agencies with data, TOP_N=5: 2 bars + 'Other'\n- Click on top bar: navigate to that agency id\n- Click on 'Other' bar: no navigation\n\nDo NOT change dashboard.component.html or dashboard.component.scss. The chart template already binds [data] and (chartClick) — just wire the component logic. Keep CurrencyFormatPipe, cards, nav cards untouched."
+    },
+    {
+      "id": "E14-S01",
+      "epic": "E14",
+      "title": "Geography: dynamic agency + FY dropdowns, latest-year default, reliable delta insight",
+      "goal": "Make the /geography page render real data on first load. Replace the hardcoded 7-item agencyList and 5-item fiscalYearList with values derived from the API and the loaded snapshots, default the fiscal year to the latest year present in the data, and make the delta insight line reliably render the requested prose.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html",
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 26,
+            "end": 60,
+            "reason": "Component fields + agencyList/fiscalYearList getters — replace static getters with cached API values; derive fiscalYearList from loaded snapshots; default fiscalYear to latest available year."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 62,
+            "end": 146,
+            "reason": "loadData / computeDelta / processData / onScopeChange — stop resetting this.delta=null on primary load and on scope change; compute and retain the recipient-vs-performance delta for the top state."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.html",
+            "start": 3,
+            "end": 10,
+            "reason": "delta-insight block — replace generic numeric string with the requested prose naming the top state and the recipient-vs-performance delta."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "agencyList is no longer a hardcoded static array (fetched from ApiService.getAgencies)",
+          "check": "cd frontend && grep -q 'getAgencies' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "fiscalYearList is derived dynamically (not a hardcoded literal array)",
+          "check": "cd frontend && ! grep -qE 'return \\[2020, 2021, 2022, 2023, 2024\\]' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "default fiscalYear resolves to the latest year present in the data (2024), not a hardcoded 2020 literal",
+          "check": "cd frontend && ! grep -qE 'fiscalYear = signal\\\\(<number>2020\\\\)' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "delta insight prose names the top state and references contractors receive / performance",
+          "check": "cd frontend && grep -qiE 'contractors? receive' src/app/geographic-view/geographic-view.component.html"
+        },
+        {
+          "text": "component no longer nulls this.delta inside processData on the primary load path",
+          "check": "cd frontend && ! awk '/processData\\(data/{f=1} f{print} f&&/^  }\\$/{exit}' src/app/geographic-view/geographic-view.component.ts | grep -q 'this.delta = null'"
+        },
+        {
+          "text": "geographic-view.component.spec.ts passes (table-driven: agency list populated from mock ApiService, FY list derived from snapshots, default FY = max year, delta positive/negative/zero)",
+          "check": "cd frontend && pnpm test --testPathPatterns=geographic-view --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "The dev DB currently contains 114 geo rows, all FY2024 / agencyId=null / scope=recipient; the page renders blank today because fiscalYear defaults to 2020. Resolve by deriving fiscalYearList client-side from distinct fiscalYear values seen in the loaded snapshots and defaulting to Math.max of those years. Agencies come from ApiService.getAgencies(); cache them in a field populated on first load (do not refetch on every control change). Delta prose target: \"Top state <State> contractors receive $X while only $Y is performed in-state (delta $Z).\" Do NOT add a new backend endpoint for years (resolution: client-side derivation). Do NOT add a spec for the HTML string beyond the grep check."
+    },
+    {
+      "id": "E14-S02",
+      "epic": "E14",
+      "title": "Agency Spotlight: true stacked bar chart via BarChartComponent stacked input + title wiring",
+      "goal": "BarChartComponent currently ignores @Input() stacked and @Input() title, so the Agency Spotlight awards-by-year chart renders grouped instead of stacked and shows no title. Add an opt-in stacked input that sets scales.x.stacked and scales.y.stacked, wire title into options.plugins.title, and pass [stacked]=\"true\" from Agency Spotlight.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/bar-chart/bar-chart.component.ts",
+          "frontend/src/app/bar-chart/bar-chart.component.spec.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/bar-chart/bar-chart.component.ts",
+            "start": 1,
+            "end": 60,
+            "reason": "Add @Input() stacked boolean and @Input() title; incorporate into chartOptions via a computed/derived options object — set scales.x.stacked and scales.y.stacked when stacked is true; set plugins.title.display=true and text=title when title is provided."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+            "start": 1,
+            "end": 80,
+            "reason": "app-bar-chart usage — add [stacked]=\"true\" input so the awards-by-year chart renders stacked."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "BarChartComponent exposes a stacked input",
+          "check": "cd frontend && grep -qE '@Input\\\\(\\\\)\\\\s*stacked|input\\\\(.boolean\\\\)' src/app/bar-chart/bar-chart.component.ts"
+        },
+        {
+          "text": "BarChartComponent sets scales stacked when stacked is true",
+          "check": "cd frontend && grep -q 'stacked' src/app/bar-chart/bar-chart.component.ts"
+        },
+        {
+          "text": "BarChartComponent wires title into chart options plugins.title",
+          "check": "cd frontend && grep -qE 'plugins.*title|title:' src/app/bar-chart/bar-chart.component.ts"
+        },
+        {
+          "text": "Agency Spotlight template passes [stacked]=\"true\" to app-bar-chart",
+          "check": "cd frontend && grep -q 'stacked' src/app/agency-spotlight/agency-spotlight.component.html"
+        },
+        {
+          "text": "bar-chart.component.spec.ts passes (table-driven: stacked=false options omit scales.stacked, stacked=true options include x.stacked and y.stacked, title present in plugins.title when provided)",
+          "check": "cd frontend && pnpm test --testPathPatterns=bar-chart --passWithNoTests"
+        },
+        {
+          "text": "agency-spotlight.component.spec.ts passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Behavior-preserving for Geography and Disaster which also use app-bar-chart with the default (stacked=false) — stacked must default to false so existing callers render exactly as before. Do not change the default option shape; only add the two optional inputs. Use Angular signal inputs if the component already uses signals, otherwise @Input() to match existing style in that file."
+    },
+    {
+      "id": "E14-S03",
+      "epic": "E14",
+      "title": "Disaster: fix FY mat-select binding + move defGroup overview filtering server-side",
+      "goal": "Fix two real bugs in the Disaster view. (1) [(value)] on mat-select is not a valid two-way binding — replace with [(ngModel)]. (2) Overview is filtered client-side by currentTab, so tabs whose overview row is missing silently fall back to $0 totals — move defGroup filtering into DisasterService.getOverview so the database is the source of truth.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
+          "backend/src/disaster/disaster.service.ts",
+          "backend/src/disaster/disaster.service.spec.ts",
+          "backend/src/disaster/disaster.controller.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.html",
+            "start": 1,
+            "end": 20,
+            "reason": "mat-select FY binding — replace [(value)] with [(ngModel)]."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+            "start": 1,
+            "end": 160,
+            "reason": "Overview handling — stop filtering overview rows by currentTab client-side; pass defGroup to getDisasterOverview and trust the server response. currentTab may still drive chip/tab highlight only."
+          },
+          {
+            "file": "backend/src/disaster/disaster.service.ts",
+            "start": 1,
+            "end": 110,
+            "reason": "getOverview — accept an optional defGroup filter and apply it to the query (where defGroup = :group) when provided."
+          },
+          {
+            "file": "backend/src/disaster/disaster.controller.ts",
+            "start": 1,
+            "end": 40,
+            "reason": "Forward @Query(\"defGroup\") defGroup to the service method."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "No invalid [(value)] binding remains on the disaster FY mat-select",
+          "check": "cd frontend && ! grep -n '\\[\\\\?(value)\\\\?\\]=' src/app/disaster-lens/disaster-lens.component.html"
+        },
+        {
+          "text": "DisasterService.getOverview filters by defGroup server-side",
+          "check": "cd backend && grep -q 'defGroup' src/disaster/disaster.service.ts"
+        },
+        {
+          "text": "Disaster controller forwards defGroup query param",
+          "check": "cd backend && grep -q 'defGroup' src/disaster/disaster.controller.ts"
+        },
+        {
+          "text": "Frontend passes defGroup to getDisasterOverview instead of filtering overview client-side by tab",
+          "check": "cd frontend && grep -qE 'getDisasterOverview\\\\(.{0,40}defGroup|defGroup.{0,40}getDisasterOverview' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "disaster-lens.component.spec.ts passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens --passWithNoTests"
+        },
+        {
+          "text": "disaster.service.spec.ts passes (table-driven: getOverview with defGroup returns only matching rows, without defGroup returns all)",
+          "check": "cd backend && pnpm test --testPathPatterns=disaster.service --passWithNoTests"
+        },
+        {
+          "text": "frontend and backend build cleanly",
+          "check": "cd frontend && pnpm build && cd ../backend && pnpm build"
+        }
+      ],
+      "notes": "ApiService.getDisasterOverview currently takes no params — extend its signature to accept { defGroup?: string } and forward via toParams, mirroring getDisasterStates. Do not change the overview response shape. The client-side fallback-to-0 behavior is the bug being fixed: every tab must now query the server for its own overview row. If a defGroup genuinely has no data the server returns [] and the cards legitimately show 0 — that is correct, not a regression."
+    },
+    {
+      "id": "E14-S04",
+      "epic": "E14",
+      "title": "Dashboard: add explanatory \"why this data\" paragraph above the content",
+      "goal": "Add a single explanatory paragraph at the top of the Dashboard that describes what the data represents, its sources, and how the three sections (navigation cards, summary KPI cards, agency chart) relate to it. Improves transparency and onboarding.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "frontend/src/app/dashboard/dashboard.component.html",
+          "frontend/src/app/dashboard/dashboard.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/dashboard/dashboard.component.html",
+            "start": 1,
+            "end": 3,
+            "reason": "Insert an explanatory <p class=\"about\"> paragraph immediately after the <h1>Dashboard</h1> heading, before the nav-cards block."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "dashboard.component.html contains the approved explainer paragraph verbatim (sources + three sections named)",
+          "check": "cd frontend && grep -q 'USASpending.gov' src/app/dashboard/dashboard.component.html && grep -q 'OpenFEMA' src/app/dashboard/dashboard.component.html && grep -qi 'navigation cards' src/app/dashboard/dashboard.component.html && grep -qi 'summary cards' src/app/dashboard/dashboard.component.html && grep -qi 'agency chart' src/app/dashboard/dashboard.component.html"
+        },
+        {
+          "text": "paragraph appears between the h1 and the nav-cards block",
+          "check": "cd frontend && awk '/<h1>Dashboard<\\\\/h1>/{h=1} h && /class=.about./{print NR; exit}' src/app/dashboard/dashboard.component.html"
+        },
+        {
+          "text": "dashboard.component.spec.ts passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=dashboard --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Approved prose to insert verbatim (single <p class=\"about\">): \"FedSpend surfaces federal spending data drawn from USASpending.gov and OpenFEMA to make government obligations transparent and comparable. The navigation cards below open three lenses on the same underlying records: Geography breaks obligations down by where money is received or performed, Agencies profiles each agency totals and year-over-year trends, and Disaster compares federal disaster spending against FEMA recovery obligations. The summary cards report portfolio-wide figures for the current fiscal year — total obligated across agencies, the single largest agency, and the count of states where federal recovery spending falls short of 50% of FEMA obligations (coverage gaps). The agency chart ranks the top five agencies by obligated amount for FY2024, with all remaining agencies consolidated into Other; click any bar to open that agency spotlight.\" Style the .about class in dashboard.component.scss (or inline) — keep it subtle, do not restructure existing layout."
     }
   ],
   "storyOrder": [
@@ -2461,7 +2705,11 @@
     "E10-S01",
     "E10-S02",
     "E10-S03",
-    "E10-S04"
+    "E10-S04",
+    "E14-S01",
+    "E14-S02",
+    "E14-S03",
+    "E14-S04"
   ],
   "resolutions": [
     {
@@ -2492,7 +2740,7 @@
       "needs_human": false
     },
     {
-      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ \u2014 is this correct?",
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
       "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
       "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
       "affects": [
@@ -2528,7 +2776,7 @@
       "needs_human": false
     },
     {
-      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount \u2014 should it be integer or float?",
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
       "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
       "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
       "affects": [
@@ -2557,9 +2805,9 @@
       "needs_human": false
     },
     {
-      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 \u2014 Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
       "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
-      "reason": "Material/CDK lag behind core in minor versions \u2014 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
     }
   ]
 }

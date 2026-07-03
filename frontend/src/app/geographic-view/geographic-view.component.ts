@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -10,8 +10,8 @@ import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatSortModule } from '@angular/material/sort';
 import { MatIconModule } from '@angular/material/icon';
 import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
-import { ApiService } from '../api.service';
-import { Agency, GeoSpendingSnapshot } from '@shared/interfaces';
+import { ApiService, AgencyWithTotal } from '../api.service';
+import { GeoSpendingSnapshot } from '@shared/interfaces';
 
 @Component({
   selector: 'app-geographic-view',
@@ -23,10 +23,13 @@ import { Agency, GeoSpendingSnapshot } from '@shared/interfaces';
   ],
   templateUrl: './geographic-view.component.html',
 })
-export class GeographicViewComponent {
+export class GeographicViewComponent implements OnInit {
   agencyId = signal<number | null>(null);
-  fiscalYear = signal<number>(2020);
+  fiscalYear = signal<number>(2024);
   scope = signal<'recipient' | 'performance'>('recipient');
+
+  agencyList: AgencyWithTotal[] = [];
+  fiscalYearList: number[] = [];
 
   top10: Array<{ stateName: string; obligatedAmount: number }> = [];
   allStates: GeoSpendingSnapshot[] = [];
@@ -39,24 +42,16 @@ export class GeographicViewComponent {
 
   displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'awardCount', 'vsAvg'];
 
-  constructor(private readonly apiService: ApiService) {
+  constructor(private readonly apiService: ApiService) {}
+
+  ngOnInit(): void {
     this.loadData();
   }
 
-  get agencyList(): Agency[] {
-    return [
-      { id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },
-      { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },
-      { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },
-      { id: 4, name: 'Department of Health and Human Services', abbreviation: 'HHS', toptierCode: '04' },
-      { id: 5, name: 'Department of Homeland Security', abbreviation: 'DHS', toptierCode: '05' },
-      { id: 6, name: 'Department of State', abbreviation: 'STATE', toptierCode: '06' },
-      { id: 7, name: 'Department of Transportation', abbreviation: 'DOT', toptierCode: '07' },
-    ];
-  }
-
-  get fiscalYearList(): number[] {
-    return [2020, 2021, 2022, 2023, 2024];
+  loadAgencies(): void {
+    this.apiService.getAgencies().subscribe(agencies => {
+      this.agencyList = agencies;
+    });
   }
 
   loadData(): void {
@@ -72,13 +67,25 @@ export class GeographicViewComponent {
     const oppositeScope = this.scope() === 'recipient' ? 'performance' : 'recipient';
     const oppParams = { ...params, scope: oppositeScope };
 
+    this.loadAgencies();
+
     this.apiService.getGeographyStates(params).subscribe(primary => {
+      this.deriveFiscalYearList(primary);
       this.processData(primary);
 
       this.apiService.getGeographyStates(oppParams).subscribe(secondary => {
         this.computeDelta(primary, secondary);
       });
     });
+  }
+
+  deriveFiscalYearList(data: GeoSpendingSnapshot[]): void {
+    const years = Array.from(new Set(data.map(d => d.fiscalYear))).sort((a, b) => a - b);
+    if (years.length === 0) return;
+    this.fiscalYearList = years;
+    if (!years.includes(this.fiscalYear())) {
+      this.fiscalYear.set(years[years.length - 1]);
+    }
   }
 
   computeDelta(primary: GeoSpendingSnapshot[], secondary: GeoSpendingSnapshot[]): void {
@@ -125,8 +132,6 @@ export class GeographicViewComponent {
       label: 'Obligated Amount (cents)',
       data: this.top10.map(t => t.obligatedAmount),
     }];
-
-    this.delta = null;
   }
 
   onAgencyChange(value: number | null): void {
@@ -142,6 +147,5 @@ export class GeographicViewComponent {
   onScopeChange(value: 'recipient' | 'performance'): void {
     this.scope.set(value);
     this.loadData();
-    this.delta = null;
   }
 }
