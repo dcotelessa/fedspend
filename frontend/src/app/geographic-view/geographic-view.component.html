@@ -3,8 +3,8 @@
 <div *ngIf="delta !== null" class="delta-insight">
   <mat-icon>compare_arrows</mat-icon>
   <span>
-    Top state receives {{ top10[0]?.obligatedAmount | number:'1.0-0' }} but only
-    {{ (top10[0]?.obligatedAmount || 0) - delta | number:'1.0-0' }} in-state.
+    Top state {{ top10[0]?.stateName }} contractors receive {{ top10[0]?.obligatedAmount | number:'1.0-0' }} while only
+    {{ (top10[0]?.obligatedAmount || 0) - delta | number:'1.0-0' }} is performed in-state.
     Delta: {{ delta | number:'1.0-0' }}
   </span>
 </div>
