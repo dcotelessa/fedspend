@@ -25,18 +25,37 @@ export class BarChartComponent {
   @Input() datasets: ChartDataset[] = [];
   @Input() title: string = '';
   @Input() horizontal: boolean = false;
+  @Input() stacked: boolean = false;
+
+  get chartOptions() {
+    const opts: Record<string, unknown> = {
+      indexAxis: (this.horizontal ? 'y' : 'x') as 'x' | 'y',
+      maintainAspectRatio: false,
+    };
+
+    if (this.stacked) {
+      opts['scales'] = {
+        x: { stacked: true },
+        y: { stacked: true },
+      };
+    }
+
+    if (this.title) {
+      opts['plugins'] = {
+        title: {
+          display: true,
+          text: this.title,
+        },
+      };
+    }
+
+    return opts;
+  }
 
   get chartData() {
     return {
       labels: this.labels,
       datasets: this.datasets
-    };
-  }
-
-  get chartOptions() {
-    return {
-      indexAxis: (this.horizontal ? 'y' : 'x') as 'x' | 'y',
-      maintainAspectRatio: false,
     };
   }
 
