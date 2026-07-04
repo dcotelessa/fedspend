@@ -15,7 +15,7 @@ describe('SyncService', () => {
   let service: SyncService;
   let agencyRepo: { upsert: jest.Mock };
   let spendingRepo: { upsert: jest.Mock };
-  let geoRepo: { upsert: jest.Mock };
+  let geoRepo: { delete: jest.Mock; save: jest.Mock };
   let disasterRepo: { upsert: jest.Mock };
   let ratioRepo: { upsert: jest.Mock };
   let usaService: UsaSpendingService;
@@ -31,6 +31,8 @@ describe('SyncService', () => {
     femaFetchResult?: StateAggregationResult[];
     expectedUpsertCalls: { repoName: string; count: number }[];
     expectedRepoData?: Record<string, any[]>;
+    expectedGeoDelete?: boolean;
+    expectedGeoSaveCount?: number;
   }
 
   const testTable: TestCase[] = [
@@ -89,15 +91,15 @@ describe('SyncService', () => {
       },
     },
     {
-      name: 'syncGeography upserts a new geo snapshot',
+      name: 'syncGeography clears the prior NULL-agencyId batch then bulk-inserts fresh snapshots',
       method: 'syncGeography',
       geoFetchResult: { status: 'success', rows: [
-        { id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: 1, scope: 'recipient', obligatedAmount: 5000, awardCount: 3, population: 1000, perCapita: 5 }
+        { id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000, awardCount: 3, population: 1000, perCapita: 5 },
+        { id: 0, stateCode: 'TX', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 4000, awardCount: 2, population: 900, perCapita: 4 }
       ]},
-      expectedUpsertCalls: [{ repoName: 'geo', count: 1 }],
-      expectedRepoData: {
-        geo: [{ stateCode: 'CA', fiscalYear: 2024 }],
-      },
+      expectedUpsertCalls: [],
+      expectedGeoDelete: true,
+      expectedGeoSaveCount: 2,
     },
     {
       name: 'syncDisaster upserts a new disaster funding record',
@@ -157,21 +159,21 @@ describe('SyncService', () => {
       ],
       expectedUpsertCalls: [
         { repoName: 'agency', count: 1 },
-        { repoName: 'geo', count: 1 },
         { repoName: 'ratio', count: 1 },
       ],
       expectedRepoData: {
         agency: [{ name: 'Test Agency' }],
-        geo: [{ stateCode: 'CA' }],
         ratio: [{ stateCode: 'CA' }],
       },
+      expectedGeoDelete: true,
+      expectedGeoSaveCount: 1,
     },
   ];
 
   beforeEach(async () => {
     const mockAgencyRepo = { upsert: jest.fn() };
     const mockSpendingRepo = { upsert: jest.fn() };
-    const mockGeoRepo = { upsert: jest.fn() };
+    const mockGeoRepo = { delete: jest.fn().mockResolvedValue(undefined), save: jest.fn().mockResolvedValue(undefined) };
     const mockDisasterRepo = { upsert: jest.fn() };
     const mockRatioRepo = { upsert: jest.fn() };
     const mockUsaService = {
@@ -220,6 +222,8 @@ describe('SyncService', () => {
     femaFetchResult,
     expectedUpsertCalls,
     expectedRepoData,
+    expectedGeoDelete,
+    expectedGeoSaveCount,
   }) => {
     usaService.fetchAgencies.mockResolvedValue({ status: 'not_found' });
     usaService.fetchSpendingByAgency.mockResolvedValue({ status: 'not_found' });
@@ -258,15 +262,24 @@ describe('SyncService', () => {
         }
       }
     }
+
+    if (expectedGeoDelete) {
+      expect(geoRepo.delete).toHaveBeenCalledTimes(1);
+    }
+    if (expectedGeoSaveCount !== undefined) {
+      expect(geoRepo.save).toHaveBeenCalledTimes(1);
+      const saved = (geoRepo.save as jest.Mock).mock.calls[0][0];
+      expect(Array.isArray(saved) ? saved.length : 1).toBe(expectedGeoSaveCount);
+    }
   });
 
   function getRepo(name: string): { upsert: jest.Mock } {
     switch (name) {
       case 'agency': return { upsert: agencyRepo.upsert };
       case 'spending': return { upsert: spendingRepo.upsert };
-      case 'geo': return { upsert: geoRepo.upsert };
       case 'disaster': return { upsert: disasterRepo.upsert };
       case 'ratio': return { upsert: ratioRepo.upsert };
+      default: throw new Error(`unknown repo: ${name}`);
     }
   }
 });

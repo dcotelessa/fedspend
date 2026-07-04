@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Agency } from '../agencies/agency.entity';
 import { SpendingRecord } from '../spending/spending-record.entity';
 import { GeoSpendingSnapshot } from '../geography/geo-spending-snapshot.entity';
@@ -97,14 +97,12 @@ export class SyncService {
         scope: 'recipient',
       });
       if (geoResult.status === 'success') {
-        for (const snapshot of geoResult.rows) {
-          await this.geoRepo.upsert(snapshot, [
-            'stateCode',
-            'fiscalYear',
-            'agencyId',
-            'scope',
-          ]);
-        }
+        await this.geoRepo.delete({
+          fiscalYear: SYNC_FISCAL_YEAR,
+          scope: 'recipient',
+          agencyId: IsNull(),
+        });
+        await this.geoRepo.save(geoResult.rows);
       }
     });
   }
