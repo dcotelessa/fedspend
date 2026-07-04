@@ -188,6 +188,8 @@ describe('DisasterLensComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
+    expect(apiSpy.getDisasterOverview).toHaveBeenCalledWith({ defGroup });
+    expect(apiSpy.getDisasterStates).toHaveBeenCalledWith(expect.objectContaining({ defGroup }));
     expect(component.totalObligated).toBe(expectedTotalObligated);
     expect(component.stateCount).toBe(expectedStateCount);
     expect(component.coverageGapCount).toBe(expectedGapCount);

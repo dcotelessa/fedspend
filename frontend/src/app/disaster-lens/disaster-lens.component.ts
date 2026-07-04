@@ -7,7 +7,6 @@ import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSortModule } from '@angular/material/sort';
 import { BarChartComponent } from '../bar-chart/bar-chart.component';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../api.service';
@@ -27,7 +26,6 @@ import { getRatioColor, RatioColor } from '../ratio-color';
     MatTableModule,
     MatPaginatorModule,
     MatTooltipModule,
-    MatSortModule,
     BarChartComponent,
     CurrencyFormatPipe,
   ],
