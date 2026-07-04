@@ -2592,15 +2592,15 @@
         },
         {
           "text": "DisasterService.getOverview filters by defGroup server-side",
-          "check": "cd backend && grep -q 'defGroup' src/disaster/disaster.service.ts"
+          "check": "cd backend && ! grep -qF 'getOverview(): ' src/disaster/disaster.service.ts"
         },
         {
           "text": "Disaster controller forwards defGroup query param",
-          "check": "cd backend && grep -q 'defGroup' src/disaster/disaster.controller.ts"
+          "check": "cd backend && ! grep -qF 'async getOverview()' src/disaster/disaster.controller.ts"
         },
         {
           "text": "Frontend passes defGroup to getDisasterOverview instead of filtering overview client-side by tab",
-          "check": "cd frontend && grep -q 'defGroup' src/app/disaster-lens/disaster-lens.component.ts"
+          "check": "cd frontend && ! grep -qF 'getDisasterOverview()' src/app/disaster-lens/disaster-lens.component.ts"
         },
         {
           "text": "disaster-lens.component.spec.ts passes",
