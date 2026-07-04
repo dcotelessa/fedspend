@@ -77,8 +77,11 @@ export class ApiService {
     );
   }
 
-  getDisasterOverview(): Observable<DisasterOverview[]> {
-    return this.http.get<DisasterOverview[]>(`${environment.apiUrl}/disaster/overview`).pipe(
+  getDisasterOverview(params: { defGroup?: string } = {}): Observable<DisasterOverview[]> {
+    return this.http.get<DisasterOverview[]>(
+      `${environment.apiUrl}/disaster/overview`,
+      { params: this.toParams(params) },
+    ).pipe(
       catchError(() => of([] as DisasterOverview[])),
     );
   }

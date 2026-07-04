@@ -2552,6 +2552,7 @@
       "scope": {
         "files": [
           "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/api.service.ts",
           "frontend/src/app/disaster-lens/disaster-lens.component.ts",
           "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
           "backend/src/disaster/disaster.service.ts",
@@ -2582,6 +2583,12 @@
             "start": 1,
             "end": 40,
             "reason": "Forward @Query(\"defGroup\") defGroup to the service method."
+          },
+          {
+            "file": "frontend/src/app/api.service.ts",
+            "start": 80,
+            "end": 84,
+            "reason": "getDisasterOverview — accept { defGroup?: string } and forward via toParams; mirrors getDisasterStates. Required because the component now passes defGroup."
           }
         ]
       },
