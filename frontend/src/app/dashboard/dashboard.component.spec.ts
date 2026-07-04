@@ -303,6 +303,33 @@ describe('DashboardComponent', () => {
     }
   });
 
+  it('renders the about paragraph between h1 and nav-cards', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const h1 = fixture.nativeElement.querySelector('h1');
+    expect(h1).toBeTruthy();
+
+    const about = fixture.nativeElement.querySelector('.about');
+    expect(about).toBeTruthy();
+    expect(about.textContent).toContain('USASpending.gov');
+    expect(about.textContent).toContain('OpenFEMA');
+    expect(about.textContent).toContain('navigation cards');
+    expect(about.textContent).toContain('summary cards');
+    expect(about.textContent).toContain('agency chart');
+
+    const navCards = fixture.nativeElement.querySelector('.nav-cards');
+    expect(navCards).toBeTruthy();
+
+    // Verify about is between h1 and nav-cards
+    const h1Index = Array.from(fixture.nativeElement.childNodes).indexOf(h1);
+    const aboutIndex = Array.from(fixture.nativeElement.childNodes).indexOf(about);
+    const navCardsIndex = Array.from(fixture.nativeElement.childNodes).indexOf(navCards);
+    expect(aboutIndex).toBeGreaterThan(h1Index);
+    expect(aboutIndex).toBeLessThan(navCardsIndex);
+  });
+
   it('page load completes in under 2 seconds', fakeAsync(() => {
     apiSpy.getAgencies.mockReturnValue(of([]));
     apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));

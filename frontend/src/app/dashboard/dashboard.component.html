@@ -1,5 +1,7 @@
 <h1>Dashboard</h1>
 
+<p class="about">FedSpend surfaces federal spending data drawn from USASpending.gov and OpenFEMA to make government obligations transparent and comparable. The navigation cards below open three lenses on the same underlying records: Geography breaks obligations down by where money is received or performed, Agencies profiles each agency totals and year-over-year trends, and Disaster compares federal disaster spending against FEMA recovery obligations. The summary cards report portfolio-wide figures for the current fiscal year — total obligated across agencies, the single largest agency, and the count of states where federal recovery spending falls short of 50% of FEMA obligations (coverage gaps). The agency chart ranks the top five agencies by obligated amount for FY2024, with all remaining agencies consolidated into Other; click any bar to open that agency spotlight.</p>
+
 <div class="nav-cards">
   <a [routerLink]="'/geography'" class="nav-card" (click)="onNavClick('/geography', $event)">
     <mat-icon class="card-icon">map</mat-icon>
