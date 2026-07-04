@@ -1104,6 +1104,20 @@
       "thinking": "medium",
       "timestamp": "2026-07-04T05:32:19.996Z",
       "note": "Corrected plan.json escaping defect then re-verified green on main."
+    },
+    {
+      "story": "E14-S03",
+      "epic": "E14",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 885,
+      "thinking": "medium",
+      "timestamp": "2026-07-04T06:14:25Z",
+      "note": "Scope-leakage FAIL was a plan defect: api.service.ts omitted from scope.files. Missing param-forwarding edit applied manually; verify green on main."
     }
   ]
 }
