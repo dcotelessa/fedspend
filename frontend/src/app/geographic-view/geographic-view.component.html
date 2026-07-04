@@ -12,7 +12,7 @@
 <mat-form-field appearance="outline" class="controls-bar">
   <mat-label>Agency</mat-label>
   <mat-select [ngModel]="agencyId()" (ngModelChange)="onAgencyChange($event)">
-    <mat-option value="">All Agencies</mat-option>
+    <mat-option [value]="null">All Agencies</mat-option>
     <mat-option *ngFor="let agency of agencyList" [value]="agency.id">
       {{ agency.name }}
     </mat-option>

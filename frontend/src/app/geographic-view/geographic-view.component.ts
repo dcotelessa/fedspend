@@ -45,6 +45,7 @@ export class GeographicViewComponent implements OnInit {
   constructor(private readonly apiService: ApiService) {}
 
   ngOnInit(): void {
+    this.loadAgencies();
     this.loadData();
   }
 
@@ -66,8 +67,6 @@ export class GeographicViewComponent implements OnInit {
 
     const oppositeScope = this.scope() === 'recipient' ? 'performance' : 'recipient';
     const oppParams = { ...params, scope: oppositeScope };
-
-    this.loadAgencies();
 
     this.apiService.getGeographyStates(params).subscribe(primary => {
       this.deriveFiscalYearList(primary);

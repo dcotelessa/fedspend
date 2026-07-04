@@ -172,6 +172,72 @@ describe('GeographicViewComponent', () => {
         delta: 0,
       },
     },
+    {
+      name: 'delta is null when top state is missing from secondary data',
+      agencyId: null,
+      fiscalYear: 2024,
+      scope: 'recipient',
+      agenciesResponse: [],
+      primaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
+        { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 20, population: 20200000, perCapita: 4950 },
+      ],
+      secondaryData: [
+        { id: 3, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 800000000, awardCount: 15, population: 20200000, perCapita: 3960 },
+      ],
+      expected: {
+        agencyList: [],
+        fiscalYearList: [2024],
+        defaultFiscalYear: 2024,
+        top10: [
+          { stateName: 'California', obligatedAmount: 5000000000 },
+          { stateName: 'New York', obligatedAmount: 1000000000 },
+        ],
+        allStates: 2,
+        vsAvg: [66.7, -66.7],
+        delta: null,
+      },
+    },
+    {
+      name: 'empty data produces empty lists and null delta',
+      agencyId: null,
+      fiscalYear: 2024,
+      scope: 'recipient',
+      agenciesResponse: [],
+      primaryData: [],
+      secondaryData: [],
+      expected: {
+        agencyList: [],
+        fiscalYearList: [],
+        defaultFiscalYear: 2024,
+        top10: [],
+        allStates: 0,
+        vsAvg: [],
+        delta: null,
+      },
+    },
+    {
+      name: 'single state yields 0% vsAvg',
+      agencyId: null,
+      fiscalYear: 2024,
+      scope: 'recipient',
+      agenciesResponse: [],
+      primaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
+      ],
+      secondaryData: [
+        { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
+      ],
+      expected: {
+        agencyList: [],
+        fiscalYearList: [2024],
+        defaultFiscalYear: 2024,
+        top10: [{ stateName: 'California', obligatedAmount: 5000000000 }],
+        allStates: 1,
+        vsAvg: [0.0],
+        delta: 2000000000,
+      },
+    },
   ];
 
   it.each(testTable)('$name', ({ agencyId, fiscalYear, scope, agenciesResponse, primaryData, secondaryData, expected }) => {
