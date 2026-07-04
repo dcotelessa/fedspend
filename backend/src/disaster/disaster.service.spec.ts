@@ -5,6 +5,7 @@ import { DisasterRecoveryRatio } from './disaster-recovery-ratio.entity';
 describe('DisasterService', () => {
   interface OverviewTestCase {
     name: string;
+    defGroup?: string;
     fundingRows: Partial<DisasterFundingRecord>[];
     ratioRows: Partial<DisasterRecoveryRatio>[];
     expected: {
@@ -51,7 +52,7 @@ describe('DisasterService', () => {
 
   const testOverview: OverviewTestCase[] = [
     {
-      name: 'aggregates rows by defGroup with totals',
+      name: 'aggregates all rows when no defGroup filter',
       fundingRows: [
         { id: 1, defGroup: 'CA', stateCode: 'NY', stateName: 'New York', obligatedAmount: 100000, awardCount: 5, perCapita: 500, population: 200 },
         { id: 2, defGroup: 'CA', stateCode: 'CA', stateName: 'California', obligatedAmount: 200000, awardCount: 10, perCapita: 1000, population: 200 },
@@ -84,7 +85,44 @@ describe('DisasterService', () => {
       ],
     },
     {
-      name: 'coverageGapCount tracks states with ratio < 0.5',
+      name: 'filters by defGroup returning only matching rows',
+      defGroup: 'CA',
+      fundingRows: [
+        { id: 1, defGroup: 'CA', stateCode: 'NY', stateName: 'New York', obligatedAmount: 100000, awardCount: 5, perCapita: 500, population: 200 },
+        { id: 2, defGroup: 'CA', stateCode: 'CA', stateName: 'California', obligatedAmount: 200000, awardCount: 10, perCapita: 1000, population: 200 },
+        { id: 3, defGroup: '01', stateCode: 'FL', stateName: 'Florida', obligatedAmount: 50000, awardCount: 3, perCapita: 200, population: 250 },
+        { id: 4, defGroup: '01', stateCode: 'TX', stateName: 'Texas', obligatedAmount: 75000, awardCount: 2, perCapita: 300, population: 250 },
+      ],
+      ratioRows: [
+        { id: 1, stateCode: 'NY', stateName: 'New York', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 200000, recoveryRatio: 2.0, declarationCount: 1, dominantIncidentType: 'Wildfire' },
+        { id: 2, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligated: 300000, fedSpendingObligated: 100000, recoveryRatio: 0.3, declarationCount: 2, dominantIncidentType: 'Earthquake' },
+        { id: 3, stateCode: 'FL', stateName: 'Florida', fiscalYear: 2024, femaObligated: 50000, fedSpendingObligated: 50000, recoveryRatio: 1.0, declarationCount: 1, dominantIncidentType: 'Hurricane' },
+      ],
+      expected: [
+        {
+          defGroup: 'CA',
+          totalObligated: 300000,
+          totalAwardCount: 15,
+          stateCount: 2,
+          highestPerCapitaState: 'California',
+          highestPerCapita: 1000,
+          coverageGapCount: 1,
+        },
+      ],
+    },
+    {
+      name: 'returns empty array when defGroup has no matching rows',
+      defGroup: 'Hurricane',
+      fundingRows: [
+        { id: 1, defGroup: 'CA', stateCode: 'NY', stateName: 'New York', obligatedAmount: 100000, awardCount: 5, perCapita: 500, population: 200 },
+        { id: 2, defGroup: 'CA', stateCode: 'CA', stateName: 'California', obligatedAmount: 200000, awardCount: 10, perCapita: 1000, population: 200 },
+      ],
+      ratioRows: [],
+      expected: [],
+    },
+    {
+      name: 'coverageGapCount tracks states with ratio < 0.5 for filtered group',
+      defGroup: 'CA',
       fundingRows: [
         { id: 1, defGroup: 'CA', stateCode: 'NY', stateName: 'New York', obligatedAmount: 100000, awardCount: 5, perCapita: 500, population: 200 },
         { id: 2, defGroup: 'CA', stateCode: 'CA', stateName: 'California', obligatedAmount: 200000, awardCount: 10, perCapita: 1000, population: 200 },
@@ -107,9 +145,37 @@ describe('DisasterService', () => {
     },
     {
       name: 'returns empty overview when no funding or ratio rows exist',
+      defGroup: 'COVID-19',
       fundingRows: [],
       ratioRows: [],
       expected: [],
+    },
+    {
+      name: 'highestPerCapitaState correctly identified after filtering',
+      defGroup: '01',
+      fundingRows: [
+        { id: 1, defGroup: 'CA', stateCode: 'NY', stateName: 'New York', obligatedAmount: 100000, awardCount: 5, perCapita: 500, population: 200 },
+        { id: 2, defGroup: 'CA', stateCode: 'CA', stateName: 'California', obligatedAmount: 200000, awardCount: 10, perCapita: 1000, population: 200 },
+        { id: 3, defGroup: '01', stateCode: 'FL', stateName: 'Florida', obligatedAmount: 50000, awardCount: 3, perCapita: 200, population: 250 },
+        { id: 4, defGroup: '01', stateCode: 'TX', stateName: 'Texas', obligatedAmount: 75000, awardCount: 2, perCapita: 300, population: 250 },
+      ],
+      ratioRows: [
+        { id: 1, stateCode: 'NY', stateName: 'New York', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 200000, recoveryRatio: 2.0, declarationCount: 1, dominantIncidentType: 'Wildfire' },
+        { id: 2, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligated: 300000, fedSpendingObligated: 100000, recoveryRatio: 0.3, declarationCount: 2, dominantIncidentType: 'Earthquake' },
+        { id: 3, stateCode: 'FL', stateName: 'Florida', fiscalYear: 2024, femaObligated: 50000, fedSpendingObligated: 50000, recoveryRatio: 1.0, declarationCount: 1, dominantIncidentType: 'Hurricane' },
+        { id: 4, stateCode: 'TX', stateName: 'Texas', fiscalYear: 2024, femaObligated: 50000, fedSpendingObligated: 50000, recoveryRatio: 1.0, declarationCount: 1, dominantIncidentType: 'Hurricane' },
+      ],
+      expected: [
+        {
+          defGroup: '01',
+          totalObligated: 125000,
+          totalAwardCount: 5,
+          stateCount: 2,
+          highestPerCapitaState: 'Texas',
+          highestPerCapita: 300,
+          coverageGapCount: 0,
+        },
+      ],
     },
   ];
 
@@ -210,12 +276,13 @@ describe('DisasterService', () => {
     },
   ];
 
-  it.each(testOverview)('$name', async ({ fundingRows, ratioRows, expected }) => {
+  it.each(testOverview)('$name', async ({ defGroup, fundingRows, ratioRows, expected }) => {
     const fundingRepo = { find: jest.fn().mockResolvedValue(fundingRows as DisasterFundingRecord[]) };
     const ratioRepo = { find: jest.fn().mockResolvedValue(ratioRows as DisasterRecoveryRatio[]) };
     const svc = new DisasterService(fundingRepo as any, ratioRepo as any);
 
-    const result = await svc.getOverview();
+    const params = defGroup ? { defGroup } : {};
+    const result = await svc.getOverview(params);
 
     expect(result.length).toBe(expected.length);
     expected.forEach((exp, i) => {

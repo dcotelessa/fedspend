@@ -32,7 +32,7 @@ export class DisasterService {
     private readonly ratioRepo: Repository<DisasterRecoveryRatio>,
   ) {}
 
-  async getOverview(): Promise<OverviewRow[]> {
+  async getOverview(params: { defGroup?: string }): Promise<OverviewRow[]> {
     const fundingRows = await this.fundingRepo.find();
     const ratioRows = await this.ratioRepo.find();
 
@@ -51,6 +51,7 @@ export class DisasterService {
 
     const result: OverviewRow[] = [];
     for (const [defGroup, rows] of groups) {
+      if (params.defGroup && defGroup !== params.defGroup) continue;
       const totalObligated = rows.reduce((s, r) => s + r.obligatedAmount, 0);
       const totalAwardCount = rows.reduce((s, r) => s + r.awardCount, 0);
       const stateCount = rows.length;

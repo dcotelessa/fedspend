@@ -42,7 +42,7 @@ describe('DisasterLensComponent', () => {
 
   interface CardTestCase {
     name: string;
-    currentTab?: string;
+    defGroup?: string;
     overview: DisasterOverview[];
     states: DisasterFundingRecord[];
     ratios: DisasterRecoveryRatio[];
@@ -54,16 +54,19 @@ describe('DisasterLensComponent', () => {
 
   const testTable: CardTestCase[] = [
     {
-      name: 'computes totals from single overview entry with states',
-      overview: [{
-        defGroup: 'COVID-19',
-        totalObligated: 500000,
-        totalAwardCount: 100,
-        stateCount: 2,
-        highestPerCapitaState: 'CA',
-        highestPerCapita: 100000,
-        coverageGapCount: 0,
-      }],
+      name: 'resolves overview for matching defGroup from server',
+      defGroup: 'COVID-19',
+      overview: [
+        {
+          defGroup: 'COVID-19',
+          totalObligated: 500000,
+          totalAwardCount: 100,
+          stateCount: 2,
+          highestPerCapitaState: 'CA',
+          highestPerCapita: 100000,
+          coverageGapCount: 0,
+        },
+      ],
       states: [
         {
           id: 1, stateCode: 'CA', stateName: 'California',
@@ -83,8 +86,19 @@ describe('DisasterLensComponent', () => {
       expectedHighestPerCapitaState: 'CA',
     },
     {
-      name: 'returns zero values when no overview data',
-      overview: [],
+      name: 'returns zero values when no overview row matches defGroup',
+      defGroup: 'Wildfire',
+      overview: [
+        {
+          defGroup: 'COVID-19',
+          totalObligated: 500000,
+          totalAwardCount: 100,
+          stateCount: 2,
+          highestPerCapitaState: 'CA',
+          highestPerCapita: 100000,
+          coverageGapCount: 0,
+        },
+      ],
       states: [],
       ratios: [],
       expectedTotalObligated: 0,
@@ -94,15 +108,18 @@ describe('DisasterLensComponent', () => {
     },
     {
       name: 'counts coverage gaps from recovery ratios below 0.5',
-      overview: [{
-        defGroup: 'COVID-19',
-        totalObligated: 1000000,
-        totalAwardCount: 200,
-        stateCount: 3,
-        highestPerCapitaState: 'FL',
-        highestPerCapita: 500000,
-        coverageGapCount: 0,
-      }],
+      defGroup: 'COVID-19',
+      overview: [
+        {
+          defGroup: 'COVID-19',
+          totalObligated: 1000000,
+          totalAwardCount: 200,
+          stateCount: 3,
+          highestPerCapitaState: 'FL',
+          highestPerCapita: 500000,
+          coverageGapCount: 0,
+        },
+      ],
       states: [
         {
           id: 3, stateCode: 'FL', stateName: 'Florida',
@@ -143,87 +160,30 @@ describe('DisasterLensComponent', () => {
       expectedHighestPerCapitaState: 'FL',
     },
     {
-      name: 'handles multiple overview entries using current tab',
-      overview: [
-        {
-          defGroup: 'COVID-19',
-          totalObligated: 100000,
-          totalAwardCount: 50,
-          stateCount: 1,
-          highestPerCapitaState: 'TX',
-          highestPerCapita: 80000,
-          coverageGapCount: 0,
-        },
-        {
-          defGroup: 'Wildfire',
-          totalObligated: 200000,
-          totalAwardCount: 80,
-          stateCount: 2,
-          highestPerCapitaState: 'CA',
-          highestPerCapita: 150000,
-          coverageGapCount: 1,
-        },
-      ],
-      states: [
-        {
-          id: 6, stateCode: 'TX', stateName: 'Texas',
-          obligatedAmount: 100000, awardCount: 50,
-          perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '',
-        },
-      ],
+      name: 'handles empty overview array when defGroup has no server data',
+      defGroup: 'General',
+      overview: [],
+      states: [],
       ratios: [],
-      expectedTotalObligated: 100000,
-      expectedStateCount: 1,
+      expectedTotalObligated: 0,
+      expectedStateCount: 0,
       expectedGapCount: 0,
-      expectedHighestPerCapitaState: 'TX',
-    },
-    {
-      name: 'selects overview entry matching non-default tab',
-      currentTab: 'Wildfire',
-      overview: [
-        {
-          defGroup: 'COVID-19',
-          totalObligated: 100000,
-          totalAwardCount: 50,
-          stateCount: 1,
-          highestPerCapitaState: 'TX',
-          highestPerCapita: 80000,
-          coverageGapCount: 0,
-        },
-        {
-          defGroup: 'Wildfire',
-          totalObligated: 750000,
-          totalAwardCount: 30,
-          stateCount: 2,
-          highestPerCapitaState: 'CA',
-          highestPerCapita: 200000,
-          coverageGapCount: 1,
-        },
-      ],
-      states: [
-        {
-          id: 7, stateCode: 'CA', stateName: 'California',
-          obligatedAmount: 500000, awardCount: 20,
-          perCapita: 200000, population: 0, defGroup: 'Wildfire', defCodes: 'M',
-        },
-      ],
-      ratios: [],
-      expectedTotalObligated: 750000,
-      expectedStateCount: 1,
-      expectedGapCount: 0,
-      expectedHighestPerCapitaState: 'CA',
+      expectedHighestPerCapitaState: '',
     },
   ];
 
   it.each(testTable)('$name', async ({
-    overview, states, ratios, currentTab,
+    defGroup, overview, states, ratios,
     expectedTotalObligated, expectedStateCount, expectedGapCount, expectedHighestPerCapitaState,
   }) => {
-    apiSpy.getDisasterOverview.mockReturnValue(of(overview));
+    const overviewPayload = defGroup
+      ? overview.filter((o) => o.defGroup === defGroup)
+      : overview;
+    apiSpy.getDisasterOverview.mockReturnValue(of(overviewPayload));
     apiSpy.getDisasterStates.mockReturnValue(of(states));
     apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
 
-    component.currentTab = currentTab ?? 'COVID-19';
+    component.currentTab = defGroup ?? 'COVID-19';
     component.ngOnInit();
     await fixture.whenStable();
     fixture.detectChanges();

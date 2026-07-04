@@ -6,8 +6,12 @@ export class DisasterController {
   constructor(private readonly service: DisasterService) {}
 
   @Get('overview')
-  async getOverview() {
-    return this.service.getOverview();
+  async getOverview(
+    @Query('defGroup') defGroup?: string,
+  ) {
+    const params: { defGroup?: string } = {};
+    if (defGroup) params.defGroup = defGroup;
+    return this.service.getOverview(params);
   }
 
   @Get('states')

@@ -97,8 +97,8 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
 
   private fetchOverview(): void {
     this.overviewSub?.unsubscribe();
-    this.overviewSub = this.api.getDisasterOverview().subscribe((overviews: DisasterOverview[]) => {
-      const current = overviews.find((o) => o.defGroup === this.currentTab);
+    this.overviewSub = this.api.getDisasterOverview({ defGroup: this.currentTab }).subscribe((overview: DisasterOverview[]) => {
+      const current = overview[0];
       if (current) {
         this.totalObligated = current.totalObligated;
         this.highestPerCapitaState = current.highestPerCapitaState;

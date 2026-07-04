@@ -5,7 +5,7 @@
     <div class="controls">
       <mat-form-field appearance="outline">
         <mat-label>Fiscal Year</mat-label>
-        <mat-select [(value)]="selectedFiscalYear" (selectionChange)="onFiscalYearChange()">
+        <mat-select [(ngModel)]="selectedFiscalYear" (selectionChange)="onFiscalYearChange()">
           <mat-option [value]="null">All</mat-option>
           <mat-option *ngFor="let fy of fiscalYears" [value]="fy">
             {{ fy }}
