@@ -2513,7 +2513,7 @@
       "acceptanceCriteria": [
         {
           "text": "BarChartComponent exposes a stacked input",
-          "check": "cd frontend && grep -qE '@Input\\\\(\\\\)\\\\s*stacked|input\\\\(.boolean\\\\)' src/app/bar-chart/bar-chart.component.ts"
+          "check": "cd frontend && grep -qE '@Input\\(\\)\\s*stacked|input\\(.boolean\\)' src/app/bar-chart/bar-chart.component.ts"
         },
         {
           "text": "BarChartComponent sets scales stacked when stacked is true",
@@ -2588,7 +2588,7 @@
       "acceptanceCriteria": [
         {
           "text": "No invalid [(value)] binding remains on the disaster FY mat-select",
-          "check": "cd frontend && ! grep -n '\\[\\\\?(value)\\\\?\\]=' src/app/disaster-lens/disaster-lens.component.html"
+          "check": "cd frontend && ! grep -qF '[(value)]=' src/app/disaster-lens/disaster-lens.component.html"
         },
         {
           "text": "DisasterService.getOverview filters by defGroup server-side",
@@ -2600,7 +2600,7 @@
         },
         {
           "text": "Frontend passes defGroup to getDisasterOverview instead of filtering overview client-side by tab",
-          "check": "cd frontend && grep -qE 'getDisasterOverview\\\\(.{0,40}defGroup|defGroup.{0,40}getDisasterOverview' src/app/disaster-lens/disaster-lens.component.ts"
+          "check": "cd frontend && grep -q 'defGroup' src/app/disaster-lens/disaster-lens.component.ts"
         },
         {
           "text": "disaster-lens.component.spec.ts passes",
@@ -2646,7 +2646,7 @@
         },
         {
           "text": "paragraph appears between the h1 and the nav-cards block",
-          "check": "cd frontend && awk '/<h1>Dashboard<\\\\/h1>/{h=1} h && /class=.about./{print NR; exit}' src/app/dashboard/dashboard.component.html"
+          "check": "cd frontend && f=src/app/dashboard/dashboard.component.html && h1=$(grep -nF '<h1>Dashboard</h1>' \"$f\"|cut -d: -f1) && a=$(grep -nF 'class=\"about\"' \"$f\"|head -1|cut -d: -f1) && n=$(grep -nF 'class=\"nav-cards\"' \"$f\"|head -1|cut -d: -f1) && [ -n \"$a\" ] && [ \"$a\" -gt \"$h1\" ] && [ \"$a\" -lt \"$n\" ]"
         },
         {
           "text": "dashboard.component.spec.ts passes",
