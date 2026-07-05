@@ -1253,6 +1253,20 @@
       "thinking": "medium",
       "timestamp": "2026-07-05T09:48:39.619Z",
       "note": "Pure CSS spacing polish - new component SCSS using M3 tokens, mirrors dashboard convention."
+    },
+    {
+      "story": "E14-S12",
+      "epic": "E14",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 120,
+      "thinking": "medium",
+      "timestamp": "2026-07-05T19:28:07.271Z",
+      "note": "Formalized two prior direct commits (814b0b0 toggle visibility, 36a1eac award count removal) as a single follow-up story."
     }
   ]
 }

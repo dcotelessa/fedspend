@@ -3155,6 +3155,66 @@
         }
       ],
       "notes": "Pure CSS polish, no logic change. Mirrors dashboard.component.scss conventions: :host{display:block}, M3 --mat-sys-* tokens for color/typography/corners, no hardcoded colors. No comments in source (design intent lives here). The scope toggle is a mat-button-toggle-group that also carries the controls-bar class, so the left margin is scoped to mat-button-toggle-group.controls-bar rather than all .controls-bar (the dropdowns need right margin, not left). FOLLOW-UP FIX: the .controls-bar { display: inline-block } rule was applied to mat-button-toggle-group, overriding Material inline-flex default and collapsing the Recipient/Performance toggle (it vanished from the rendered page). Restored via mat-button-toggle-group.controls-bar { display: inline-flex }."
+    },
+    {
+      "id": "E14-S12",
+      "epic": "E14",
+      "title": "Geography: post-polish follow-ups (Performance toggle visibility + drop Award Count column)",
+      "goal": "Two Geography-page fixes discovered after E14-S11. (1) The .controls-bar { display: inline-block } rule from E14-S11 overrode Angular Material inline-flex default for mat-button-toggle-group, collapsing the Recipient/Performance scope toggle off the rendered page. Restored via display: inline-flex on the toggle group selector. (2) The Award Count column showed 0 for every state because the USASpending spending_by_geography endpoint does not return award counts (transformGeoRows hardcodes awardCount: 0); removed the misleading column from the table.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E14-S11"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/geographic-view/geographic-view.component.scss",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.scss",
+            "start": 35,
+            "end": 38,
+            "reason": "mat-button-toggle-group.controls-bar - add display: inline-flex to restore Material flex layout (was collapsed to invisible by the .controls-bar inline-block rule)."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 45,
+            "end": 45,
+            "reason": "displayedColumns - remove the awardCount entry."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.html",
+            "start": 62,
+            "end": 65,
+            "reason": "remove the matColumnDef=\"awardCount\" block."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "mat-button-toggle-group.controls-bar uses display: inline-flex (Performance toggle visible)",
+          "check": "cd frontend && grep -A3 'mat-button-toggle-group.controls-bar' src/app/geographic-view/geographic-view.component.scss | grep -q 'inline-flex'"
+        },
+        {
+          "text": "Award Count is absent from displayedColumns",
+          "check": "cd frontend && ! grep -q \"'awardCount'\" src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "Award Count column block is absent from the template",
+          "check": "cd frontend && ! grep -q 'matColumnDef=\"awardCount\"' src/app/geographic-view/geographic-view.component.html"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "geographic-view spec still passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=geographic-view --passWithNoTests"
+        }
+      ],
+      "notes": "Both fixes were applied directly (commits 814b0b0 and 36a1eac) and are now formalized as a single follow-up story for audit completeness. The toggle fix is a regression from E14-S11 the .controls-bar { display: inline-block } rule applied to mat-button-toggle-group, overriding Material inline-flex; form-field dropdowns were unaffected because their appearance=outline box is independent of flex. The Award Count column had no data source: USASpending spending_by_geography returns only shape_code/display_name/aggregated_amount/population/per_capita, so transformGeoRows hardcodes awardCount: 0; the underlying field stays on the GeoSpendingSnapshot entity and in spec mock data (interface still requires it) but is no longer rendered. No pi/build-agent run; harness=opencode per build-log convention for manual stories."
     }
   ],
   "storyOrder": [
@@ -3213,7 +3273,8 @@
     "E14-S08",
     "E14-S09",
     "E14-S10",
-    "E14-S11"
+    "E14-S11",
+    "E14-S12"
   ],
   "resolutions": [
     {
