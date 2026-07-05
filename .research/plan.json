@@ -3215,6 +3215,279 @@
         }
       ],
       "notes": "Both fixes were applied directly (commits 814b0b0 and 36a1eac) and are now formalized as a single follow-up story for audit completeness. The toggle fix is a regression from E14-S11 the .controls-bar { display: inline-block } rule applied to mat-button-toggle-group, overriding Material inline-flex; form-field dropdowns were unaffected because their appearance=outline box is independent of flex. The Award Count column had no data source: USASpending spending_by_geography returns only shape_code/display_name/aggregated_amount/population/per_capita, so transformGeoRows hardcodes awardCount: 0; the underlying field stays on the GeoSpendingSnapshot entity and in spec mock data (interface still requires it) but is no longer rendered. No pi/build-agent run; harness=opencode per build-log convention for manual stories."
+    },
+    {
+      "id": "E15-S01",
+      "epic": "E15",
+      "title": "Agencies quick wins: YoY unit fix, drop Award Count, FY reconciliation, range-aware table/insight, agency-list spec",
+      "goal": "Fix four display-blocking issues on the Agencies pages that do not require sync expansion, plus close the test gap on AgencyListComponent. (1) YoY badge is inflated 100x because the backend emits a percentage (25 = 25%) but the frontend multiplies by 100 again (+2500% YoY). Reconcile on the frontend by dropping the *100. (2) Award Count column always shows 0 (USASpending geography endpoint has no award-count field; transformGeoRows hardcodes 0) - remove the column. (3) fiscalYearStart/End are hardcoded literals and never reconciled with loaded data, so the From dropdown renders blank when only [2024] is available. (4) The breakdown table and insight only honor fiscalYearEnd, ignoring fiscalYearStart - the From control looks interactive but does nothing.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+          "frontend/src/app/agency-list/agency-list.component.spec.ts",
+          "frontend/src/app/api.service.spec.ts",
+          "backend/src/agencies/agencies.service.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+            "start": 133,
+            "end": 147,
+            "reason": "updateBadge - drop the yoyChange * 100 multiplication; backend already emits a percentage. Use yoyChange.toFixed(1) directly."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+            "start": 125,
+            "end": 131,
+            "reason": "populateAvailableYears - after deriving availableYears, clamp fiscalYearStart and fiscalYearEnd into the available range (set to min/max when outside)."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+            "start": 160,
+            "end": 201,
+            "reason": "buildTableData/aggregateAwardTypesForYear - aggregate across [fiscalYearStart..fiscalYearEnd] instead of just fiscalYearEnd; remove the awardCount aggregation (column being dropped)."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+            "start": 166,
+            "end": 190,
+            "reason": "computeInsight - aggregate across the selected range."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+            "start": 48,
+            "end": 58,
+            "reason": "table header FY{{ fiscalYearEnd }} -> FY{{ fiscalYearStart }}-{{ fiscalYearEnd }}; remove the matColumnDef=awardCount block."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+            "start": 330,
+            "end": 349,
+            "reason": "badge spec rows - switch from fraction inputs (1.0/-0.5/0) to percentage inputs (100/-50/0) now that the frontend consumes % directly."
+          },
+          {
+            "file": "frontend/src/app/api.service.spec.ts",
+            "start": 63,
+            "end": 64,
+            "reason": "yoyChange mock 0.25 -> 25 (percentage)."
+          },
+          {
+            "file": "backend/src/agencies/agencies.service.ts",
+            "start": 33,
+            "end": 36,
+            "reason": "meta.pageSize hardcoded 6 -> derive from data.length."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "updateBadge no longer multiplies yoyChange by 100 (consumes the backend percentage directly)",
+          "check": "cd frontend && ! grep -A20 'updateBadge' src/app/agency-spotlight/agency-spotlight.component.ts | grep -qF 'yoyChange * 100'"
+        },
+        {
+          "text": "Award Count is absent from the Spotlight displayedColumns",
+          "check": "cd frontend && ! grep -q \"'awardCount'\" src/app/agency-spotlight/agency-spotlight.component.ts"
+        },
+        {
+          "text": "Award Count column block is absent from the Spotlight template",
+          "check": "cd frontend && ! grep -q 'matColumnDef=\"awardCount\"' src/app/agency-spotlight/agency-spotlight.component.html"
+        },
+        {
+          "text": "populateAvailableYears reconciles fiscalYearStart/End against derived years",
+          "check": "cd frontend && grep -A25 'populateAvailableYears' src/app/agency-spotlight/agency-spotlight.component.ts | grep -q 'fiscalYearStart'"
+        },
+        {
+          "text": "Spotlight table header references fiscalYearStart (range, not just end)",
+          "check": "cd frontend && grep -q 'FY{{ fiscalYearStart }}' src/app/agency-spotlight/agency-spotlight.component.html"
+        },
+        {
+          "text": "agency-list.component.spec.ts exists and passes (table-driven)",
+          "check": "cd frontend && test -f src/app/agency-list/agency-list.component.spec.ts && pnpm test --testPathPatterns=agency-list --passWithNoTests"
+        },
+        {
+          "text": "agency-spotlight.component.spec.ts passes (badge rows use percentage inputs)",
+          "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight --passWithNoTests"
+        },
+        {
+          "text": "meta.pageSize is derived from data length, not hardcoded 6",
+          "check": "cd backend && ! grep -q 'pageSize: 6' src/agencies/agencies.service.ts"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "YoY unit mismatch root cause: backend agencies.service.ts:48 computes (current-prior)/prior*100 (a percentage number), frontend agency-spotlight.component.ts:142,145 multiplies by 100 again. The two spec halves encode opposite assumptions (backend spec uses 25/200/-50; frontend spec uses 1.0/-0.5/0.05). Per decision: fix on the FRONTEND (keep backend emitting %), so update the frontend badge spec rows + the api.service.spec mock. Award Count: same class as the Geography E14-S12 fix - the column has no data source (USASpending geography endpoint returns only aggregated_amount/population/per_capita), so transformGeoRows hardcodes awardCount:0; remove the column from the table and stop aggregating it in buildTableData. FY reconciliation: mirror the Geography loadFiscalYears pattern - after populateAvailableYears derives the set, clamp fiscalYearStart/End into [min..max] so the From dropdown always shows a valid selection. Range-aware table/insight: aggregateAwardTypesForYear currently keys off fiscalYearEnd only; rename/extend to aggregate across [start..end] and update the table header to show the range. Add agency-list.component.spec.ts (currently missing - AGENTS.md requires a parallel spec) with table-driven rows for: renders agencies, formats totals via currencyFormat when >0, shows View details otherwise, navigates to /agencies/:id on click. No pi/build-agent run required for this story; it can be built directly with harness=opencode."
+    },
+    {
+      "id": "E15-S02",
+      "epic": "E15",
+      "title": "Agencies: multi-year spending sync (2020-2024) + ?fiscalYear on GET /agencies",
+      "goal": "spending_record only contains FY2024 because syncAgenciesAndSpending hardcodes SYNC_FISCAL_YEAR = 2024, so the Agency Spotlight multi-year UI (From/To selectors, Spending-by-FY chart) only ever surfaces one year and the breakdown table collapses. Mirror the Geography E14-S07 multi-year pattern: loop spending sync over SPENDING_FISCAL_YEARS [2020..2024] and let GET /agencies accept an optional fiscalYear so the list page can reflect a chosen year.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/src/sync/sync.constants.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/sync/sync.service.spec.ts",
+          "backend/src/agencies/agencies.service.ts",
+          "backend/src/agencies/agencies.controller.ts",
+          "backend/src/agencies/agencies.service.spec.ts",
+          "backend/src/agencies/agencies.controller.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/sync.constants.ts",
+            "start": 1,
+            "end": 5,
+            "reason": "add SPENDING_FISCAL_YEARS = [2020,2021,2022,2023,2024] export."
+          },
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 14,
+            "end": 16,
+            "reason": "import SPENDING_FISCAL_YEARS."
+          },
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 70,
+            "end": 90,
+            "reason": "syncAgenciesAndSpending - wrap the per-agency fetchSpendingByAgency+upsert in an outer loop over SPENDING_FISCAL_YEARS; delete-by-(agencyId,fiscalYear) before save to stay idempotent (mirror Geography clear-then-insert)."
+          },
+          {
+            "file": "backend/src/agencies/agencies.service.ts",
+            "start": 18,
+            "end": 30,
+            "reason": "findAllWithTotals(fiscalYear?) - JOIN sr.fiscalYear uses the param when provided, else currentFiscalYear()."
+          },
+          {
+            "file": "backend/src/agencies/agencies.controller.ts",
+            "start": 10,
+            "end": 13,
+            "reason": "forward @Query(fiscalYear) to findAllWithTotals."
+          },
+          {
+            "file": "backend/src/agencies/agencies.service.spec.ts",
+            "start": 1,
+            "end": 5,
+            "reason": "add a row asserting findAllWithTotals applies a passed fiscalYear to the JOIN."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "SPENDING_FISCAL_YEARS is exported from sync.constants.ts",
+          "check": "cd backend && grep -q 'SPENDING_FISCAL_YEARS' src/sync/sync.constants.ts"
+        },
+        {
+          "text": "syncAgenciesAndSpending iterates a year array (not a single const)",
+          "check": "cd backend && grep -A40 'async syncAgenciesAndSpending' src/sync/sync.service.ts | grep -q 'SPENDING_FISCAL_YEARS'"
+        },
+        {
+          "text": "findAllWithTotals accepts an optional fiscalYear parameter",
+          "check": "cd backend && grep -A3 'findAllWithTotals' src/agencies/agencies.service.ts | grep -q 'fiscalYear'"
+        },
+        {
+          "text": "agencies controller forwards the fiscalYear query param",
+          "check": "cd backend && grep -q 'fiscalYear' src/agencies/agencies.controller.ts"
+        },
+        {
+          "text": "sync.service.spec.ts passes (table-driven: multi-year spending loop)",
+          "check": "cd backend && pnpm test --testPathPatterns=sync.service --passWithNoTests"
+        },
+        {
+          "text": "agencies.service.spec.ts passes (findAllWithTotals honors fiscalYear)",
+          "check": "cd backend && pnpm test --testPathPatterns=agencies.service --passWithNoTests"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "backend full test suite green",
+          "check": "cd backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "Mirror of E14-S07 (geography multi-year). Leave GEO_FISCAL_YEARS and SYNC_FISCAL_YEAR untouched. The per-(agencyId,fiscalYear) delete before save must scope by both columns so clearing one year does not wipe another - the SpendingRecord @Unique([agencyId,fiscalYear,quarter,awardTypeLabel]) gives a clean conflict target. After deploy, trigger /sync to backfill 2020-2023 (~20 agencies x 4 years = 80 fetches, one-time). findAllWithTotals default stays currentFiscalYear() so the agency-list page (which passes no param) is unaffected; the param is opt-in for future FY-selector stories. currentFiscalYear() fallback is 2024 (agencies.service.ts:77) which matches the synced year - keep as-is."
+    },
+    {
+      "id": "E15-S03",
+      "epic": "E15",
+      "title": "Agencies: per-award-type breakdown (real Contracts/Grants/Loans/etc instead of Total)",
+      "goal": "Every spending row is stamped awardTypeLabel: Total, so the Agency Spotlight stacked chart degenerates to one dataset, the breakdown table to one row per year, and the insight always reads 100% on Total. fetchSpendingByAgency currently fetches once per agency-year with no award-type filter and stamps Total. Make it fetch once per AWARD_TYPES entry (Contracts, Grants, Direct Payments, Loans, IDVs), apply the USASpending filters.award_type code for each, and stamp the real label so the Spotlight grouped-by-label rendering flows through automatically.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E15-S02"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/sync/sync.constants.ts",
+          "backend/src/sync/usa-spending.service.ts",
+          "backend/src/sync/usa-spending.service.spec.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/sync/sync.service.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/sync.constants.ts",
+            "start": 1,
+            "end": 5,
+            "reason": "map AWARD_TYPES to USASpending filters.award_type codes (Contracts/Grants/Direct Payments/Loans/IDVs). VERIFY the code mapping against the live API before trusting it."
+          },
+          {
+            "file": "backend/src/sync/usa-spending.service.ts",
+            "start": 140,
+            "end": 181,
+            "reason": "fetchSpendingByAgency - accept the award-type map, loop over it, fetch once per type with filters.award_type set, stamp the real awardTypeLabel + awardTypeCodes on each batch."
+          },
+          {
+            "file": "backend/src/sync/usa-spending.service.spec.ts",
+            "start": 388,
+            "end": 454,
+            "reason": "spendingByAgencyTable - add rows asserting the award_type filter is sent per type and the label is stamped correctly."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "fetchSpendingByAgency iterates over award types (not a single Total fetch)",
+          "check": "cd backend && grep -A50 'async fetchSpendingByAgency' src/sync/usa-spending.service.ts | grep -q 'AWARD_TYPES\\|awardTypes\\|award_type'"
+        },
+        {
+          "text": "fetchSpendingByAgency no longer stamps the literal Total awardTypeLabel",
+          "check": "cd backend && ! grep -A50 'async fetchSpendingByAgency' src/sync/usa-spending.service.ts | grep -q \"awardTypeLabel: 'Total'\""
+        },
+        {
+          "text": "award-type to USASpending code map is defined in sync.constants.ts",
+          "check": "cd backend && grep -q 'award' src/sync/sync.constants.ts"
+        },
+        {
+          "text": "usa-spending.service.spec.ts passes (table-driven: per-type fetch + label stamping)",
+          "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service --passWithNoTests"
+        },
+        {
+          "text": "sync.service.spec.ts passes",
+          "check": "cd backend && pnpm test --testPathPatterns=sync.service --passWithNoTests"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "backend full test suite green",
+          "check": "cd backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "CRITICAL - VERIFY-FIRST GATE: the USASpending spending_by_geography endpoint silently ignored filters.awarding_agencies in E14-S08 (every per-agency row stored rollup data until E14-S10 caught it). The same risk applies here: filters.award_type may be accepted but ignored, OR the code mapping may be wrong. Before building, the implementer MUST hit the live API with a known award_type code and confirm the total differs from the rollup (e.g. Contracts-only total < all-awards total). If the endpoint silently ignores award_type, HALT and report back - do not ship a fake breakdown. The AWARD_TYPES constant already exists (sync.constants.ts); this story adds the code mapping. Sync cost after deploy: ~20 agencies x 5 years x 5 types = 500 fetches (one-time backfill, several minutes). The Spotlight needs NO frontend change - buildStackedChartFromRecords/buildTableData/computeInsight already group by awardTypeLabel, so real labels flow through automatically. The SpendingRecord @Unique([agencyId,fiscalYear,quarter,awardTypeLabel]) naturally supports multiple rows per agency-year."
     }
   ],
   "storyOrder": [
@@ -3274,7 +3547,10 @@
     "E14-S09",
     "E14-S10",
     "E14-S11",
-    "E14-S12"
+    "E14-S12",
+    "E15-S01",
+    "E15-S02",
+    "E15-S03"
   ],
   "resolutions": [
     {
