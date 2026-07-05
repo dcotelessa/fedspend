@@ -27,7 +27,7 @@ describe('SyncService', () => {
     agencyFetchResult?: { status: string; agencies?: any[] };
     spendingFetchResults?: { status: string; rows?: any[]; total?: number }[];
     geoFetchResult?: { status: string; rows?: any[] };
-    geoFetchMock?: (geoRepo: any) => void;
+    geoFetchSequence?: { status: string; rows?: any[] }[];
     disasterFetchResult?: { status: string; rows?: any[] };
     femaFetchResult?: StateAggregationResult[];
     expectedUpsertCalls: { repoName: string; count: number }[];
@@ -95,20 +95,13 @@ describe('SyncService', () => {
     {
       name: 'syncGeography loops over every tracked fiscal year and scopes delete+save per year',
       method: 'syncGeography',
-      geoFetchMock: (repo) => {
-        const rows2020 = [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }];
-        const rows2021 = [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2021, agencyId: null, scope: 'recipient', obligatedAmount: 11000, awardCount: 11, population: 4000000, perCapita: 2750 }];
-        const rows2022 = [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 14000, awardCount: 14, population: 4000000, perCapita: 3500 }];
-        const rows2023 = [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 16000, awardCount: 16, population: 4000000, perCapita: 4000 }];
-        const rows2024 = [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 18000, awardCount: 18, population: 4000000, perCapita: 4500 }];
-        repo.delete.mockResolvedValue(undefined);
-        repo.save.mockResolvedValue(undefined);
-        usaService.fetchGeoSnapshots.mockResolvedValueOnce({ status: 'success', rows: rows2020 });
-        usaService.fetchGeoSnapshots.mockResolvedValueOnce({ status: 'success', rows: rows2021 });
-        usaService.fetchGeoSnapshots.mockResolvedValueOnce({ status: 'success', rows: rows2022 });
-        usaService.fetchGeoSnapshots.mockResolvedValueOnce({ status: 'success', rows: rows2023 });
-        usaService.fetchGeoSnapshots.mockResolvedValueOnce({ status: 'success', rows: rows2024 });
-      },
+      geoFetchSequence: [
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2021, agencyId: null, scope: 'recipient', obligatedAmount: 11000, awardCount: 11, population: 4000000, perCapita: 2750 }] },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 14000, awardCount: 14, population: 4000000, perCapita: 3500 }] },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 16000, awardCount: 16, population: 4000000, perCapita: 4000 }] },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 18000, awardCount: 18, population: 4000000, perCapita: 4500 }] },
+      ],
       expectedUpsertCalls: [],
       expectedGeoDeleteCount: 5,
       expectedGeoSaveCount: 5,
@@ -190,6 +183,60 @@ describe('SyncService', () => {
       expectedGeoSaveCount: 5,
       expectedTotalGeoRows: 5,
     },
+    {
+      name: 'syncAgenciesAndSpending empty agency list — nothing to process',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'success', agencies: [] },
+      expectedUpsertCalls: [{ repoName: 'agency', count: 0 }],
+    },
+    {
+      name: 'syncAgenciesAndSpending skips spending when agency fetch fails',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'not_found' },
+      expectedUpsertCalls: [],
+    },
+    {
+      name: 'syncGeography partial failure — skips delete+save for not_found years',
+      method: 'syncGeography',
+      geoFetchSequence: [
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },
+        { status: 'not_found' },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 14000, awardCount: 14, population: 4000000, perCapita: 3500 }] },
+        { status: 'not_found' },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 18000, awardCount: 18, population: 4000000, perCapita: 4500 }] },
+      ],
+      expectedUpsertCalls: [],
+      expectedGeoDeleteCount: 3,
+      expectedGeoSaveCount: 3,
+      expectedTotalGeoRows: 3,
+    },
+    {
+      name: 'syncGeography empty results — delete runs but save receives empty arrays',
+      method: 'syncGeography',
+      geoFetchSequence: [
+        { status: 'success', rows: [] },
+        { status: 'success', rows: [] },
+        { status: 'success', rows: [] },
+        { status: 'success', rows: [] },
+        { status: 'success', rows: [] },
+      ],
+      expectedUpsertCalls: [],
+      expectedGeoDeleteCount: 5,
+      expectedGeoSaveCount: 5,
+      expectedTotalGeoRows: 0,
+    },
+    {
+      name: 'syncDisaster recoveryRatio = 1.0 when both fema and fed are zero',
+      method: 'syncDisaster',
+      disasterFetchResult: { status: 'success', rows: [] },
+      femaFetchResult: [
+        { stateCode: 'AK', stateName: 'Alaska', fiscalYear: 2024, femaObligatedCents: 0, declarationCount: 1, dominantIncidentType: 'Wildfire' }
+      ],
+      expectedUpsertCalls: [{ repoName: 'ratio', count: 1 }],
+      expectedRepoData: {
+        ratio: [{ stateCode: 'AK', recoveryRatio: 1.0, fedSpendingObligated: 0, femaObligated: 0 }],
+      },
+    },
   ];
 
   beforeEach(async () => {
@@ -240,7 +287,7 @@ describe('SyncService', () => {
     agencyFetchResult,
     spendingFetchResults,
     geoFetchResult,
-    geoFetchMock,
+    geoFetchSequence,
     disasterFetchResult,
     femaFetchResult,
     expectedUpsertCalls,
@@ -262,7 +309,11 @@ describe('SyncService', () => {
       }
     }
     if (geoFetchResult) usaService.fetchGeoSnapshots.mockResolvedValue(geoFetchResult);
-    if (geoFetchMock) geoFetchMock(geoRepo);
+    if (geoFetchSequence) {
+      for (const r of geoFetchSequence) {
+        usaService.fetchGeoSnapshots.mockResolvedValueOnce(r);
+      }
+    }
     if (disasterFetchResult) usaService.fetchDisasterSpending.mockResolvedValue(disasterFetchResult);
     if (femaFetchResult) femaService.fetchDeclarationsByState.mockResolvedValue(femaFetchResult);
 
@@ -294,15 +345,14 @@ describe('SyncService', () => {
 
     if (expectedGeoSaveCount !== undefined) {
       expect(geoRepo.save).toHaveBeenCalledTimes(expectedGeoSaveCount);
+    }
+
+    if (expectedTotalGeoRows !== undefined) {
       let totalRows = 0;
       for (const call of geoRepo.save.mock.calls) {
         totalRows += (call[0] as any[]).length;
       }
-      if (expectedTotalGeoRows !== undefined) {
-        expect(totalRows).toBe(expectedTotalGeoRows);
-      } else {
-        expect(totalRows).toBe(expectedGeoSaveCount * 2);
-      }
+      expect(totalRows).toBe(expectedTotalGeoRows);
     }
   });
 
