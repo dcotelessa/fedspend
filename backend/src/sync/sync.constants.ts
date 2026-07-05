@@ -7,6 +7,14 @@ export const TRACKED_AGENCIES = [
   { abbreviation: 'FDIC', id: '581' },
 ];
 
+export const GEO_FISCAL_YEARS = [
+  2020,
+  2021,
+  2022,
+  2023,
+  2024,
+];
+
 export const AWARD_TYPES = [
   'Contracts',
   'Grants',

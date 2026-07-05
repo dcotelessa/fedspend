@@ -10,6 +10,7 @@ import { UsaSpendingService } from './usa-spending.service';
 import { OpenFemaService } from './openfema.service';
 import { computeRecoveryRatio } from './recovery-ratio';
 import { Cron } from '@nestjs/schedule';
+import { GEO_FISCAL_YEARS } from './sync.constants';
 
 const SYNC_FISCAL_YEAR = 2024;
 const SYNC_DEF_GROUP = 'L';
@@ -91,18 +92,20 @@ export class SyncService {
 
   async syncGeography(): Promise<void> {
     await this.runWithStatus(GEOGRAPHY, async () => {
-      const geoResult = await this.usaService.fetchGeoSnapshots({
-        agency: '',
-        fiscalYear: SYNC_FISCAL_YEAR,
-        scope: 'recipient',
-      });
-      if (geoResult.status === 'success') {
-        await this.geoRepo.delete({
-          fiscalYear: SYNC_FISCAL_YEAR,
+      for (const year of GEO_FISCAL_YEARS) {
+        const geoResult = await this.usaService.fetchGeoSnapshots({
+          agency: '',
+          fiscalYear: year,
           scope: 'recipient',
-          agencyId: IsNull(),
         });
-        await this.geoRepo.save(geoResult.rows);
+        if (geoResult.status === 'success') {
+          await this.geoRepo.delete({
+            fiscalYear: year,
+            scope: 'recipient',
+            agencyId: IsNull(),
+          });
+          await this.geoRepo.save(geoResult.rows);
+        }
       }
     });
   }
