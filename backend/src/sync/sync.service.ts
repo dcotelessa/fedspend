@@ -92,19 +92,34 @@ export class SyncService {
 
   async syncGeography(): Promise<void> {
     await this.runWithStatus(GEOGRAPHY, async () => {
+      const agenciesWithSpending = await this.agencyRepo
+        .createQueryBuilder('a')
+        .innerJoin(SpendingRecord, 'sr', 'sr.agencyId = a.id')
+        .getMany();
+      const targets: Array<{ agency: string; agencyId: number | null }> = [
+        { agency: '', agencyId: null },
+        ...agenciesWithSpending.map((a) => ({ agency: a.toptierCode, agencyId: a.id })),
+      ];
+      const scopes: Array<'recipient' | 'performance'> = ['recipient', 'performance'];
+
       for (const year of GEO_FISCAL_YEARS) {
-        const geoResult = await this.usaService.fetchGeoSnapshots({
-          agency: '',
-          fiscalYear: year,
-          scope: 'recipient',
-        });
-        if (geoResult.status === 'success') {
-          await this.geoRepo.delete({
-            fiscalYear: year,
-            scope: 'recipient',
-            agencyId: IsNull(),
-          });
-          await this.geoRepo.save(geoResult.rows);
+        for (const scope of scopes) {
+          for (const target of targets) {
+            const geoResult = await this.usaService.fetchGeoSnapshots({
+              agency: target.agency,
+              fiscalYear: year,
+              scope,
+              agencyId: target.agencyId,
+            });
+            if (geoResult.status === 'success') {
+              await this.geoRepo.delete({
+                fiscalYear: year,
+                scope,
+                agencyId: target.agencyId === null ? IsNull() : target.agencyId,
+              });
+              await this.geoRepo.save(geoResult.rows);
+            }
+          }
         }
       }
     });

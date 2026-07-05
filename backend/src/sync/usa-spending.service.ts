@@ -39,13 +39,14 @@ const transformGeoRows = (
   rows: RawUsaSpendingGeoRow[],
   scope: string,
   fiscalYear: number,
+  agencyId: number | null,
 ): GeoSpendingSnapshot[] =>
   rows.map((r) => ({
     id: undefined as any,
     stateCode: r.shape_code || '',
     stateName: r.display_name || '',
     fiscalYear,
-    agencyId: null as any,
+    agencyId,
     scope,
     obligatedAmount: Math.round(r.aggregated_amount * 100),
     awardCount: 0,
@@ -161,7 +162,7 @@ export class UsaSpendingService {
     );
 
     const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, 'recipient_location', params.fiscalYear).map(
+    const transformed = transformGeoRows(rawGeo, 'recipient_location', params.fiscalYear, null).map(
       (r) => ({
         ...r,
         id: undefined as any,
@@ -180,19 +181,27 @@ export class UsaSpendingService {
   }
 
   async fetchGeoSnapshots(
-    params: { agency: string; fiscalYear: number; scope: string },
+    params: { agency: string; fiscalYear: number; scope: string; agencyId?: number | null },
   ): Promise<FetchGeoResult> {
     const scopeMap: Record<string, string> = {
       recipient: 'recipient_location',
       performance: 'place_of_performance',
     };
+    const filters: Record<string, unknown> = {
+      time_period: [{
+        start_date: `${params.fiscalYear}-10-01`,
+        end_date: `${params.fiscalYear + 1}-09-30`,
+      }],
+    };
+    if (params.agency) {
+      filters.agencies = [{
+        type: 'awarding',
+        tier: 'toptier',
+        toptier_code: params.agency,
+      }];
+    }
     const body = {
-      filters: {
-        time_period: [{
-          start_date: `${params.fiscalYear}-10-01`,
-          end_date: `${params.fiscalYear + 1}-09-30`,
-        }],
-      },
+      filters,
       geo_layer: 'state',
       scope: scopeMap[params.scope] || params.scope,
     };
@@ -203,7 +212,8 @@ export class UsaSpendingService {
     );
 
     const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, params.scope, params.fiscalYear);
+    const agencyId = params.agencyId === undefined ? null : params.agencyId;
+    const transformed = transformGeoRows(rawGeo, params.scope, params.fiscalYear, agencyId);
 
     return transformed.length > 0
       ? { status: 'success', rows: transformed }
@@ -231,7 +241,7 @@ export class UsaSpendingService {
     );
 
     const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, 'recipient_location', DISASTER_FISCAL_YEAR).map(
+    const transformed = transformGeoRows(rawGeo, 'recipient_location', DISASTER_FISCAL_YEAR, null).map(
       (r) => ({
         ...r,
         id: undefined as any,

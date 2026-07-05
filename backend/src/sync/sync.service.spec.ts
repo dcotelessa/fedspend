@@ -13,7 +13,7 @@ import { StateAggregationResult } from './openfema.service';
 
 describe('SyncService', () => {
   let service: SyncService;
-  let agencyRepo: { upsert: jest.Mock };
+  let agencyRepo: { upsert: jest.Mock; createQueryBuilder: jest.Mock };
   let spendingRepo: { upsert: jest.Mock };
   let geoRepo: { delete: jest.Mock; save: jest.Mock };
   let disasterRepo: { upsert: jest.Mock };
@@ -28,6 +28,7 @@ describe('SyncService', () => {
     spendingFetchResults?: { status: string; rows?: any[]; total?: number }[];
     geoFetchResult?: { status: string; rows?: any[] };
     geoFetchSequence?: { status: string; rows?: any[] }[];
+    agenciesWithSpending?: any[];
     disasterFetchResult?: { status: string; rows?: any[] };
     femaFetchResult?: StateAggregationResult[];
     expectedUpsertCalls: { repoName: string; count: number }[];
@@ -93,27 +94,31 @@ describe('SyncService', () => {
       },
     },
     {
-      name: 'syncGeography loops over every tracked fiscal year and scopes delete+save per year',
+      name: 'syncGeography loops years × recipient/performance scopes × rollup target, all succeed',
       method: 'syncGeography',
-      geoFetchSequence: [
-        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },
-        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2021, agencyId: null, scope: 'recipient', obligatedAmount: 11000, awardCount: 11, population: 4000000, perCapita: 2750 }] },
-        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 14000, awardCount: 14, population: 4000000, perCapita: 3500 }] },
-        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 16000, awardCount: 16, population: 4000000, perCapita: 4000 }] },
-        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 18000, awardCount: 18, population: 4000000, perCapita: 4500 }] },
-      ],
+      geoFetchResult: { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },
       expectedUpsertCalls: [],
-      expectedGeoDeleteCount: 5,
-      expectedGeoSaveCount: 5,
-      expectedTotalGeoRows: 5,
+      expectedGeoDeleteCount: 10,
+      expectedGeoSaveCount: 10,
+      expectedTotalGeoRows: 10,
     },
     {
-      name: 'syncGeography handles not_found by skipping delete+save',
+      name: 'syncGeography skips delete+save when every fetch returns not_found',
       method: 'syncGeography',
       geoFetchResult: { status: 'not_found' },
       expectedUpsertCalls: [],
       expectedGeoDeleteCount: 0,
       expectedGeoSaveCount: 0,
+    },
+    {
+      name: 'syncGeography discovers agencies-with-spending and syncs rollup + each across years and scopes',
+      method: 'syncGeography',
+      agenciesWithSpending: [{ id: 30, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }],
+      geoFetchResult: { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },
+      expectedUpsertCalls: [],
+      expectedGeoDeleteCount: 20,
+      expectedGeoSaveCount: 20,
+      expectedTotalGeoRows: 20,
     },
     {
       name: 'syncDisaster upserts a new disaster funding record',
@@ -179,9 +184,9 @@ describe('SyncService', () => {
         agency: [{ name: 'Test Agency' }],
         ratio: [{ stateCode: 'CA' }],
       },
-      expectedGeoDeleteCount: 5,
-      expectedGeoSaveCount: 5,
-      expectedTotalGeoRows: 5,
+      expectedGeoDeleteCount: 10,
+      expectedGeoSaveCount: 10,
+      expectedTotalGeoRows: 10,
     },
     {
       name: 'syncAgenciesAndSpending empty agency list — nothing to process',
@@ -196,7 +201,7 @@ describe('SyncService', () => {
       expectedUpsertCalls: [],
     },
     {
-      name: 'syncGeography partial failure — skips delete+save for not_found years',
+      name: 'syncGeography partial failure — skips delete+save for not_found year/scope combos',
       method: 'syncGeography',
       geoFetchSequence: [
         { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },
@@ -204,25 +209,24 @@ describe('SyncService', () => {
         { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 14000, awardCount: 14, population: 4000000, perCapita: 3500 }] },
         { status: 'not_found' },
         { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 18000, awardCount: 18, population: 4000000, perCapita: 4500 }] },
-      ],
-      expectedUpsertCalls: [],
-      expectedGeoDeleteCount: 3,
-      expectedGeoSaveCount: 3,
-      expectedTotalGeoRows: 3,
-    },
-    {
-      name: 'syncGeography empty results — delete runs but save receives empty arrays',
-      method: 'syncGeography',
-      geoFetchSequence: [
-        { status: 'success', rows: [] },
-        { status: 'success', rows: [] },
-        { status: 'success', rows: [] },
-        { status: 'success', rows: [] },
-        { status: 'success', rows: [] },
+        { status: 'not_found' },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2021, agencyId: null, scope: 'recipient', obligatedAmount: 12000, awardCount: 12, population: 4000000, perCapita: 3000 }] },
+        { status: 'not_found' },
+        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 16000, awardCount: 16, population: 4000000, perCapita: 4000 }] },
+        { status: 'not_found' },
       ],
       expectedUpsertCalls: [],
       expectedGeoDeleteCount: 5,
       expectedGeoSaveCount: 5,
+      expectedTotalGeoRows: 5,
+    },
+    {
+      name: 'syncGeography empty results — delete runs but save receives empty arrays',
+      method: 'syncGeography',
+      geoFetchResult: { status: 'success', rows: [] },
+      expectedUpsertCalls: [],
+      expectedGeoDeleteCount: 10,
+      expectedGeoSaveCount: 10,
       expectedTotalGeoRows: 0,
     },
     {
@@ -240,7 +244,7 @@ describe('SyncService', () => {
   ];
 
   beforeEach(async () => {
-    const mockAgencyRepo = { upsert: jest.fn() };
+    const mockAgencyRepo = { upsert: jest.fn(), createQueryBuilder: jest.fn() };
     const mockSpendingRepo = { upsert: jest.fn() };
     const mockGeoRepo = { delete: jest.fn().mockResolvedValue(undefined), save: jest.fn().mockResolvedValue(undefined) };
     const mockDisasterRepo = { upsert: jest.fn() };
@@ -288,6 +292,7 @@ describe('SyncService', () => {
     spendingFetchResults,
     geoFetchResult,
     geoFetchSequence,
+    agenciesWithSpending,
     disasterFetchResult,
     femaFetchResult,
     expectedUpsertCalls,
@@ -316,6 +321,12 @@ describe('SyncService', () => {
     }
     if (disasterFetchResult) usaService.fetchDisasterSpending.mockResolvedValue(disasterFetchResult);
     if (femaFetchResult) femaService.fetchDeclarationsByState.mockResolvedValue(femaFetchResult);
+
+    const qb = {
+      innerJoin: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(agenciesWithSpending ?? []),
+    };
+    agencyRepo.createQueryBuilder.mockReturnValue(qb);
 
     await (service as Record<string, unknown>)[method]();
 

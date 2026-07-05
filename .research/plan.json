@@ -2851,6 +2851,96 @@
         }
       ],
       "notes": "Leave syncAgenciesAndSpending alone — it still uses SYNC_FISCAL_YEAR (2024) for spending_record, which already has 2020-2024 from seeding. Only geography is multi-year here. The per-year delete must scope by fiscalYear so clearing one year does not wipe another. fetchGeoSnapshots accepts any fiscalYear. After deploy, trigger one /sync run to backfill 2020-2023; then SELECT DISTINCT fiscalYear FROM geo_spending_snapshot returns 5 rows and the Geography FY dropdown auto-shows 2020-2024 (deriveFiscalYearList is already data-driven)."
+    },
+    {
+      "id": "E14-S08",
+      "epic": "E14",
+      "title": "Geography: per-agency + performance-scope + multi-year geo sync",
+      "goal": "Make the Geography page agency dropdown, scope toggle, and year dropdown all return data. Currently geo_spending_snapshot only contains the all-agencies recipient rollup for FY2024 because (a) fetchGeoSnapshots ignores its agency param, (b) transformGeoRows hardcodes agencyId=null, (c) syncGeography hardcodes scope=recipient and only fetches the rollup, (d) the multi-year code was never run. Expand syncGeography to iterate (year x scope x agency) where agency covers the rollup plus the agencies that have spending, wire the awarding_agencies filter into fetchGeoSnapshots, and set agencyId on transformed rows.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E14-S06",
+        "E14-S07"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/sync/usa-spending.service.ts",
+          "backend/src/sync/usa-spending.service.spec.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/sync/sync.service.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/usa-spending.service.ts",
+            "start": 38,
+            "end": 55,
+            "reason": "transformGeoRows — add agencyId param, set on rows instead of hardcoded null."
+          },
+          {
+            "file": "backend/src/sync/usa-spending.service.ts",
+            "start": 182,
+            "end": 211,
+            "reason": "fetchGeoSnapshots — accept agencyId; add filters.agencies (awarding/toptier/toptier_code) when agency non-empty; pass agencyId to transform."
+          },
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 92,
+            "end": 112,
+            "reason": "syncGeography — discover agencies-with-spending via agencyRepo query builder joined to SpendingRecord; iterate year x [recipient,performance] x [rollup + those agencies]; delete scoped by fiscalYear+scope+agencyId(IsNull|id); save."
+          },
+          {
+            "file": "backend/src/sync/sync.service.spec.ts",
+            "start": 91,
+            "end": 130,
+            "reason": "syncGeography rows — mock agencyRepo.createQueryBuilder fluent chain; assert per-target delete+save across the 3-level loop."
+          },
+          {
+            "file": "backend/src/sync/usa-spending.service.spec.ts",
+            "start": 1,
+            "end": 5,
+            "reason": "add a table row: fetchGeoSnapshots with agency set includes filters.agencies in the request body and sets agencyId on result rows."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "transformGeoRows sets the passed agencyId (not hardcoded null)",
+          "check": "cd backend && grep -A18 'const transformGeoRows' src/sync/usa-spending.service.ts | grep -q 'agencyId'"
+        },
+        {
+          "text": "fetchGeoSnapshots adds awarding-agencies filter when agency is provided",
+          "check": "cd backend && grep -q 'awarding' src/sync/usa-spending.service.ts && grep -q 'toptier_code' src/sync/usa-spending.service.ts"
+        },
+        {
+          "text": "syncGeography iterates over both recipient and performance scopes",
+          "check": "cd backend && grep -A40 'async syncGeography' src/sync/sync.service.ts | grep -q \"'performance'\""
+        },
+        {
+          "text": "syncGeography discovers agencies-with-spending via agencyRepo (not a stale constant)",
+          "check": "cd backend && grep -A40 'async syncGeography' src/sync/sync.service.ts | grep -q 'createQueryBuilder'"
+        },
+        {
+          "text": "syncGeography per-iteration delete is scoped by fiscalYear, scope, and agencyId",
+          "check": "cd backend && grep -A50 'async syncGeography' src/sync/sync.service.ts | grep -q 'IsNull'"
+        },
+        {
+          "text": "usa-spending.service.spec.ts passes (table-driven: agency filter applied + agencyId set)",
+          "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service --passWithNoTests"
+        },
+        {
+          "text": "sync.service.spec.ts passes (table-driven: 3-level geo loop)",
+          "check": "cd backend && pnpm test --testPathPatterns=sync.service --passWithNoTests"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "backend full test suite green",
+          "check": "cd backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "Drive the per-agency list from agencies that actually have spending_record rows (agencyRepo.createQueryBuilder innerJoin SpendingRecord), NOT the stale TRACKED_AGENCIES constant — the two diverge (TRACKED has GSA/OPM/LOC/FDIC which have 0 spending; missing DOD/ED/DHS/DOE which do). The rollup target {agency:\"\", agencyId:null} is always included so \"All Agencies\" keeps working. fetchGeoSnapshots mirrors the agencies-filter shape already used by fetchSpendingByAgency (type:awarding, tier:toptier, toptier_code). After this lands, trigger /sync to backfill (rollup + ~6 agencies x 5 years x 2 scopes ~= 70 fetches, one-time). The Geography frontend needs NO change — the dropdown/scope/FY already filter on agencyId/scope/fiscalYear correctly; they were just starved for data. Leave fetchSpendingByAgency and fetchDisasterSpending call-sites passing agencyId=null (they override or are scope-agnostic)."
     }
   ],
   "storyOrder": [
@@ -2905,7 +2995,8 @@
     "E14-S04",
     "E14-S05",
     "E14-S06",
-    "E14-S07"
+    "E14-S07",
+    "E14-S08"
   ],
   "resolutions": [
     {

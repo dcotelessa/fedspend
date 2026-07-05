@@ -162,6 +162,50 @@ describe('UsaSpendingService', () => {
     }
   });
 
+  interface GeoAgencyFilterTestCase {
+    name: string;
+    agency: string;
+    agencyId: number | null;
+    expectAgenciesFilter: boolean;
+    expectedAgencyId: number | null;
+  }
+
+  const geoAgencyFilterTable: GeoAgencyFilterTestCase[] = [
+    {
+      name: 'rollup (empty agency) omits the agencies filter and stores agencyId null',
+      agency: '',
+      agencyId: null,
+      expectAgenciesFilter: false,
+      expectedAgencyId: null,
+    },
+    {
+      name: 'per-agency fetch includes awarding toptier filter and stores agencyId on rows',
+      agency: '080',
+      agencyId: 30,
+      expectAgenciesFilter: true,
+      expectedAgencyId: 30,
+    },
+  ];
+
+  it.each(geoAgencyFilterTable)('$name', async ({ agency, agencyId, expectAgenciesFilter, expectedAgencyId }) => {
+    const responseBody = {
+      results: [{ shape_code: 'CA', display_name: 'California', population: 39538223, per_capita: 5000.5, aggregated_amount: 100 }],
+      meta: { total: 1, page: 1, pageSize: 1 },
+    };
+    fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+
+    const result = await svc.fetchGeoSnapshots({ agency, fiscalYear: 2024, scope: 'recipient', agencyId });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    if (expectAgenciesFilter) {
+      expect(body.filters.agencies).toEqual([{ type: 'awarding', tier: 'toptier', toptier_code: agency }]);
+    } else {
+      expect(body.filters.agencies).toBeUndefined();
+    }
+    expect(result.status).toBe('success');
+    expect(result.rows[0].agencyId).toBe(expectedAgencyId);
+  });
+
   describe('POST method usage', () => {
     it('uses POST for geography endpoint', async () => {
       const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
