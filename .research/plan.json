@@ -2855,8 +2855,8 @@
     {
       "id": "E14-S08",
       "epic": "E14",
-      "title": "Geography: per-agency + performance-scope + multi-year geo sync",
-      "goal": "Make the Geography page agency dropdown, scope toggle, and year dropdown all return data. Currently geo_spending_snapshot only contains the all-agencies recipient rollup for FY2024 because (a) fetchGeoSnapshots ignores its agency param, (b) transformGeoRows hardcodes agencyId=null, (c) syncGeography hardcodes scope=recipient and only fetches the rollup, (d) the multi-year code was never run. Expand syncGeography to iterate (year x scope x agency) where agency covers the rollup plus the agencies that have spending, wire the awarding_agencies filter into fetchGeoSnapshots, and set agencyId on transformed rows.",
+      "title": "Geography: per-agency + performance-scope + multi-year geo sync (with awarding_agencies API fix)",
+      "goal": "Make the Geography page agency dropdown, scope toggle, and year dropdown all return data. geo_spending_snapshot only contained the all-agencies recipient rollup for FY2024 because (a) fetchGeoSnapshots accepted but ignored its agency param, (b) transformGeoRows hardcoded agencyId=null, (c) syncGeography hardcoded scope=recipient and only fetched the rollup, (d) the multi-year code (E14-S07) had never been run. Expanded syncGeography to iterate year x scope x agency (rollup + agencies-with-spending), wired the agency filter, set agencyId on rows, made the loop resilient to per-combo failures, and backfilled.",
       "build": "BUILD-FAST",
       "dependencies": [
         "E14-S06",
@@ -2905,30 +2905,34 @@
       "acceptanceCriteria": [
         {
           "text": "transformGeoRows sets the passed agencyId (not hardcoded null)",
-          "check": "cd backend && grep -A18 'const transformGeoRows' src/sync/usa-spending.service.ts | grep -q 'agencyId'"
+          "check": "cd backend && grep -A20 'const transformGeoRows' src/sync/usa-spending.service.ts | grep -q 'agencyId'"
         },
         {
-          "text": "fetchGeoSnapshots adds awarding-agencies filter when agency is provided",
-          "check": "cd backend && grep -q 'awarding' src/sync/usa-spending.service.ts && grep -q 'toptier_code' src/sync/usa-spending.service.ts"
+          "text": "fetchGeoSnapshots uses filters.awarding_agencies (NOT filters.agencies) when an agency toptierCode is provided",
+          "check": "cd backend && grep -A45 'async fetchGeoSnapshots' src/sync/usa-spending.service.ts | grep -q 'awarding_agencies'"
         },
         {
           "text": "syncGeography iterates over both recipient and performance scopes",
-          "check": "cd backend && grep -A40 'async syncGeography' src/sync/sync.service.ts | grep -q \"'performance'\""
+          "check": "cd backend && grep -A45 'async syncGeography' src/sync/sync.service.ts | grep -q \"'performance'\""
         },
         {
-          "text": "syncGeography discovers agencies-with-spending via agencyRepo (not a stale constant)",
-          "check": "cd backend && grep -A40 'async syncGeography' src/sync/sync.service.ts | grep -q 'createQueryBuilder'"
+          "text": "syncGeography discovers agencies-with-spending via agencyRepo queryBuilder (not a stale constant)",
+          "check": "cd backend && grep -A45 'async syncGeography' src/sync/sync.service.ts | grep -q 'createQueryBuilder'"
         },
         {
           "text": "syncGeography per-iteration delete is scoped by fiscalYear, scope, and agencyId",
-          "check": "cd backend && grep -A50 'async syncGeography' src/sync/sync.service.ts | grep -q 'IsNull'"
+          "check": "cd backend && grep -A55 'async syncGeography' src/sync/sync.service.ts | grep -q 'IsNull'"
         },
         {
-          "text": "usa-spending.service.spec.ts passes (table-driven: agency filter applied + agencyId set)",
+          "text": "syncGeography continues past individual fetch failures (per-combo try/catch) so one 400/timeout does not abort the whole run",
+          "check": "cd backend && grep -A65 'async syncGeography' src/sync/sync.service.ts | grep -q 'catch'"
+        },
+        {
+          "text": "usa-spending.service.spec.ts passes (table-driven: awarding_agencies filter applied + agencyId set)",
           "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service --passWithNoTests"
         },
         {
-          "text": "sync.service.spec.ts passes (table-driven: 3-level geo loop)",
+          "text": "sync.service.spec.ts passes (table-driven: 3-level geo loop + agency discovery)",
           "check": "cd backend && pnpm test --testPathPatterns=sync.service --passWithNoTests"
         },
         {
@@ -2940,7 +2944,7 @@
           "check": "cd backend && pnpm test --passWithNoTests"
         }
       ],
-      "notes": "Drive the per-agency list from agencies that actually have spending_record rows (agencyRepo.createQueryBuilder innerJoin SpendingRecord), NOT the stale TRACKED_AGENCIES constant — the two diverge (TRACKED has GSA/OPM/LOC/FDIC which have 0 spending; missing DOD/ED/DHS/DOE which do). The rollup target {agency:\"\", agencyId:null} is always included so \"All Agencies\" keeps working. fetchGeoSnapshots mirrors the agencies-filter shape already used by fetchSpendingByAgency (type:awarding, tier:toptier, toptier_code). After this lands, trigger /sync to backfill (rollup + ~6 agencies x 5 years x 2 scopes ~= 70 fetches, one-time). The Geography frontend needs NO change — the dropdown/scope/FY already filter on agencyId/scope/fiscalYear correctly; they were just starved for data. Leave fetchSpendingByAgency and fetchDisasterSpending call-sites passing agencyId=null (they override or are scope-agnostic)."
+      "notes": "Two real bugs were discovered and fixed during backfill (not just the design gap): (1) API shape — the USASpending spending_by_geography endpoint REJECTS filters.agencies with toptier_code (\"Unexpected field\") and requires filters.awarding_agencies:[{toptier_code, tier:\"toptier\"}]. The first impl mirrored fetchSpendingByAgency shape, which is itself broken for this endpoint. (2) Fragility — one HTTP 400 aborted the whole 70-call sync leaving partial data; wrapped each year/scope/agency combo in try/catch so failures log and the loop continues. Backfill (POST /sync/geography against the freshly-built dist) produced 3990 rows = 5 years x 2 scopes x 7 targets (rollup + HHS/DOD/ED/DHS/DOE/NASA) x 57 states, zero dupes. Drive the per-agency list from agencies-with-spending (agencyRepo.createQueryBuilder innerJoin SpendingRecord), NOT the stale TRACKED_AGENCIES constant (the two diverge). LATENT BUG FLAGGED FOR FOLLOW-UP: fetchSpendingByAgency (usa-spending.service.ts ~line 148) uses the same rejected filters.agencies+toptier_code shape against the same endpoint; spending_record data was seeded, not synced via that code, so the bug is dormant — switch it to awarding_agencies in a future story before relying on spending sync. Frontend needed NO change — the dropdown/scope/FY filters were correct, just starved for data."
     }
   ],
   "storyOrder": [

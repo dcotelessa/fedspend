@@ -1145,6 +1145,72 @@
       "thinking": "high",
       "timestamp": "2026-07-05T03:31:16.051Z",
       "note": "Bug discovered live (Geography triplicates). Root cause: NULL in upsert conflict target. Fixed in sync + spec, deduped dev DB, formalized as story after the fact."
+    },
+    {
+      "story": "E14-S04",
+      "epic": "E14",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 131,
+      "thinking": "medium",
+      "timestamp": "2026-07-05T03:36:09Z"
+    },
+    {
+      "story": "E14-S06",
+      "epic": "E14",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 213,
+      "thinking": "medium",
+      "timestamp": "2026-07-05T04:10:37Z"
+    },
+    {
+      "story": "E14-S07",
+      "epic": "E14",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 25,
+      "thinking": "medium",
+      "timestamp": "2026-07-05T04:26:19Z"
+    },
+    {
+      "story": "E14-S07",
+      "epic": "E14",
+      "tier": "T2",
+      "harness": "pi",
+      "model": "qwen3-coder:30b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 1908,
+      "thinking": "medium",
+      "timestamp": "2026-07-05T04:58:14Z"
+    },
+    {
+      "story": "E14-S08",
+      "epic": "E14",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1800,
+      "thinking": "high",
+      "timestamp": "2026-07-05T08:10:17.937Z",
+      "note": "Built directly (build mode). Two mid-build bugs fixed: awarding_agencies API shape + per-combo try/catch resilience. Backfill verified 3990 rows across 5y/2scopes/7targets/57states."
     }
   ]
 }
