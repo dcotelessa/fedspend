@@ -3154,7 +3154,7 @@
           "check": "cd frontend && pnpm test --testPathPatterns=geographic-view --passWithNoTests"
         }
       ],
-      "notes": "Pure CSS polish, no logic change. Mirrors dashboard.component.scss conventions: :host{display:block}, M3 --mat-sys-* tokens for color/typography/corners, no hardcoded colors. No comments in source (design intent lives here). The scope toggle is a mat-button-toggle-group that also carries the controls-bar class, so the left margin is scoped to mat-button-toggle-group.controls-bar rather than all .controls-bar (the dropdowns need right margin, not left)."
+      "notes": "Pure CSS polish, no logic change. Mirrors dashboard.component.scss conventions: :host{display:block}, M3 --mat-sys-* tokens for color/typography/corners, no hardcoded colors. No comments in source (design intent lives here). The scope toggle is a mat-button-toggle-group that also carries the controls-bar class, so the left margin is scoped to mat-button-toggle-group.controls-bar rather than all .controls-bar (the dropdowns need right margin, not left). FOLLOW-UP FIX: the .controls-bar { display: inline-block } rule was applied to mat-button-toggle-group, overriding Material inline-flex default and collapsing the Recipient/Performance toggle (it vanished from the rendered page). Restored via mat-button-toggle-group.controls-bar { display: inline-flex }."
     }
   ],
   "storyOrder": [
