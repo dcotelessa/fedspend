@@ -1118,6 +1118,33 @@
       "thinking": "medium",
       "timestamp": "2026-07-04T06:14:25Z",
       "note": "Scope-leakage FAIL was a plan defect: api.service.ts omitted from scope.files. Missing param-forwarding edit applied manually; verify green on main."
+    },
+    {
+      "story": "E14-S04",
+      "epic": "E14",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 124,
+      "thinking": "medium",
+      "timestamp": "2026-07-04T07:02:10Z"
+    },
+    {
+      "story": "E14-S05",
+      "epic": "E14",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 600,
+      "thinking": "high",
+      "timestamp": "2026-07-05T03:31:16.051Z",
+      "note": "Bug discovered live (Geography triplicates). Root cause: NULL in upsert conflict target. Fixed in sync + spec, deduped dev DB, formalized as story after the fact."
     }
   ]
 }

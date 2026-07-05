@@ -2665,6 +2665,73 @@
         }
       ],
       "notes": "Approved prose to insert verbatim (single <p class=\"about\">): \"FedSpend surfaces federal spending data drawn from USASpending.gov and OpenFEMA to make government obligations transparent and comparable. The navigation cards below open three lenses on the same underlying records: Geography breaks obligations down by where money is received or performed, Agencies profiles each agency totals and year-over-year trends, and Disaster compares federal disaster spending against FEMA recovery obligations. The summary cards report portfolio-wide figures for the current fiscal year — total obligated across agencies, the single largest agency, and the count of states where federal recovery spending falls short of 50% of FEMA obligations (coverage gaps). The agency chart ranks the top five agencies by obligated amount for FY2024, with all remaining agencies consolidated into Other; click any bar to open that agency spotlight.\" Style the .about class in dashboard.component.scss (or inline) — keep it subtle, do not restructure existing layout."
+    },
+    {
+      "id": "E14-S05",
+      "epic": "E14",
+      "title": "Geography sync dedup — clear NULL-agencyId rollup before bulk-insert",
+      "goal": "Fix duplicate geography rows. TypeORM upsert on (stateCode, fiscalYear, agencyId, scope) never matched the \"all agencies\" rollup rows because agencyId is NULL and NULL != NULL in SQL unique constraints (SQLite + Postgres). Each sync inserted fresh duplicates, so the Geography page rendered every state multiple times. Replace the per-row upsert loop with delete(batch)+bulk-save for the NULL-agencyId rollup so syncs are idempotent.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/src/sync/sync.service.ts",
+          "backend/src/sync/sync.service.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 1,
+            "end": 3,
+            "reason": "typeorm import — add IsNull."
+          },
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 92,
+            "end": 110,
+            "reason": "syncGeography — replace per-row geoRepo.upsert loop with delete({fiscalYear, scope, agencyId: IsNull()}) + geoRepo.save(rows)."
+          },
+          {
+            "file": "backend/src/sync/sync.service.spec.ts",
+            "start": 1,
+            "end": 34,
+            "reason": "geoRepo type + TestCase interface — add delete/save + expectedGeoDelete/expectedGeoSaveCount fields."
+          },
+          {
+            "file": "backend/src/sync/sync.service.spec.ts",
+            "start": 170,
+            "end": 285,
+            "reason": "mockGeoRepo + geo test rows + runner assertions + getRepo helper — assert clear-then-bulk-insert contract."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "IsNull is imported from typeorm in sync.service.ts",
+          "check": "cd backend && grep -q 'IsNull' src/sync/sync.service.ts"
+        },
+        {
+          "text": "syncGeography clears the NULL-agencyId batch via geoRepo.delete (not an upsert loop)",
+          "check": "cd backend && grep -A20 'async syncGeography' src/sync/sync.service.ts | grep -q 'geoRepo.delete'"
+        },
+        {
+          "text": "syncGeography no longer calls geoRepo.upsert",
+          "check": "cd backend && ! grep -A25 'async syncGeography' src/sync/sync.service.ts | grep -q 'geoRepo.upsert'"
+        },
+        {
+          "text": "syncGeography bulk-inserts via geoRepo.save",
+          "check": "cd backend && grep -A25 'async syncGeography' src/sync/sync.service.ts | grep -q 'geoRepo.save'"
+        },
+        {
+          "text": "sync.service.spec.ts passes (table-driven: clear-then-bulk-insert contract)",
+          "check": "cd backend && pnpm test --testPathPatterns=sync.service --passWithNoTests"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "The NULL-in-unique-constraint gotcha affects Postgres in prod too, not just SQLite — the sync fix is the real repair (deduping the dev DB is a one-time local cleanup since dev.db is gitignored). The clear-then-insert is safe because the geography rollup always has agencyId=NULL and fetchGeoSnapshots returns the full batch each run. Do not reintroduce upsert for the geo rollup; other syncs (agency/spending/disaster/ratio) keep upsert because their conflict-target columns are non-nullable."
     }
   ],
   "storyOrder": [
@@ -2716,7 +2783,8 @@
     "E14-S01",
     "E14-S02",
     "E14-S03",
-    "E14-S04"
+    "E14-S04",
+    "E14-S05"
   ],
   "resolutions": [
     {
