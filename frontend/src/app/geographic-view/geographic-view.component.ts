@@ -51,7 +51,7 @@ export class GeographicViewComponent implements OnInit {
 
   loadAgencies(): void {
     this.apiService.getAgencies().subscribe(agencies => {
-      this.agencyList = agencies;
+      this.agencyList = agencies.filter(a => a.totalCents > 0);
     });
   }
 

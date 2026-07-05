@@ -1,0 +1,143 @@
+{
+  "story": "E14-S06",
+  "epic": "E14",
+  "title": "Geography: filter agency dropdown to non-zero spenders",
+  "goal": "The Geography agency dropdown currently lists all ~111 agencies returned by getAgencies(), but only 6 have non-zero spending. Filter the dropdown to agencies with totalCents > 0 so the control is useful. Filtering happens at the component (not ApiService) so the Agencies list page still shows every agency.",
+  "notes": "Filter at the component only — do NOT change ApiService.getAgencies (the Agencies list page relies on the full set). The spec mocks currently use the Agency shape (id/name/abbreviation/toptierCode); switch them to AgencyWithTotal (id/name/totalCents) and ensure every existing mock row has totalCents > 0 so they still pass, then add a dedicated row with a zero-total agency to prove exclusion. Default fiscalYear resolution to the latest year with data (2024) is unchanged.",
+  "dependencies": "",
+  "acceptanceCriteria": [
+    {
+      "text": "agencyList is filtered to totalCents > 0 in loadAgencies",
+      "check": "cd frontend && grep -A4 'loadAgencies' src/app/geographic-view/geographic-view.component.ts | grep -q 'totalCents > 0'"
+    },
+    {
+      "text": "geographic-view.component.spec.ts passes (table-driven: zero-total agencies excluded from dropdown)",
+      "check": "cd frontend && pnpm test --testPathPatterns=geographic-view --passWithNoTests"
+    },
+    {
+      "text": "frontend builds cleanly",
+      "check": "cd frontend && pnpm build"
+    },
+    {
+      "text": "frontend full test suite green",
+      "check": "cd frontend && pnpm test --passWithNoTests"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.ts",
+      "mode": "slice",
+      "start": 49,
+      "end": 53,
+      "reason": "loadAgencies subscribe — filter agencies to totalCents > 0 before assigning to agencyList.",
+      "excerpt": "  47:   ngOnInit(): void {\n  48:     this.loadAgencies();\n  49:     this.loadData();\n  50:   }\n  51: \n  52:   loadAgencies(): void {\n  53:     this.apiService.getAgencies().subscribe(agencies => {\n  54:       this.agencyList = agencies;\n  55:     });"
+    },
+    {
+      "path": "frontend/src/app/geographic-view/geographic-view.component.spec.ts",
+      "mode": "slice",
+      "start": 60,
+      "end": 130,
+      "reason": "testTable mock agencies — switch from Agency shape to AgencyWithTotal (add totalCents); existing rows need totalCents > 0; add a row asserting zero-total agencies are excluded.",
+      "excerpt": "  58:       ],\n  59:       secondaryData: [\n  60:         { id: 4, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },\n  61:         { id: 5, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 2500000000, awardCount: 50, population: 20200000, perCapita: 12376 },\n  62:         { id: 6, stateCode: '48', stateName: 'Texas', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 2000000000, awardCount: 40, population: 29100000, perCapita: 6873 },\n  63:       ],\n  64:       expected: {\n  65:         agencyList: [\n  66:           { id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },\n  67:           { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },\n  68:           { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },\n  69:         ],\n  70:         fiscalYearList: [2024],\n  71:         defaultFiscalYear: 2024,\n  72:         top10: [\n  73:           { stateName: 'California', obligatedAmount: 5000000000 },\n  74:           { stateName: 'New York', obligatedAmount: 4000000000 },\n  75:           { stateName: 'Texas', obligatedAmount: 3500000000 },\n  76:         ],\n  77:         allStates: 3,\n  78:         vsAvg: [20.0, -4.0, -16.0],\n  79:         delta: 2000000000,\n  80:       },\n  81:     },\n  82:     {\n  83:       name: 'fiscal year list is derived from distinct years in loaded snapshots, defaulting to max',\n  84:       agencyId: null,\n  85:       fiscalYear: 2024,\n  86:       scope: 'recipient',\n  87:       agenciesResponse: [],\n  88:       primaryData: [\n  89:         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 4500000000, awardCount: 90, population: 39500000, perCapita: 11392 },\n  90:         { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 3000000000, awardCount: 60, population: 20200000, perCapita: 14851 },\n  91:       ],\n  92:       secondaryData: [\n  93:         { id: 3, stateCode: '06', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'performance', obligatedAmount: 3500000000, awardCount: 70, population: 39500000, perCapita: 8860 },\n  94:         { id: 4, stateCode: '36', stateName: 'New York', fiscalYear: 2023, agencyId: null, scope: 'performance', obligatedAmount: 2500000000, awardCount: 50, population: 20200000, perCapita: 12376 },\n  95:       ],\n  96:       expected: {\n  97:         agencyList: [],\n  98:         fiscalYearList: [2022, 2023],\n  99:         defaultFiscalYear: 2023,\n 100:         top10: [\n 101:           { stateName: 'California', obligatedAmount: 4500000000 },\n 102:           { stateName: 'New York', obligatedAmount: 3000000000 },\n 103:         ],\n 104:         allStates: 2,\n 105:         vsAvg: [20.0, -20.0],\n 106:         delta: 1000000000,\n 107:       },\n 108:     },\n 109:     {\n 110:       name: 'delta is positive when recipient exceeds performance for top state',\n 111:       agencyId: null,\n 112:       fiscalYear: 2024,\n 113:       scope: 'recipient',\n 114:       agenciesResponse: [],\n 115:       primaryData: [\n 116:         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },\n 117:       ],\n 118:       secondaryData: [\n 119:         { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },\n 120:       ],\n 121:       expected: {\n 122:         agencyList: [],\n 123:         fiscalYearList: [2024],\n 124:         defaultFiscalYear: 2024,\n 125:         top10: [{ stateName: 'California', obligatedAmount: 5000000000 }],\n 126:         allStates: 1,\n 127:         vsAvg: [0.0],\n 128:         delta: 2000000000,\n 129:       },\n 130:     },\n 131:     {\n 132:       name: 'delta is negative when performance exceeds recipient for top state',"
+    }
+  ]
+}

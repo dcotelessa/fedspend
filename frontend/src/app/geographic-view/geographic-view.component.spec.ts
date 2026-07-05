@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { ApiService } from '../api.service';
-import { Agency, GeoSpendingSnapshot } from '@shared/interfaces';
+import { GeoSpendingSnapshot } from '@shared/interfaces';
 import { GeographicViewComponent } from './geographic-view.component';
 
 describe('GeographicViewComponent', () => {
@@ -26,11 +26,11 @@ describe('GeographicViewComponent', () => {
     agencyId: number | null;
     fiscalYear: number;
     scope: 'recipient' | 'performance';
-    agenciesResponse: Agency[];
+    agenciesResponse: { id: number; name: string; totalCents: number }[];
     primaryData: GeoSpendingSnapshot[];
     secondaryData: GeoSpendingSnapshot[];
     expected: {
-      agencyList: Agency[];
+      agencyList: { id: number; name: string; totalCents: number }[];
       fiscalYearList: number[];
       defaultFiscalYear: number;
       top10: { stateName: string; obligatedAmount: number }[];
@@ -42,14 +42,14 @@ describe('GeographicViewComponent', () => {
 
   const testTable: TestCase[] = [
     {
-      name: 'agency list is populated from ApiService.getAgencies on first load',
+      name: 'agency list is populated from ApiService.getAgencies on first load, filtered to totalCents > 0',
       agencyId: null,
       fiscalYear: 2024,
       scope: 'recipient',
       agenciesResponse: [
-        { id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },
-        { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },
-        { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },
+        { id: 1, name: 'Department of Agriculture', totalCents: 5000000000 },
+        { id: 2, name: 'Department of Defense', totalCents: 4000000000 },
+        { id: 3, name: 'Department of Education', totalCents: 3000000000 },
       ],
       primaryData: [
         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
@@ -63,9 +63,9 @@ describe('GeographicViewComponent', () => {
       ],
       expected: {
         agencyList: [
-          { id: 1, name: 'Department of Agriculture', abbreviation: 'USDA', toptierCode: '01' },
-          { id: 2, name: 'Department of Defense', abbreviation: 'DOD', toptierCode: '02' },
-          { id: 3, name: 'Department of Education', abbreviation: 'ED', toptierCode: '03' },
+          { id: 1, name: 'Department of Agriculture', totalCents: 5000000000 },
+          { id: 2, name: 'Department of Defense', totalCents: 4000000000 },
+          { id: 3, name: 'Department of Education', totalCents: 3000000000 },
         ],
         fiscalYearList: [2024],
         defaultFiscalYear: 2024,
@@ -80,11 +80,70 @@ describe('GeographicViewComponent', () => {
       },
     },
     {
+      name: 'zero-total agencies are excluded from the dropdown',
+      agencyId: null,
+      fiscalYear: 2024,
+      scope: 'recipient',
+      agenciesResponse: [
+        { id: 1, name: 'Active Agency A', totalCents: 5000000000 },
+        { id: 2, name: 'Inactive Agency B', totalCents: 0 },
+        { id: 3, name: 'Inactive Agency C', totalCents: 0 },
+      ],
+      primaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
+      ],
+      secondaryData: [
+        { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
+      ],
+      expected: {
+        agencyList: [
+          { id: 1, name: 'Active Agency A', totalCents: 5000000000 },
+        ],
+        fiscalYearList: [2024],
+        defaultFiscalYear: 2024,
+        top10: [
+          { stateName: 'California', obligatedAmount: 5000000000 },
+        ],
+        allStates: 1,
+        vsAvg: [0.0],
+        delta: 2000000000,
+      },
+    },
+    {
+      name: 'all agencies with zero total are excluded, leaving empty list',
+      agencyId: null,
+      fiscalYear: 2024,
+      scope: 'recipient',
+      agenciesResponse: [
+        { id: 1, name: 'Agency One', totalCents: 0 },
+        { id: 2, name: 'Agency Two', totalCents: 0 },
+      ],
+      primaryData: [
+        { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
+      ],
+      secondaryData: [
+        { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
+      ],
+      expected: {
+        agencyList: [],
+        fiscalYearList: [2024],
+        defaultFiscalYear: 2024,
+        top10: [
+          { stateName: 'California', obligatedAmount: 5000000000 },
+        ],
+        allStates: 1,
+        vsAvg: [0.0],
+        delta: 2000000000,
+      },
+    },
+    {
       name: 'fiscal year list is derived from distinct years in loaded snapshots, defaulting to max',
       agencyId: null,
       fiscalYear: 2024,
       scope: 'recipient',
-      agenciesResponse: [],
+      agenciesResponse: [
+        { id: 1, name: 'Agency A', totalCents: 5000000000 },
+      ],
       primaryData: [
         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 4500000000, awardCount: 90, population: 39500000, perCapita: 11392 },
         { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 3000000000, awardCount: 60, population: 20200000, perCapita: 14851 },
@@ -94,7 +153,9 @@ describe('GeographicViewComponent', () => {
         { id: 4, stateCode: '36', stateName: 'New York', fiscalYear: 2023, agencyId: null, scope: 'performance', obligatedAmount: 2500000000, awardCount: 50, population: 20200000, perCapita: 12376 },
       ],
       expected: {
-        agencyList: [],
+        agencyList: [
+          { id: 1, name: 'Agency A', totalCents: 5000000000 },
+        ],
         fiscalYearList: [2022, 2023],
         defaultFiscalYear: 2023,
         top10: [
@@ -111,7 +172,9 @@ describe('GeographicViewComponent', () => {
       agencyId: null,
       fiscalYear: 2024,
       scope: 'recipient',
-      agenciesResponse: [],
+      agenciesResponse: [
+        { id: 1, name: 'Agency A', totalCents: 5000000000 },
+      ],
       primaryData: [
         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
       ],
@@ -119,7 +182,9 @@ describe('GeographicViewComponent', () => {
         { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
       ],
       expected: {
-        agencyList: [],
+        agencyList: [
+          { id: 1, name: 'Agency A', totalCents: 5000000000 },
+        ],
         fiscalYearList: [2024],
         defaultFiscalYear: 2024,
         top10: [{ stateName: 'California', obligatedAmount: 5000000000 }],
@@ -133,7 +198,9 @@ describe('GeographicViewComponent', () => {
       agencyId: null,
       fiscalYear: 2024,
       scope: 'recipient',
-      agenciesResponse: [],
+      agenciesResponse: [
+        { id: 1, name: 'Agency A', totalCents: 5000000000 },
+      ],
       primaryData: [
         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
       ],
@@ -141,7 +208,9 @@ describe('GeographicViewComponent', () => {
         { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
       ],
       expected: {
-        agencyList: [],
+        agencyList: [
+          { id: 1, name: 'Agency A', totalCents: 5000000000 },
+        ],
         fiscalYearList: [2024],
         defaultFiscalYear: 2024,
         top10: [{ stateName: 'California', obligatedAmount: 3000000000 }],
@@ -155,7 +224,9 @@ describe('GeographicViewComponent', () => {
       agencyId: null,
       fiscalYear: 2024,
       scope: 'recipient',
-      agenciesResponse: [],
+      agenciesResponse: [
+        { id: 1, name: 'Agency A', totalCents: 5000000000 },
+      ],
       primaryData: [
         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
       ],
@@ -163,7 +234,9 @@ describe('GeographicViewComponent', () => {
         { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
       ],
       expected: {
-        agencyList: [],
+        agencyList: [
+          { id: 1, name: 'Agency A', totalCents: 5000000000 },
+        ],
         fiscalYearList: [2024],
         defaultFiscalYear: 2024,
         top10: [{ stateName: 'California', obligatedAmount: 3000000000 }],
@@ -177,7 +250,9 @@ describe('GeographicViewComponent', () => {
       agencyId: null,
       fiscalYear: 2024,
       scope: 'recipient',
-      agenciesResponse: [],
+      agenciesResponse: [
+        { id: 1, name: 'Agency A', totalCents: 5000000000 },
+      ],
       primaryData: [
         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
         { id: 2, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 1000000000, awardCount: 20, population: 20200000, perCapita: 4950 },
@@ -186,7 +261,9 @@ describe('GeographicViewComponent', () => {
         { id: 3, stateCode: '36', stateName: 'New York', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 800000000, awardCount: 15, population: 20200000, perCapita: 3960 },
       ],
       expected: {
-        agencyList: [],
+        agencyList: [
+          { id: 1, name: 'Agency A', totalCents: 5000000000 },
+        ],
         fiscalYearList: [2024],
         defaultFiscalYear: 2024,
         top10: [
@@ -221,7 +298,9 @@ describe('GeographicViewComponent', () => {
       agencyId: null,
       fiscalYear: 2024,
       scope: 'recipient',
-      agenciesResponse: [],
+      agenciesResponse: [
+        { id: 1, name: 'Agency A', totalCents: 5000000000 },
+      ],
       primaryData: [
         { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
       ],
@@ -229,7 +308,9 @@ describe('GeographicViewComponent', () => {
         { id: 2, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 },
       ],
       expected: {
-        agencyList: [],
+        agencyList: [
+          { id: 1, name: 'Agency A', totalCents: 5000000000 },
+        ],
         fiscalYearList: [2024],
         defaultFiscalYear: 2024,
         top10: [{ stateName: 'California', obligatedAmount: 5000000000 }],
