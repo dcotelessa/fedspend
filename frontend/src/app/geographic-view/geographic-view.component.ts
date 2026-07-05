@@ -23,6 +23,7 @@ import { GeoSpendingSnapshot } from '@shared/interfaces';
     BarChartComponent, CurrencyFormatPipe,
   ],
   templateUrl: './geographic-view.component.html',
+  styleUrl: './geographic-view.component.scss',
 })
 export class GeographicViewComponent implements OnInit {
   agencyId = signal<number | null>(null);

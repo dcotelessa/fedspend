@@ -1,0 +1,50 @@
+:host {
+  display: block;
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  font: var(--mat-sys-headline-medium);
+  color: var(--mat-sys-on-background);
+}
+
+.delta-insight {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 2rem;
+  border-radius: var(--mat-sys-corner-medium, 12px);
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface);
+
+  mat-icon {
+    color: var(--mat-sys-primary);
+  }
+}
+
+.controls-bar {
+  display: inline-block;
+  margin-right: 1.5rem;
+  margin-bottom: 1rem;
+  vertical-align: middle;
+}
+
+mat-button-toggle-group.controls-bar {
+  margin-left: 1.5rem;
+}
+
+.bar-chart-section {
+  display: block;
+  margin-bottom: 2.5rem;
+}
+
+.table-section {
+  h2 {
+    margin: 0 0 1rem;
+    font: var(--mat-sys-title-medium);
+    color: var(--mat-sys-on-surface);
+  }
+}

@@ -3098,6 +3098,63 @@
         }
       ],
       "notes": "CRITICAL: the E14-S08 awarding_agencies filter was silently ignored by the USASpending spending_by_geography endpoint — every per-agency fetch returned rollup data, so selecting a specific agency showed the same numbers as All Agencies. Verified by live API: rollup/HHS/NASA totals identical with awarding_agencies; with filters.agencies (name-based) HHS=$2022B vs rollup=$5284B. The API rejects filters.agencies with toptier_code and requires toptier_name+name. Backfill re-run after this fix produced correct per-agency data (HHS CA=$176B vs rollup CA=$486B). Frontend FY dropdown previously derived its list from the fiscalYear-FILTERED response (always one year) — now uses a one-time unfiltered rollup fetch (returns 2020-2024). Number formatting: obligatedAmount/perCapita/delta were rendering raw cents via the number pipe; switched to currencyFormat (cents->dollars). No new backend endpoint needed for the FY list. Backfill MUST be re-run after deploying this fix to overwrite stale per-agency rows (the sync delete+save self-heals each combo)."
+    },
+    {
+      "id": "E14-S11",
+      "epic": "E14",
+      "title": "Geography: spacing between delta insight, controls, scope toggle, chart, and table",
+      "goal": "The Geographic View had no component styles, so the delta insight line sat flush against the agency/FY dropdowns, the Recipient/Performance scope toggle had no left separation from the FY dropdown, and the All States table had no top margin away from the bar chart. Add a component SCSS (mirroring the dashboard M3-token convention) with explicit spacing for these regions.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E14-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/geographic-view/geographic-view.component.scss",
+          "frontend/src/app/geographic-view/geographic-view.component.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.scss",
+            "start": 1,
+            "end": 1,
+            "reason": "NEW file - M3-token styling: delta-insight card with margin-bottom 2rem; .controls-bar inline-block with right/bottom margins; mat-button-toggle-group.controls-bar margin-left 1.5rem; .bar-chart-section margin-bottom 2.5rem."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 24,
+            "end": 25,
+            "reason": "add styleUrl: ./geographic-view.component.scss to the @Component decorator."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "component SCSS file exists and is wired via styleUrl",
+          "check": "cd frontend && test -f src/app/geographic-view/geographic-view.component.scss && grep -q 'styleUrl' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "delta-insight has bottom margin separating it from the dropdowns",
+          "check": "cd frontend && grep -A8 '.delta-insight' src/app/geographic-view/geographic-view.component.scss | grep -q 'margin-bottom'"
+        },
+        {
+          "text": "scope toggle has left margin separating it from the FY dropdown",
+          "check": "cd frontend && grep -A3 'mat-button-toggle-group.controls-bar' src/app/geographic-view/geographic-view.component.scss | grep -q 'margin-left'"
+        },
+        {
+          "text": "bar-chart-section has bottom margin separating chart from the All States table",
+          "check": "cd frontend && grep -A3 '.bar-chart-section' src/app/geographic-view/geographic-view.component.scss | grep -q 'margin-bottom'"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "geographic-view spec still passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=geographic-view --passWithNoTests"
+        }
+      ],
+      "notes": "Pure CSS polish, no logic change. Mirrors dashboard.component.scss conventions: :host{display:block}, M3 --mat-sys-* tokens for color/typography/corners, no hardcoded colors. No comments in source (design intent lives here). The scope toggle is a mat-button-toggle-group that also carries the controls-bar class, so the left margin is scoped to mat-button-toggle-group.controls-bar rather than all .controls-bar (the dropdowns need right margin, not left)."
     }
   ],
   "storyOrder": [
@@ -3155,7 +3212,8 @@
     "E14-S07",
     "E14-S08",
     "E14-S09",
-    "E14-S10"
+    "E14-S10",
+    "E14-S11"
   ],
   "resolutions": [
     {

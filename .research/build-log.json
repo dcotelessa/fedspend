@@ -1239,6 +1239,20 @@
       "thinking": "high",
       "timestamp": "2026-07-05T09:33:48.706Z",
       "note": "Corrected E14-S08 awarding_agencies (silently ignored) + FY list + currency formatting. Backfill re-run; per-agency data verified distinct from rollup."
+    },
+    {
+      "story": "E14-S11",
+      "epic": "E14",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 180,
+      "thinking": "medium",
+      "timestamp": "2026-07-05T09:48:39.619Z",
+      "note": "Pure CSS spacing polish - new component SCSS using M3 tokens, mirrors dashboard convention."
     }
   ]
 }
