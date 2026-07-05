@@ -38,7 +38,7 @@ export class GeographicViewComponent implements OnInit {
   chartData: ChartDataset[] = [];
   delta: number | null = null;
 
-  paginator = { pageSize: 15, length: 0, pageIndex: 0 } as { pageSize: number; length: number; pageIndex: number };
+  paginator = { pageSize: 15, length: 0 } as { pageSize: number; length: number };
 
   displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'awardCount', 'vsAvg'];
 
