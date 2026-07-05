@@ -3,9 +3,9 @@
 <div *ngIf="delta !== null" class="delta-insight">
   <mat-icon>compare_arrows</mat-icon>
   <span>
-    Top state {{ top10[0]?.stateName }} contractors receive {{ top10[0]?.obligatedAmount | number:'1.0-0' }} while only
-    {{ (top10[0]?.obligatedAmount || 0) - delta | number:'1.0-0' }} is performed in-state.
-    Delta: {{ delta | number:'1.0-0' }}
+    Top state {{ top10[0]?.stateName }} contractors receive {{ top10[0]?.obligatedAmount | currencyFormat }} while only
+    {{ (top10[0]?.obligatedAmount || 0) - delta | currencyFormat }} is performed in-state.
+    Delta: {{ delta | currencyFormat }}
   </span>
 </div>
 
@@ -51,12 +51,12 @@
 
     <ng-container matColumnDef="obligatedAmount">
       <th mat-header-cell *matHeaderCellDef mat-sort-header>Total</th>
-      <td mat-cell *matCellDef="let state">{{ state.obligatedAmount | number:'1.0-0' }}</td>
+      <td mat-cell *matCellDef="let state">{{ state.obligatedAmount | currencyFormat }}</td>
     </ng-container>
 
     <ng-container matColumnDef="perCapita">
       <th mat-header-cell *matHeaderCellDef mat-sort-header>Per Capita</th>
-      <td mat-cell *matCellDef="let state">{{ state.perCapita | number:'1.0-0' }}</td>
+      <td mat-cell *matCellDef="let state">{{ state.perCapita | currencyFormat }}</td>
     </ng-container>
 
     <ng-container matColumnDef="awardCount">

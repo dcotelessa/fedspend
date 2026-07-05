@@ -2944,7 +2944,7 @@
           "check": "cd backend && pnpm test --passWithNoTests"
         }
       ],
-      "notes": "Two real bugs were discovered and fixed during backfill (not just the design gap): (1) API shape — the USASpending spending_by_geography endpoint REJECTS filters.agencies with toptier_code (\"Unexpected field\") and requires filters.awarding_agencies:[{toptier_code, tier:\"toptier\"}]. The first impl mirrored fetchSpendingByAgency shape, which is itself broken for this endpoint. (2) Fragility — one HTTP 400 aborted the whole 70-call sync leaving partial data; wrapped each year/scope/agency combo in try/catch so failures log and the loop continues. Backfill (POST /sync/geography against the freshly-built dist) produced 3990 rows = 5 years x 2 scopes x 7 targets (rollup + HHS/DOD/ED/DHS/DOE/NASA) x 57 states, zero dupes. Drive the per-agency list from agencies-with-spending (agencyRepo.createQueryBuilder innerJoin SpendingRecord), NOT the stale TRACKED_AGENCIES constant (the two diverge). LATENT BUG FLAGGED FOR FOLLOW-UP: fetchSpendingByAgency (usa-spending.service.ts ~line 148) uses the same rejected filters.agencies+toptier_code shape against the same endpoint; spending_record data was seeded, not synced via that code, so the bug is dormant — switch it to awarding_agencies in a future story before relying on spending sync. Frontend needed NO change — the dropdown/scope/FY filters were correct, just starved for data."
+      "notes": "Two real bugs were discovered and fixed during backfill (not just the design gap): (1) API shape — the USASpending spending_by_geography endpoint REJECTS filters.agencies with toptier_code (\"Unexpected field\") and requires filters.awarding_agencies:[{toptier_code, tier:\"toptier\"}]. The first impl mirrored fetchSpendingByAgency shape, which is itself broken for this endpoint. (2) Fragility — one HTTP 400 aborted the whole 70-call sync leaving partial data; wrapped each year/scope/agency combo in try/catch so failures log and the loop continues. Backfill (POST /sync/geography against the freshly-built dist) produced 3990 rows = 5 years x 2 scopes x 7 targets (rollup + HHS/DOD/ED/DHS/DOE/NASA) x 57 states, zero dupes. Drive the per-agency list from agencies-with-spending (agencyRepo.createQueryBuilder innerJoin SpendingRecord), NOT the stale TRACKED_AGENCIES constant (the two diverge). LATENT BUG FLAGGED FOR FOLLOW-UP: fetchSpendingByAgency (usa-spending.service.ts ~line 148) uses the same rejected filters.agencies+toptier_code shape against the same endpoint; spending_record data was seeded, not synced via that code, so the bug is dormant — switch it to awarding_agencies in a future story before relying on spending sync. Frontend needed NO change — the dropdown/scope/FY filters were correct, just starved for data. NOTE (corrected by E14-S10): the awarding_agencies filter used here is SILENTLY IGNORED by the USASpending spending_by_geography endpoint — per-agency rows stored rollup data. E14-S10 corrected it to filters.agencies with name fields."
     },
     {
       "id": "E14-S09",
@@ -2998,6 +2998,106 @@
         }
       ],
       "notes": "Same root cause as E14-S08: the USASpending spending_by_geography endpoint rejects filters.agencies with toptier_code and requires filters.awarding_agencies:[{toptier_code,tier:toptier}]. Verified against the live API: old shape -> 400 \"Unexpected field toptier_code\", new shape -> 57 results. Behavior-preserving for the existing spending_record data (which was seeded) — this only matters when syncAgenciesAndSpending is next run. No frontend or sync-service change; pure request-body fix in fetchSpendingByAgency + its table-driven assertions."
+    },
+    {
+      "id": "E14-S10",
+      "epic": "E14",
+      "title": "Geography: correct agency filter (name-based filters.agencies) + dynamic FY list + currency formatting",
+      "goal": "Three Geography page fixes. (1) E14-S08 used filters.awarding_agencies for per-agency geo, which the USASpending spending_by_geography endpoint SILENTLY IGNORES (rollup/HHS/NASA all returned the same totals) — every per-agency row stored rollup data. The correct filter is filters.agencies with name fields [{type:awarding, tier:toptier, toptier_name, name}], verified to return real per-agency subsets (HHS=$2022B vs rollup=$5284B). (2) The FY dropdown only showed the current year because fiscalYearList was derived from the fiscalYear-filtered response; derive it from a one-time unfiltered rollup fetch instead. (3) obligatedAmount, perCapita, and the delta insight showed raw cents; use the currencyFormat pipe.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E14-S08"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/sync/usa-spending.service.ts",
+          "backend/src/sync/usa-spending.service.spec.ts",
+          "backend/src/sync/sync.service.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/usa-spending.service.ts",
+            "start": 191,
+            "end": 212,
+            "reason": "fetchGeoSnapshots — replace filters.awarding_agencies (silently ignored by the API) with filters.agencies [{type:awarding, tier:toptier, toptier_name, name}] using the agency name."
+          },
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 98,
+            "end": 104,
+            "reason": "syncGeography targets — pass agency.name (not toptierCode) so fetchGeoSnapshots can build the name-based filter."
+          },
+          {
+            "file": "backend/src/sync/usa-spending.service.spec.ts",
+            "start": 181,
+            "end": 207,
+            "reason": "geoAgencyFilterTable — assert filters.agencies with name fields instead of awarding_agencies."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 47,
+            "end": 88,
+            "reason": "replace deriveFiscalYearList (filtered response) with loadFiscalYears (one-time unfiltered rollup fetch) for the FY dropdown."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.html",
+            "start": 3,
+            "end": 10,
+            "reason": "delta insight — number pipe -> currencyFormat."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.html",
+            "start": 52,
+            "end": 60,
+            "reason": "table obligatedAmount + perCapita — number pipe -> currencyFormat."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "fetchGeoSnapshots uses filters.agencies with toptier_name + name (not the silently-ignored awarding_agencies)",
+          "check": "cd backend && grep -A8 'if (params.agency)' src/sync/usa-spending.service.ts | grep -q 'toptier_name' && grep -A8 'if (params.agency)' src/sync/usa-spending.service.ts | grep -q \"name:\""
+        },
+        {
+          "text": "syncGeography passes the agency name (not toptierCode) to fetchGeoSnapshots",
+          "check": "cd backend && grep -A6 'const targets' src/sync/sync.service.ts | grep -q 'a.name'"
+        },
+        {
+          "text": "usa-spending.service.spec.ts passes (table-driven: name-based filters.agencies asserted)",
+          "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service --passWithNoTests"
+        },
+        {
+          "text": "Geography FY list is derived from an unfiltered fetch (loadFiscalYears), not the filtered response",
+          "check": "cd frontend && grep -q 'loadFiscalYears' src/app/geographic-view/geographic-view.component.ts && ! grep -q 'deriveFiscalYearList' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "delta insight renders values through currencyFormat (not number pipe)",
+          "check": "cd frontend && grep -A4 'delta-insight' src/app/geographic-view/geographic-view.component.html | grep -q 'currencyFormat'"
+        },
+        {
+          "text": "table obligatedAmount column uses currencyFormat",
+          "check": "cd frontend && grep -A3 'matColumnDef=\"obligatedAmount\"' src/app/geographic-view/geographic-view.component.html | grep -q 'currencyFormat'"
+        },
+        {
+          "text": "table perCapita column uses currencyFormat",
+          "check": "cd frontend && grep -A3 'matColumnDef=\"perCapita\"' src/app/geographic-view/geographic-view.component.html | grep -q 'currencyFormat'"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "frontend + backend full test suites green",
+          "check": "cd frontend && pnpm test --passWithNoTests && cd ../backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "CRITICAL: the E14-S08 awarding_agencies filter was silently ignored by the USASpending spending_by_geography endpoint — every per-agency fetch returned rollup data, so selecting a specific agency showed the same numbers as All Agencies. Verified by live API: rollup/HHS/NASA totals identical with awarding_agencies; with filters.agencies (name-based) HHS=$2022B vs rollup=$5284B. The API rejects filters.agencies with toptier_code and requires toptier_name+name. Backfill re-run after this fix produced correct per-agency data (HHS CA=$176B vs rollup CA=$486B). Frontend FY dropdown previously derived its list from the fiscalYear-FILTERED response (always one year) — now uses a one-time unfiltered rollup fetch (returns 2020-2024). Number formatting: obligatedAmount/perCapita/delta were rendering raw cents via the number pipe; switched to currencyFormat (cents->dollars). No new backend endpoint needed for the FY list. Backfill MUST be re-run after deploying this fix to overwrite stale per-agency rows (the sync delete+save self-heals each combo)."
     }
   ],
   "storyOrder": [
@@ -3054,7 +3154,8 @@
     "E14-S06",
     "E14-S07",
     "E14-S08",
-    "E14-S09"
+    "E14-S09",
+    "E14-S10"
   ],
   "resolutions": [
     {

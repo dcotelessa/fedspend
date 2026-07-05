@@ -11,6 +11,7 @@ import { MatSortModule } from '@angular/material/sort';
 import { MatIconModule } from '@angular/material/icon';
 import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
 import { ApiService, AgencyWithTotal } from '../api.service';
+import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { GeoSpendingSnapshot } from '@shared/interfaces';
 
 @Component({
@@ -19,7 +20,7 @@ import { GeoSpendingSnapshot } from '@shared/interfaces';
     CommonModule, FormsModule,
     MatFormFieldModule, MatSelectModule, MatButtonToggleModule, MatOptionModule,
     MatTableModule, MatPaginatorModule, MatSortModule, MatIconModule,
-    BarChartComponent,
+    BarChartComponent, CurrencyFormatPipe,
   ],
   templateUrl: './geographic-view.component.html',
 })
@@ -46,12 +47,24 @@ export class GeographicViewComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadAgencies();
+    this.loadFiscalYears();
     this.loadData();
   }
 
   loadAgencies(): void {
     this.apiService.getAgencies().subscribe(agencies => {
       this.agencyList = agencies.filter(a => a.totalCents > 0);
+    });
+  }
+
+  loadFiscalYears(): void {
+    this.apiService.getGeographyStates({ scope: 'recipient' }).subscribe(all => {
+      const years = Array.from(new Set(all.map(d => d.fiscalYear))).sort((a, b) => a - b);
+      if (years.length === 0) return;
+      this.fiscalYearList = years;
+      if (!years.includes(this.fiscalYear())) {
+        this.fiscalYear.set(years[years.length - 1]);
+      }
     });
   }
 
@@ -69,22 +82,12 @@ export class GeographicViewComponent implements OnInit {
     const oppParams = { ...params, scope: oppositeScope };
 
     this.apiService.getGeographyStates(params).subscribe(primary => {
-      this.deriveFiscalYearList(primary);
       this.processData(primary);
 
       this.apiService.getGeographyStates(oppParams).subscribe(secondary => {
         this.computeDelta(primary, secondary);
       });
     });
-  }
-
-  deriveFiscalYearList(data: GeoSpendingSnapshot[]): void {
-    const years = Array.from(new Set(data.map(d => d.fiscalYear))).sort((a, b) => a - b);
-    if (years.length === 0) return;
-    this.fiscalYearList = years;
-    if (!years.includes(this.fiscalYear())) {
-      this.fiscalYear.set(years[years.length - 1]);
-    }
   }
 
   computeDelta(primary: GeoSpendingSnapshot[], secondary: GeoSpendingSnapshot[]): void {

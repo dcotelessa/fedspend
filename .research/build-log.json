@@ -1225,6 +1225,20 @@
       "thinking": "high",
       "timestamp": "2026-07-05T08:35:43.461Z",
       "note": "Dormant API-shape bug flagged in E14-S08 notes. Fixed + verified against live API (old shape 400s, new shape returns 57)."
+    },
+    {
+      "story": "E14-S10",
+      "epic": "E14",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1500,
+      "thinking": "high",
+      "timestamp": "2026-07-05T09:33:48.706Z",
+      "note": "Corrected E14-S08 awarding_agencies (silently ignored) + FY list + currency formatting. Backfill re-run; per-agency data verified distinct from rollup."
     }
   ]
 }

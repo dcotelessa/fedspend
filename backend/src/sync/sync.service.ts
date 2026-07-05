@@ -98,7 +98,7 @@ export class SyncService {
         .getMany();
       const targets: Array<{ agency: string; agencyId: number | null }> = [
         { agency: '', agencyId: null },
-        ...agenciesWithSpending.map((a) => ({ agency: a.toptierCode, agencyId: a.id })),
+        ...agenciesWithSpending.map((a) => ({ agency: a.name, agencyId: a.id })),
       ];
       const scopes: Array<'recipient' | 'performance'> = ['recipient', 'performance'];
 

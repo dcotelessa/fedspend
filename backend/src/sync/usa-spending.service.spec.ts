@@ -179,8 +179,8 @@ describe('UsaSpendingService', () => {
       expectedAgencyId: null,
     },
     {
-      name: 'per-agency fetch includes awarding toptier filter and stores agencyId on rows',
-      agency: '080',
+      name: 'per-agency fetch includes filters.agencies (name-based) and stores agencyId on rows',
+      agency: 'National Aeronautics and Space Administration',
       agencyId: 30,
       expectAgenciesFilter: true,
       expectedAgencyId: 30,
@@ -198,9 +198,9 @@ describe('UsaSpendingService', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     if (expectAgenciesFilter) {
-      expect(body.filters.awarding_agencies).toEqual([{ toptier_code: agency, tier: 'toptier' }]);
+      expect(body.filters.agencies).toEqual([{ type: 'awarding', tier: 'toptier', toptier_name: agency, name: agency }]);
     } else {
-      expect(body.filters.awarding_agencies).toBeUndefined();
+      expect(body.filters.agencies).toBeUndefined();
     }
     expect(result.status).toBe('success');
     expect(result.rows[0].agencyId).toBe(expectedAgencyId);
