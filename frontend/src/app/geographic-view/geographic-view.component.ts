@@ -42,7 +42,7 @@ export class GeographicViewComponent implements OnInit {
 
   paginator = { pageSize: 15, length: 0 } as { pageSize: number; length: number };
 
-  displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'awardCount', 'vsAvg'];
+  displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'vsAvg'];
 
   constructor(private readonly apiService: ApiService) {}
 

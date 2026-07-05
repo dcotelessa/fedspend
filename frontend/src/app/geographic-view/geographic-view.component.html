@@ -59,11 +59,6 @@
       <td mat-cell *matCellDef="let state">{{ state.perCapita | currencyFormat }}</td>
     </ng-container>
 
-    <ng-container matColumnDef="awardCount">
-      <th mat-header-cell *matHeaderCellDef mat-sort-header>Award Count</th>
-      <td mat-cell *matCellDef="let state">{{ state.awardCount }}</td>
-    </ng-container>
-
     <ng-container matColumnDef="vsAvg">
       <th mat-header-cell *matHeaderCellDef mat-sort-header>vs Avg</th>
       <td mat-cell *matCellDef="let state, let i = index">
