@@ -105,19 +105,23 @@ export class SyncService {
       for (const year of GEO_FISCAL_YEARS) {
         for (const scope of scopes) {
           for (const target of targets) {
-            const geoResult = await this.usaService.fetchGeoSnapshots({
-              agency: target.agency,
-              fiscalYear: year,
-              scope,
-              agencyId: target.agencyId,
-            });
-            if (geoResult.status === 'success') {
-              await this.geoRepo.delete({
+            try {
+              const geoResult = await this.usaService.fetchGeoSnapshots({
+                agency: target.agency,
                 fiscalYear: year,
                 scope,
-                agencyId: target.agencyId === null ? IsNull() : target.agencyId,
+                agencyId: target.agencyId,
               });
-              await this.geoRepo.save(geoResult.rows);
+              if (geoResult.status === 'success') {
+                await this.geoRepo.delete({
+                  fiscalYear: year,
+                  scope,
+                  agencyId: target.agencyId === null ? IsNull() : target.agencyId,
+                });
+                await this.geoRepo.save(geoResult.rows);
+              }
+            } catch (err) {
+              console.warn(`[Sync] geography ${year}/${scope}/${target.agency || 'rollup'} failed: ${(err as Error).message}`);
             }
           }
         }

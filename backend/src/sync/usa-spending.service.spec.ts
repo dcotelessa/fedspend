@@ -198,9 +198,9 @@ describe('UsaSpendingService', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     if (expectAgenciesFilter) {
-      expect(body.filters.agencies).toEqual([{ type: 'awarding', tier: 'toptier', toptier_code: agency }]);
+      expect(body.filters.awarding_agencies).toEqual([{ toptier_code: agency, tier: 'toptier' }]);
     } else {
-      expect(body.filters.agencies).toBeUndefined();
+      expect(body.filters.awarding_agencies).toBeUndefined();
     }
     expect(result.status).toBe('success');
     expect(result.rows[0].agencyId).toBe(expectedAgencyId);

@@ -194,10 +194,9 @@ export class UsaSpendingService {
       }],
     };
     if (params.agency) {
-      filters.agencies = [{
-        type: 'awarding',
-        tier: 'toptier',
+      filters.awarding_agencies = [{
         toptier_code: params.agency,
+        tier: 'toptier',
       }];
     }
     const body = {
