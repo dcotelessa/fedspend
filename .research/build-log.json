@@ -1211,6 +1211,20 @@
       "thinking": "high",
       "timestamp": "2026-07-05T08:10:17.937Z",
       "note": "Built directly (build mode). Two mid-build bugs fixed: awarding_agencies API shape + per-combo try/catch resilience. Backfill verified 3990 rows across 5y/2scopes/7targets/57states."
+    },
+    {
+      "story": "E14-S09",
+      "epic": "E14",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 240,
+      "thinking": "high",
+      "timestamp": "2026-07-05T08:35:43.461Z",
+      "note": "Dormant API-shape bug flagged in E14-S08 notes. Fixed + verified against live API (old shape 400s, new shape returns 57)."
     }
   ]
 }

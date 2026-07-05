@@ -387,7 +387,7 @@ describe('UsaSpendingService', () => {
 
   const spendingByAgencyTable: FetchSpendingByAgencyTestCase[] = [
     {
-      name: 'includes toptier_code in agencies filter',
+      name: 'includes toptier_code in awarding_agencies filter',
       toptierCode: '097',
       fiscalYear: 2024,
       responseBody: { results: [] },
@@ -399,10 +399,9 @@ describe('UsaSpendingService', () => {
             start_date: '2024-10-01',
             end_date: '2025-09-30',
           }],
-          agencies: [{
-            type: 'awarding',
-            tier: 'toptier',
+          awarding_agencies: [{
             toptier_code: '097',
+            tier: 'toptier',
           }],
         },
         geo_layer: 'state',
@@ -434,10 +433,9 @@ describe('UsaSpendingService', () => {
             start_date: '2023-10-01',
             end_date: '2024-09-30',
           }],
-          agencies: [{
-            type: 'awarding',
-            tier: 'toptier',
+          awarding_agencies: [{
             toptier_code: '049',
+            tier: 'toptier',
           }],
         },
         geo_layer: 'state',

@@ -146,10 +146,9 @@ export class UsaSpendingService {
           start_date: `${params.fiscalYear}-10-01`,
           end_date: `${params.fiscalYear + 1}-09-30`,
         }],
-        agencies: [{
-          type: 'awarding',
-          tier: 'toptier',
+        awarding_agencies: [{
           toptier_code: params.toptierCode,
+          tier: 'toptier',
         }],
       },
       geo_layer: 'state',

@@ -2945,6 +2945,59 @@
         }
       ],
       "notes": "Two real bugs were discovered and fixed during backfill (not just the design gap): (1) API shape — the USASpending spending_by_geography endpoint REJECTS filters.agencies with toptier_code (\"Unexpected field\") and requires filters.awarding_agencies:[{toptier_code, tier:\"toptier\"}]. The first impl mirrored fetchSpendingByAgency shape, which is itself broken for this endpoint. (2) Fragility — one HTTP 400 aborted the whole 70-call sync leaving partial data; wrapped each year/scope/agency combo in try/catch so failures log and the loop continues. Backfill (POST /sync/geography against the freshly-built dist) produced 3990 rows = 5 years x 2 scopes x 7 targets (rollup + HHS/DOD/ED/DHS/DOE/NASA) x 57 states, zero dupes. Drive the per-agency list from agencies-with-spending (agencyRepo.createQueryBuilder innerJoin SpendingRecord), NOT the stale TRACKED_AGENCIES constant (the two diverge). LATENT BUG FLAGGED FOR FOLLOW-UP: fetchSpendingByAgency (usa-spending.service.ts ~line 148) uses the same rejected filters.agencies+toptier_code shape against the same endpoint; spending_record data was seeded, not synced via that code, so the bug is dormant — switch it to awarding_agencies in a future story before relying on spending sync. Frontend needed NO change — the dropdown/scope/FY filters were correct, just starved for data."
+    },
+    {
+      "id": "E14-S09",
+      "epic": "E14",
+      "title": "fix(fetchSpendingByAgency): use awarding_agencies filter (dormant API-shape bug)",
+      "goal": "fetchSpendingByAgency hits the same /search/spending_by_geography/ endpoint as fetchGeoSnapshots but uses filters.agencies with toptier_code — a shape the endpoint rejects with \"Unexpected field toptier_code\". The bug is dormant because spending_record was seeded, not synced via this code. Switch to the correct filters.awarding_agencies:[{toptier_code,tier:toptier}] shape (mirrors the E14-S08 fix) so a future spending sync does not 400.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E14-S08"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/sync/usa-spending.service.ts",
+          "backend/src/sync/usa-spending.service.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/usa-spending.service.ts",
+            "start": 143,
+            "end": 157,
+            "reason": "fetchSpendingByAgency request body — replace filters.agencies [{type:awarding,tier:toptier,toptier_code}] with filters.awarding_agencies [{toptier_code,tier:toptier}]."
+          },
+          {
+            "file": "backend/src/sync/usa-spending.service.spec.ts",
+            "start": 388,
+            "end": 454,
+            "reason": "spendingByAgencyTable expectedBody assertions — update the two rows that assert filters.agencies to assert filters.awarding_agencies with the new shape."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "fetchSpendingByAgency uses filters.awarding_agencies (NOT filters.agencies)",
+          "check": "cd backend && grep -A20 'async fetchSpendingByAgency' src/sync/usa-spending.service.ts | grep -q 'awarding_agencies'"
+        },
+        {
+          "text": "fetchSpendingByAgency no longer sends the rejected filters.agencies shape",
+          "check": "cd backend && ! grep -A20 'async fetchSpendingByAgency' src/sync/usa-spending.service.ts | grep -q \"type: 'awarding'\""
+        },
+        {
+          "text": "usa-spending.service.spec.ts passes (table-driven: awarding_agencies filter asserted)",
+          "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service --passWithNoTests"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "backend full test suite green",
+          "check": "cd backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "Same root cause as E14-S08: the USASpending spending_by_geography endpoint rejects filters.agencies with toptier_code and requires filters.awarding_agencies:[{toptier_code,tier:toptier}]. Verified against the live API: old shape -> 400 \"Unexpected field toptier_code\", new shape -> 57 results. Behavior-preserving for the existing spending_record data (which was seeded) — this only matters when syncAgenciesAndSpending is next run. No frontend or sync-service change; pure request-body fix in fetchSpendingByAgency + its table-driven assertions."
     }
   ],
   "storyOrder": [
@@ -3000,7 +3053,8 @@
     "E14-S05",
     "E14-S06",
     "E14-S07",
-    "E14-S08"
+    "E14-S08",
+    "E14-S09"
   ],
   "resolutions": [
     {
