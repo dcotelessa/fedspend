@@ -2732,6 +2732,125 @@
         }
       ],
       "notes": "The NULL-in-unique-constraint gotcha affects Postgres in prod too, not just SQLite — the sync fix is the real repair (deduping the dev DB is a one-time local cleanup since dev.db is gitignored). The clear-then-insert is safe because the geography rollup always has agencyId=NULL and fetchGeoSnapshots returns the full batch each run. Do not reintroduce upsert for the geo rollup; other syncs (agency/spending/disaster/ratio) keep upsert because their conflict-target columns are non-nullable."
+    },
+    {
+      "id": "E14-S06",
+      "epic": "E14",
+      "title": "Geography: filter agency dropdown to non-zero spenders",
+      "goal": "The Geography agency dropdown currently lists all ~111 agencies returned by getAgencies(), but only 6 have non-zero spending. Filter the dropdown to agencies with totalCents > 0 so the control is useful. Filtering happens at the component (not ApiService) so the Agencies list page still shows every agency.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.ts",
+            "start": 49,
+            "end": 53,
+            "reason": "loadAgencies subscribe — filter agencies to totalCents > 0 before assigning to agencyList."
+          },
+          {
+            "file": "frontend/src/app/geographic-view/geographic-view.component.spec.ts",
+            "start": 60,
+            "end": 130,
+            "reason": "testTable mock agencies — switch from Agency shape to AgencyWithTotal (add totalCents); existing rows need totalCents > 0; add a row asserting zero-total agencies are excluded."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "agencyList is filtered to totalCents > 0 in loadAgencies",
+          "check": "cd frontend && grep -A4 'loadAgencies' src/app/geographic-view/geographic-view.component.ts | grep -q 'totalCents > 0'"
+        },
+        {
+          "text": "geographic-view.component.spec.ts passes (table-driven: zero-total agencies excluded from dropdown)",
+          "check": "cd frontend && pnpm test --testPathPatterns=geographic-view --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "frontend full test suite green",
+          "check": "cd frontend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "Filter at the component only — do NOT change ApiService.getAgencies (the Agencies list page relies on the full set). The spec mocks currently use the Agency shape (id/name/abbreviation/toptierCode); switch them to AgencyWithTotal (id/name/totalCents) and ensure every existing mock row has totalCents > 0 so they still pass, then add a dedicated row with a zero-total agency to prove exclusion. Default fiscalYear resolution to the latest year with data (2024) is unchanged."
+    },
+    {
+      "id": "E14-S07",
+      "epic": "E14",
+      "title": "Geography: multi-year sync (2020-2024) + backfill",
+      "goal": "geo_spending_snapshot only contains FY2024 because syncGeography hardcodes SYNC_FISCAL_YEAR. The Geography FY dropdown therefore only ever offers [2024]. Make syncGeography loop over a 2020-2024 year range so the dropdown reflects available years. The dropdown derives its list client-side from distinct fiscalYear values, so no frontend change is required once multi-year data exists.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/src/sync/sync.constants.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/sync/sync.service.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/sync.constants.ts",
+            "start": 1,
+            "end": 5,
+            "reason": "Add GEO_FISCAL_YEARS = [2020,2021,2022,2023,2024] export. Do not touch SYNC_FISCAL_YEAR."
+          },
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 14,
+            "end": 16,
+            "reason": "import GEO_FISCAL_YEARS from sync.constants."
+          },
+          {
+            "file": "backend/src/sync/sync.service.ts",
+            "start": 92,
+            "end": 110,
+            "reason": "syncGeography — loop over GEO_FISCAL_YEARS; for each year fetchGeoSnapshots({fiscalYear:year}), delete({fiscalYear:year, scope:recipient, agencyId:IsNull()}), save(rows)."
+          },
+          {
+            "file": "backend/src/sync/sync.service.spec.ts",
+            "start": 91,
+            "end": 103,
+            "reason": "syncGeography table row — assert per-year delete+save for the loop (mock 2 years, expect 2 deletes + 2 saves)."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "GEO_FISCAL_YEARS is exported from sync.constants.ts",
+          "check": "cd backend && grep -q 'GEO_FISCAL_YEARS' src/sync/sync.constants.ts"
+        },
+        {
+          "text": "syncGeography iterates a year array (not a single const)",
+          "check": "cd backend && grep -A30 'async syncGeography' src/sync/sync.service.ts | grep -q 'for (.*of.*GEO_FISCAL_YEARS\\|GEO_FISCAL_YEARS.forEach\\|of GEO_FISCAL_YEARS'"
+        },
+        {
+          "text": "per-year delete scopes by fiscalYear",
+          "check": "cd backend && grep -A30 'async syncGeography' src/sync/sync.service.ts | grep -q 'fiscalYear:'"
+        },
+        {
+          "text": "SYNC_FISCAL_YEAR remains for spending sync (unchanged)",
+          "check": "cd backend && grep -q 'SYNC_FISCAL_YEAR = 2024' src/sync/sync.service.ts"
+        },
+        {
+          "text": "sync.service.spec.ts passes (table-driven: multi-year geo loop)",
+          "check": "cd backend && pnpm test --testPathPatterns=sync.service --passWithNoTests"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "backend full test suite green",
+          "check": "cd backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "Leave syncAgenciesAndSpending alone — it still uses SYNC_FISCAL_YEAR (2024) for spending_record, which already has 2020-2024 from seeding. Only geography is multi-year here. The per-year delete must scope by fiscalYear so clearing one year does not wipe another. fetchGeoSnapshots accepts any fiscalYear. After deploy, trigger one /sync run to backfill 2020-2023; then SELECT DISTINCT fiscalYear FROM geo_spending_snapshot returns 5 rows and the Geography FY dropdown auto-shows 2020-2024 (deriveFiscalYearList is already data-driven)."
     }
   ],
   "storyOrder": [
@@ -2784,7 +2903,9 @@
     "E14-S02",
     "E14-S03",
     "E14-S04",
-    "E14-S05"
+    "E14-S05",
+    "E14-S06",
+    "E14-S07"
   ],
   "resolutions": [
     {
