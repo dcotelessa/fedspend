@@ -148,20 +148,18 @@ export class AgencySpotlightComponent implements OnInit {
     }
   }
 
-  private aggregateAwardTypesForYear(records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): {
+  private aggregateAwardTypesForRange(records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): {
     sumsByType: Map<string, number>;
-    countsByType: Map<string, number>;
     total: number;
   } {
     const sumsByType = new Map<string, number>();
-    const countsByType = new Map<string, number>();
     let total = 0;
     for (const r of records) {
       if (r.fiscalYear < fiscalYearStart || r.fiscalYear > fiscalYearEnd) continue;
       sumsByType.set(r.awardTypeLabel, (sumsByType.get(r.awardTypeLabel) ?? 0) + r.obligatedAmount);
       total += r.obligatedAmount;
     }
-    return { sumsByType, countsByType, total };
+    return { sumsByType, total };
   }
 
   private computeInsight(): string {
@@ -169,7 +167,7 @@ export class AgencySpotlightComponent implements OnInit {
       return 'No data available for the selected fiscal year.';
     }
 
-    const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
+    const { sumsByType, total } = this.aggregateAwardTypesForRange(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
     if (total === 0) {
       return 'No data available for the selected fiscal year.';
     }
@@ -189,7 +187,7 @@ export class AgencySpotlightComponent implements OnInit {
   }
 
   private buildTableData(): TableDataRow[] {
-    const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
+    const { sumsByType, total } = this.aggregateAwardTypesForRange(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
 
     return Array.from(sumsByType.entries())
       .map(([awardType, obligated]) => ({

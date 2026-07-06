@@ -340,113 +340,172 @@ describe('AgencySpotlightComponent', () => {
     });
   });
 
+  interface BadgeTestCase {
+    name: string;
+    priorFyTotal: number;
+    yoyChange: number;
+    expectedColor: string;
+    expectedText: string;
+  }
+
+  const badgeTestTable: BadgeTestCase[] = [
+    {
+      name: 'sets badge color to positive for non-negative yoyChange',
+      priorFyTotal: 500000,
+      yoyChange: 100,
+      expectedColor: 'positive',
+      expectedText: '+100.0% YoY',
+    },
+    {
+      name: 'sets badge color to negative for negative yoyChange',
+      priorFyTotal: 1000000,
+      yoyChange: -50,
+      expectedColor: 'negative',
+      expectedText: '-50.0% YoY',
+    },
+    {
+      name: 'sets badge to neutral when priorFyTotal is zero',
+      priorFyTotal: 0,
+      yoyChange: 0,
+      expectedColor: 'neutral',
+      expectedText: '0.0% YoY',
+    },
+    {
+      name: 'renders zero change as positive when current equals prior',
+      priorFyTotal: 500000,
+      yoyChange: 0,
+      expectedColor: 'positive',
+      expectedText: '+0.0% YoY',
+    },
+  ];
+
   describe('badge color computation', () => {
-    it('sets badge color to positive for non-negative yoyChange', () => {
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
+    it.each(badgeTestTable)('$name', ({ priorFyTotal, yoyChange, expectedColor, expectedText }) => {
+      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal, yoyChange };
       (component as any).updateBadge();
-      expect(component.badgeColor).toBe('positive');
-      expect(component.badgeText).toBe('+100.0% YoY');
-    });
-
-    it('sets badge color to negative for negative yoyChange', () => {
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 500000, priorFyTotal: 1000000, yoyChange: -50 };
-      (component as any).updateBadge();
-      expect(component.badgeColor).toBe('negative');
-      expect(component.badgeText).toBe('-50.0% YoY');
-    });
-
-    it('sets badge to neutral when priorFyTotal is zero', () => {
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 0, yoyChange: 0 };
-      (component as any).updateBadge();
-      expect(component.badgeColor).toBe('neutral');
-      expect(component.badgeText).toBe('0.0% YoY');
+      expect(component.badgeColor).toBe(expectedColor);
+      expect(component.badgeText).toBe(expectedText);
     });
   });
 
-  describe('availableYears population', () => {
-    it('populates availableYears from loaded records', () => {
-      const records: SpendingRecord[] = [
+  interface AvailableYearsTestCase {
+    name: string;
+    records: SpendingRecord[];
+    presetStart?: number;
+    presetEnd?: number;
+    expectedAvailableYears: number[];
+    expectedStart: number;
+    expectedEnd: number;
+  }
+
+  const availableYearsTestTable: AvailableYearsTestCase[] = [
+    {
+      name: 'populates availableYears from loaded records',
+      records: [
         { id: 1, agencyId: 1, fiscalYear: 2020, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
         { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 200000, outlayAmount: 0, awardCount: 2 },
         { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 300000, outlayAmount: 0, awardCount: 3 },
-      ];
-      component.currentRecords = records;
-      (component as any).populateAvailableYears();
-      expect(component.availableYears).toEqual([2020, 2022, 2024]);
-    });
-
-    it('handles empty records', () => {
-      component.currentRecords = [];
-      (component as any).populateAvailableYears();
-      expect(component.availableYears).toEqual([]);
-    });
-
-    it('reconciles fiscalYearStart/End into available range', () => {
-      const records: SpendingRecord[] = [
+      ],
+      expectedAvailableYears: [2020, 2022, 2024],
+      expectedStart: 2020,
+      expectedEnd: 2024,
+    },
+    {
+      name: 'handles empty records',
+      records: [],
+      expectedAvailableYears: [],
+      expectedStart: Infinity,
+      expectedEnd: -Infinity,
+    },
+    {
+      name: 'reconciles fiscalYearStart/End into available range',
+      records: [
         { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
-      ];
-      component.currentRecords = records;
-      (component as any).populateAvailableYears();
-      expect(component.fiscalYearStart).toBe(2024);
-      expect(component.fiscalYearEnd).toBe(2024);
-    });
-
-    it('sets fiscalYearStart to min available year', () => {
-      const records: SpendingRecord[] = [
+      ],
+      expectedAvailableYears: [2024],
+      expectedStart: 2024,
+      expectedEnd: 2024,
+    },
+    {
+      name: 'clamps preset fiscalYearStart down to min available year',
+      records: [
         { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
-      ];
-      component.currentRecords = records;
-      component.fiscalYearStart = 2015;
-      component.fiscalYearEnd = 2030;
-      (component as any).populateAvailableYears();
-      expect(component.fiscalYearStart).toBe(2024);
-      expect(component.fiscalYearEnd).toBe(2024);
-    });
-
-    it('sets fiscalYearEnd to max available year', () => {
-      const records: SpendingRecord[] = [
+      ],
+      presetStart: 2015,
+      presetEnd: 2030,
+      expectedAvailableYears: [2024],
+      expectedStart: 2024,
+      expectedEnd: 2024,
+    },
+    {
+      name: 'clamps preset fiscalYearEnd up to max available year',
+      records: [
         { id: 1, agencyId: 1, fiscalYear: 2020, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
-      ];
+      ],
+      presetStart: 2010,
+      presetEnd: 2025,
+      expectedAvailableYears: [2020],
+      expectedStart: 2020,
+      expectedEnd: 2020,
+    },
+  ];
+
+  describe('populateAvailableYears', () => {
+    it.each(availableYearsTestTable)('$name', ({ records, presetStart, presetEnd, expectedAvailableYears, expectedStart, expectedEnd }) => {
       component.currentRecords = records;
-      component.fiscalYearStart = 2010;
-      component.fiscalYearEnd = 2025;
+      if (presetStart !== undefined) component.fiscalYearStart = presetStart;
+      if (presetEnd !== undefined) component.fiscalYearEnd = presetEnd;
       (component as any).populateAvailableYears();
-      expect(component.fiscalYearStart).toBe(2020);
-      expect(component.fiscalYearEnd).toBe(2020);
+      expect(component.availableYears).toEqual(expectedAvailableYears);
+      expect(component.fiscalYearStart).toBe(expectedStart);
+      expect(component.fiscalYearEnd).toBe(expectedEnd);
     });
   });
 
-  describe('range-aware aggregation', () => {
-    it('aggregates across fiscal year range', () => {
-      const records: SpendingRecord[] = [
+  interface RangeAggregationTestCase {
+    name: string;
+    records: SpendingRecord[];
+    rangeStart: number;
+    rangeEnd: number;
+    expectedSums: { [awardType: string]: number };
+    expectedTotal: number;
+  }
+
+  const rangeAggregationTestTable: RangeAggregationTestCase[] = [
+    {
+      name: 'aggregates across fiscal year range',
+      records: [
         { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
         { id: 2, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 7 },
         { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 200000, outlayAmount: 0, awardCount: 10 },
         { id: 4, agencyId: 1, fiscalYear: 2024, quarter: 2, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 50000, outlayAmount: 0, awardCount: 3 },
-      ];
-      component.currentRecords = records;
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
-      component.fiscalYearStart = 2022;
-      component.fiscalYearEnd = 2024;
-      const result = (component as any).aggregateAwardTypesForYear(records, 2022, 2024);
-      expect(result.sumsByType.get('Contracts')).toBe(450000);
-      expect(result.sumsByType.get('Grants')).toBe(50000);
-      expect(result.total).toBe(500000);
-    });
-
-    it('excludes records outside range', () => {
-      const records: SpendingRecord[] = [
+      ],
+      rangeStart: 2022,
+      rangeEnd: 2024,
+      expectedSums: { Contracts: 450000, Grants: 50000 },
+      expectedTotal: 500000,
+    },
+    {
+      name: 'excludes records outside range',
+      records: [
         { id: 1, agencyId: 1, fiscalYear: 2021, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
         { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 7 },
         { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 200000, outlayAmount: 0, awardCount: 10 },
-      ];
-      component.currentRecords = records;
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
-      component.fiscalYearStart = 2022;
-      component.fiscalYearEnd = 2023;
-      const result = (component as any).aggregateAwardTypesForYear(records, 2022, 2023);
-      expect(result.sumsByType.get('Contracts')).toBe(350000);
-      expect(result.total).toBe(350000);
+      ],
+      rangeStart: 2022,
+      rangeEnd: 2023,
+      expectedSums: { Contracts: 350000 },
+      expectedTotal: 350000,
+    },
+  ];
+
+  describe('aggregateAwardTypesForRange', () => {
+    it.each(rangeAggregationTestTable)('$name', ({ records, rangeStart, rangeEnd, expectedSums, expectedTotal }) => {
+      const result = (component as any).aggregateAwardTypesForRange(records, rangeStart, rangeEnd);
+      for (const [awardType, expectedSum] of Object.entries(expectedSums)) {
+        expect(result.sumsByType.get(awardType)).toBe(expectedSum);
+      }
+      expect(result.total).toBe(expectedTotal);
     });
   });
 });
