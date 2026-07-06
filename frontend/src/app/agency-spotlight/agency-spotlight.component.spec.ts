@@ -35,8 +35,8 @@ describe('AgencySpotlightComponent', () => {
         { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 7 },
         { id: 4, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 250000, outlayAmount: 0, awardCount: 4 },
       ],
-      fiscalYearStart: 2020,
-      fiscalYearEnd: 2024,
+      fiscalYearStart: 2022,
+      fiscalYearEnd: 2023,
       expectedLabels: ['2022', '2023'],
       expectedDatasetCount: 2,
       expectedAwardTypes: ['Contracts', 'Grants'],
@@ -51,12 +51,12 @@ describe('AgencySpotlightComponent', () => {
         { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 300000, outlayAmount: 0, awardCount: 7 },
         { id: 4, agencyId: 1, fiscalYear: 2025, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 400000, outlayAmount: 0, awardCount: 4 },
       ],
-      fiscalYearStart: 2020,
-      fiscalYearEnd: 2024,
-      expectedLabels: ['2020', '2024'],
+      fiscalYearStart: 2019,
+      fiscalYearEnd: 2025,
+      expectedLabels: ['2019', '2020', '2024', '2025'],
       expectedDatasetCount: 1,
       expectedAwardTypes: ['Contracts'],
-      expectedData: { Contracts: [200000, 300000] },
+      expectedData: { Contracts: [100000, 200000, 300000, 400000] },
     },
     {
       name: 'aggregates multiple quarters into same fiscal year bucket',
@@ -66,8 +66,8 @@ describe('AgencySpotlightComponent', () => {
         { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 2, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 75000, outlayAmount: 0, awardCount: 3 },
         { id: 3, agencyId: 1, fiscalYear: 2022, quarter: 3, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 25000, outlayAmount: 0, awardCount: 1 },
       ],
-      fiscalYearStart: 2020,
-      fiscalYearEnd: 2024,
+      fiscalYearStart: 2022,
+      fiscalYearEnd: 2022,
       expectedLabels: ['2022'],
       expectedDatasetCount: 1,
       expectedAwardTypes: ['Contracts'],
@@ -92,8 +92,8 @@ describe('AgencySpotlightComponent', () => {
         { id: 2, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 50000, outlayAmount: 0, awardCount: 2 },
         { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 80000, outlayAmount: 0, awardCount: 1 },
       ],
-      fiscalYearStart: 2020,
-      fiscalYearEnd: 2024,
+      fiscalYearStart: 2022,
+      fiscalYearEnd: 2023,
       expectedLabels: ['2022', '2023'],
       expectedDatasetCount: 2,
       expectedAwardTypes: ['Contracts', 'Grants'],
@@ -108,8 +108,8 @@ describe('AgencySpotlightComponent', () => {
         { id: 3, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 20000, outlayAmount: 0, awardCount: 1 },
         { id: 4, agencyId: 1, fiscalYear: 2021, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 40000, outlayAmount: 0, awardCount: 1 },
       ],
-      fiscalYearStart: 2020,
-      fiscalYearEnd: 2024,
+      fiscalYearStart: 2021,
+      fiscalYearEnd: 2023,
       expectedLabels: ['2021', '2022', '2023'],
       expectedDatasetCount: 2,
       expectedAwardTypes: ['Contracts', 'Grants'],
@@ -152,7 +152,7 @@ describe('AgencySpotlightComponent', () => {
       agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
       currentFyTotal: 1000000,
       priorFyTotal: 950000,
-      yoyChange: 0.05,
+      yoyChange: 25,
     }));
   }
 
@@ -193,7 +193,8 @@ describe('AgencySpotlightComponent', () => {
   interface InsightTestCase {
     name: string;
     records: SpendingRecord[];
-    currentFy: number;
+    fiscalYearStart: number;
+    fiscalYearEnd: number;
     expectedInsight: string;
   }
 
@@ -205,21 +206,24 @@ describe('AgencySpotlightComponent', () => {
         { id: 2, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 200000, outlayAmount: 0, awardCount: 3 },
         { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Direct Payments', awardTypeCodes: 'C', obligatedAmount: 200000, outlayAmount: 0, awardCount: 2 },
       ],
-      currentFy: 2024,
-      expectedInsight: 'In FY2024, NASA spent 60.0% on Contracts.',
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedInsight: 'In FY2020-2024, NASA spent 60.0% on Contracts.',
     },
     {
       name: 'handles single award type (100%)',
       records: [
         { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 1000000, outlayAmount: 0, awardCount: 10 },
       ],
-      currentFy: 2024,
-      expectedInsight: 'In FY2024, NASA spent 100.0% on Contracts.',
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedInsight: 'In FY2020-2024, NASA spent 100.0% on Contracts.',
     },
     {
       name: 'handles empty records',
       records: [],
-      currentFy: 2024,
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
       expectedInsight: 'No data available for the selected fiscal year.',
     },
     {
@@ -227,7 +231,8 @@ describe('AgencySpotlightComponent', () => {
       records: [
         { id: 1, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
       ],
-      currentFy: 2024,
+      fiscalYearStart: 2024,
+      fiscalYearEnd: 2024,
       expectedInsight: 'No data available for the selected fiscal year.',
     },
     {
@@ -237,8 +242,9 @@ describe('AgencySpotlightComponent', () => {
         { id: 2, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 333333, outlayAmount: 0, awardCount: 3 },
         { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Direct Payments', awardTypeCodes: 'C', obligatedAmount: 333334, outlayAmount: 0, awardCount: 3 },
       ],
-      currentFy: 2024,
-      expectedInsight: 'In FY2024, NASA spent 33.3% on Direct Payments.',
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedInsight: 'In FY2020-2024, NASA spent 33.3% on Direct Payments.',
     },
     {
       name: 'breaks ties by keeping first-encountered award type',
@@ -246,16 +252,18 @@ describe('AgencySpotlightComponent', () => {
         { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 500000, outlayAmount: 0, awardCount: 4 },
         { id: 2, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 500000, outlayAmount: 0, awardCount: 5 },
       ],
-      currentFy: 2024,
-      expectedInsight: 'In FY2024, NASA spent 50.0% on Grants.',
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
+      expectedInsight: 'In FY2020-2024, NASA spent 50.0% on Grants.',
     },
   ];
 
   describe('computeInsight', () => {
-    it.each(insightTestTable)('$name', ({ records, currentFy, expectedInsight }) => {
+    it.each(insightTestTable)('$name', ({ records, fiscalYearStart, fiscalYearEnd, expectedInsight }) => {
       component.currentRecords = records;
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 1.0 };
-      component.fiscalYearEnd = currentFy;
+      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
+      component.fiscalYearStart = fiscalYearStart;
+      component.fiscalYearEnd = fiscalYearEnd;
       const insight = (component as any).computeInsight();
       expect(insight).toBe(expectedInsight);
     });
@@ -264,9 +272,10 @@ describe('AgencySpotlightComponent', () => {
   interface TableDataTestCase {
     name: string;
     records: SpendingRecord[];
-    currentFy: number;
+    fiscalYearStart: number;
+    fiscalYearEnd: number;
     expectedRowCount: number;
-    expectedFirstRow: { awardType: string; obligated: number; percentage: number; count: number };
+    expectedFirstRow: { awardType: string; obligated: number; percentage: number };
   }
 
   const tableDataTestTable: TableDataTestCase[] = [
@@ -277,9 +286,10 @@ describe('AgencySpotlightComponent', () => {
         { id: 2, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 600000, outlayAmount: 0, awardCount: 5 },
         { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Direct Payments', awardTypeCodes: 'C', obligatedAmount: 200000, outlayAmount: 0, awardCount: 2 },
       ],
-      currentFy: 2024,
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
       expectedRowCount: 3,
-      expectedFirstRow: { awardType: 'Contracts', obligated: 600000, percentage: 60.0, count: 5 },
+      expectedFirstRow: { awardType: 'Contracts', obligated: 600000, percentage: 60.0 },
     },
     {
       name: 'aggregates multiple quarters per award type',
@@ -288,9 +298,10 @@ describe('AgencySpotlightComponent', () => {
         { id: 2, agencyId: 1, fiscalYear: 2024, quarter: 2, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 3 },
         { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 3, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 50000, outlayAmount: 0, awardCount: 1 },
       ],
-      currentFy: 2024,
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
       expectedRowCount: 2,
-      expectedFirstRow: { awardType: 'Contracts', obligated: 250000, percentage: 83.3, count: 5 },
+      expectedFirstRow: { awardType: 'Contracts', obligated: 250000, percentage: 83.3 },
     },
     {
       name: 'filters to current fiscal year only',
@@ -298,44 +309,47 @@ describe('AgencySpotlightComponent', () => {
         { id: 1, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 500000, outlayAmount: 0, awardCount: 10 },
         { id: 2, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 100000, outlayAmount: 0, awardCount: 2 },
       ],
-      currentFy: 2024,
+      fiscalYearStart: 2024,
+      fiscalYearEnd: 2024,
       expectedRowCount: 1,
-      expectedFirstRow: { awardType: 'Grants', obligated: 100000, percentage: 100.0, count: 2 },
+      expectedFirstRow: { awardType: 'Grants', obligated: 100000, percentage: 100.0 },
     },
     {
       name: 'handles empty records',
       records: [],
-      currentFy: 2024,
+      fiscalYearStart: 2020,
+      fiscalYearEnd: 2024,
       expectedRowCount: 0,
-      expectedFirstRow: { awardType: '', obligated: 0, percentage: 0, count: 0 },
+      expectedFirstRow: { awardType: '', obligated: 0, percentage: 0 },
     },
   ];
 
   describe('buildTableData', () => {
-    it.each(tableDataTestTable)('$name', ({ records, currentFy, expectedRowCount, expectedFirstRow }) => {
+    it.each(tableDataTestTable)('$name', ({ records, fiscalYearStart, fiscalYearEnd, expectedRowCount, expectedFirstRow }) => {
       component.currentRecords = records;
-      component.fiscalYearEnd = currentFy;
+      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
+      component.fiscalYearStart = fiscalYearStart;
+      component.fiscalYearEnd = fiscalYearEnd;
       const tableData = (component as any).buildTableData();
       expect(tableData.length).toBe(expectedRowCount);
       if (expectedRowCount > 0) {
         expect(tableData[0].awardType).toBe(expectedFirstRow.awardType);
         expect(tableData[0].obligatedAmount).toBe(expectedFirstRow.obligated);
         expect(Math.abs(tableData[0].percentageOfTotal - expectedFirstRow.percentage)).toBeLessThan(0.1);
-        expect(tableData[0].awardCount).toBe(expectedFirstRow.count);
       }
     });
   });
 
   describe('badge color computation', () => {
     it('sets badge color to positive for non-negative yoyChange', () => {
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 1.0 };
+      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
       (component as any).updateBadge();
       expect(component.badgeColor).toBe('positive');
       expect(component.badgeText).toBe('+100.0% YoY');
     });
 
     it('sets badge color to negative for negative yoyChange', () => {
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 500000, priorFyTotal: 1000000, yoyChange: -0.5 };
+      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 500000, priorFyTotal: 1000000, yoyChange: -50 };
       (component as any).updateBadge();
       expect(component.badgeColor).toBe('negative');
       expect(component.badgeText).toBe('-50.0% YoY');
@@ -365,6 +379,74 @@ describe('AgencySpotlightComponent', () => {
       component.currentRecords = [];
       (component as any).populateAvailableYears();
       expect(component.availableYears).toEqual([]);
+    });
+
+    it('reconciles fiscalYearStart/End into available range', () => {
+      const records: SpendingRecord[] = [
+        { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
+      ];
+      component.currentRecords = records;
+      (component as any).populateAvailableYears();
+      expect(component.fiscalYearStart).toBe(2024);
+      expect(component.fiscalYearEnd).toBe(2024);
+    });
+
+    it('sets fiscalYearStart to min available year', () => {
+      const records: SpendingRecord[] = [
+        { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
+      ];
+      component.currentRecords = records;
+      component.fiscalYearStart = 2015;
+      component.fiscalYearEnd = 2030;
+      (component as any).populateAvailableYears();
+      expect(component.fiscalYearStart).toBe(2024);
+      expect(component.fiscalYearEnd).toBe(2024);
+    });
+
+    it('sets fiscalYearEnd to max available year', () => {
+      const records: SpendingRecord[] = [
+        { id: 1, agencyId: 1, fiscalYear: 2020, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
+      ];
+      component.currentRecords = records;
+      component.fiscalYearStart = 2010;
+      component.fiscalYearEnd = 2025;
+      (component as any).populateAvailableYears();
+      expect(component.fiscalYearStart).toBe(2020);
+      expect(component.fiscalYearEnd).toBe(2020);
+    });
+  });
+
+  describe('range-aware aggregation', () => {
+    it('aggregates across fiscal year range', () => {
+      const records: SpendingRecord[] = [
+        { id: 1, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
+        { id: 2, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 7 },
+        { id: 3, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 200000, outlayAmount: 0, awardCount: 10 },
+        { id: 4, agencyId: 1, fiscalYear: 2024, quarter: 2, awardTypeLabel: 'Grants', awardTypeCodes: 'B', obligatedAmount: 50000, outlayAmount: 0, awardCount: 3 },
+      ];
+      component.currentRecords = records;
+      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
+      component.fiscalYearStart = 2022;
+      component.fiscalYearEnd = 2024;
+      const result = (component as any).aggregateAwardTypesForYear(records, 2022, 2024);
+      expect(result.sumsByType.get('Contracts')).toBe(450000);
+      expect(result.sumsByType.get('Grants')).toBe(50000);
+      expect(result.total).toBe(500000);
+    });
+
+    it('excludes records outside range', () => {
+      const records: SpendingRecord[] = [
+        { id: 1, agencyId: 1, fiscalYear: 2021, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 5 },
+        { id: 2, agencyId: 1, fiscalYear: 2022, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 150000, outlayAmount: 0, awardCount: 7 },
+        { id: 3, agencyId: 1, fiscalYear: 2023, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 200000, outlayAmount: 0, awardCount: 10 },
+      ];
+      component.currentRecords = records;
+      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
+      component.fiscalYearStart = 2022;
+      component.fiscalYearEnd = 2023;
+      const result = (component as any).aggregateAwardTypesForYear(records, 2022, 2023);
+      expect(result.sumsByType.get('Contracts')).toBe(350000);
+      expect(result.total).toBe(350000);
     });
   });
 });

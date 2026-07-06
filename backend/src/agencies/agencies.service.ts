@@ -32,7 +32,7 @@ export class AgenciesService {
     }));
     return {
       data,
-      meta: { total: data.length, page: 1, pageSize: 6 },
+      meta: { total: data.length, page: 1, pageSize: data.length },
     };
   }
 

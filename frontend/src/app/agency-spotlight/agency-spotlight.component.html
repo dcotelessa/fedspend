@@ -45,16 +45,12 @@
       <mat-cell *matCellDef="let row">{{ row.awardType }}</mat-cell>
     </ng-container>
     <ng-container matColumnDef="obligatedAmount">
-      <mat-header-cell *matHeaderCellDef>FY{{ fiscalYearEnd }} Obligated</mat-header-cell>
+      <mat-header-cell *matHeaderCellDef>FY{{ fiscalYearStart }}-{{ fiscalYearEnd }} Obligated</mat-header-cell>
       <mat-cell *matCellDef="let row">{{ row.obligatedAmount | currencyFormat }}</mat-cell>
     </ng-container>
     <ng-container matColumnDef="percentageOfTotal">
       <mat-header-cell *matHeaderCellDef>% of Total</mat-header-cell>
       <mat-cell *matCellDef="let row">{{ row.percentageOfTotal }}%</mat-cell>
-    </ng-container>
-    <ng-container matColumnDef="awardCount">
-      <mat-header-cell *matHeaderCellDef>Award Count</mat-header-cell>
-      <mat-cell *matCellDef="let row">{{ row.awardCount }}</mat-cell>
     </ng-container>
     <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
     <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>

@@ -19,7 +19,6 @@ interface TableDataRow {
   awardType: string;
   obligatedAmount: number;
   percentageOfTotal: number;
-  awardCount: number;
 }
 
 @Component({
@@ -43,7 +42,7 @@ export class AgencySpotlightComponent implements OnInit {
   chartData: ChartData = { labels: [], datasets: [] };
   insight = '';
   tableData: TableDataRow[] = [];
-  displayedColumns = ['awardType', 'obligatedAmount', 'percentageOfTotal', 'awardCount'];
+  displayedColumns = ['awardType', 'obligatedAmount', 'percentageOfTotal'];
 
   private currentRecords: SpendingRecord[] = [];
 
@@ -63,8 +62,8 @@ export class AgencySpotlightComponent implements OnInit {
                 this.loading = false;
                 this.currentRecords = records ?? [];
                 if (this.currentRecords.length > 0) {
-                  this.buildStackedChartFromRecords(this.currentRecords);
                   this.populateAvailableYears();
+                  this.buildStackedChartFromRecords(this.currentRecords);
                 }
                 this.insight = this.computeInsight();
                 this.tableData = this.buildTableData();
@@ -128,6 +127,9 @@ export class AgencySpotlightComponent implements OnInit {
       years.add(record.fiscalYear);
     }
     this.availableYears = Array.from(years).sort((a, b) => a - b);
+    const [min, max] = [Math.min(...this.availableYears), Math.max(...this.availableYears)];
+    this.fiscalYearStart = min;
+    this.fiscalYearEnd = max;
   }
 
   private updateBadge(): void {
@@ -139,14 +141,14 @@ export class AgencySpotlightComponent implements OnInit {
       this.badgeText = '0.0% YoY';
     } else if (yoyChange >= 0) {
       this.badgeColor = 'positive';
-      this.badgeText = `+${(yoyChange * 100).toFixed(1)}% YoY`;
+      this.badgeText = `+${yoyChange.toFixed(1)}% YoY`;
     } else {
       this.badgeColor = 'negative';
-      this.badgeText = `${(yoyChange * 100).toFixed(1)}% YoY`;
+      this.badgeText = `${yoyChange.toFixed(1)}% YoY`;
     }
   }
 
-  private aggregateAwardTypesForYear(records: SpendingRecord[], fiscalYear: number): {
+  private aggregateAwardTypesForYear(records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): {
     sumsByType: Map<string, number>;
     countsByType: Map<string, number>;
     total: number;
@@ -155,9 +157,8 @@ export class AgencySpotlightComponent implements OnInit {
     const countsByType = new Map<string, number>();
     let total = 0;
     for (const r of records) {
-      if (r.fiscalYear !== fiscalYear) continue;
+      if (r.fiscalYear < fiscalYearStart || r.fiscalYear > fiscalYearEnd) continue;
       sumsByType.set(r.awardTypeLabel, (sumsByType.get(r.awardTypeLabel) ?? 0) + r.obligatedAmount);
-      countsByType.set(r.awardTypeLabel, (countsByType.get(r.awardTypeLabel) ?? 0) + r.awardCount);
       total += r.obligatedAmount;
     }
     return { sumsByType, countsByType, total };
@@ -168,7 +169,7 @@ export class AgencySpotlightComponent implements OnInit {
       return 'No data available for the selected fiscal year.';
     }
 
-    const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);
+    const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
     if (total === 0) {
       return 'No data available for the selected fiscal year.';
     }
@@ -184,18 +185,17 @@ export class AgencySpotlightComponent implements OnInit {
 
     const pct = (maxValue / total * 100).toFixed(1);
     const agencyName = this.agency.agency?.name || '';
-    return `In FY${this.fiscalYearEnd}, ${agencyName} spent ${pct}% on ${maxType}.`;
+    return `In FY${this.fiscalYearStart}-${this.fiscalYearEnd}, ${agencyName} spent ${pct}% on ${maxType}.`;
   }
 
   private buildTableData(): TableDataRow[] {
-    const { sumsByType, countsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);
+    const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
 
     return Array.from(sumsByType.entries())
       .map(([awardType, obligated]) => ({
         awardType,
         obligatedAmount: obligated,
         percentageOfTotal: total > 0 ? Math.round(obligated / total * 1000) / 10 : 0,
-        awardCount: countsByType.get(awardType) ?? 0,
       }))
       .sort((a, b) => b.obligatedAmount - a.obligatedAmount);
   }

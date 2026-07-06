@@ -1,0 +1,215 @@
+{
+  "story": "E15-S01",
+  "epic": "E15",
+  "title": "Agencies quick wins: YoY unit fix, drop Award Count, FY reconciliation, range-aware table/insight, agency-list spec",
+  "goal": "Fix four display-blocking issues on the Agencies pages that do not require sync expansion, plus close the test gap on AgencyListComponent. (1) YoY badge is inflated 100x because the backend emits a percentage (25 = 25%) but the frontend multiplies by 100 again (+2500% YoY). Reconcile on the frontend by dropping the *100. (2) Award Count column always shows 0 (USASpending geography endpoint has no award-count field; transformGeoRows hardcodes 0) - remove the column. (3) fiscalYearStart/End are hardcoded literals and never reconciled with loaded data, so the From dropdown renders blank when only [2024] is available. (4) The breakdown table and insight only honor fiscalYearEnd, ignoring fiscalYearStart - the From control looks interactive but does nothing.",
+  "notes": "YoY unit mismatch root cause: backend agencies.service.ts:48 computes (current-prior)/prior*100 (a percentage number), frontend agency-spotlight.component.ts:142,145 multiplies by 100 again. The two spec halves encode opposite assumptions (backend spec uses 25/200/-50; frontend spec uses 1.0/-0.5/0.05). Per decision: fix on the FRONTEND (keep backend emitting %), so update the frontend badge spec rows + the api.service.spec mock. Award Count: same class as the Geography E14-S12 fix - the column has no data source (USASpending geography endpoint returns only aggregated_amount/population/per_capita), so transformGeoRows hardcodes awardCount:0; remove the column from the table and stop aggregating it in buildTableData. FY reconciliation: mirror the Geography loadFiscalYears pattern - after populateAvailableYears derives the set, clamp fiscalYearStart/End into [min..max] so the From dropdown always shows a valid selection. Range-aware table/insight: aggregateAwardTypesForYear currently keys off fiscalYearEnd only; rename/extend to aggregate across [start..end] and update the table header to show the range. Add agency-list.component.spec.ts (currently missing - AGENTS.md requires a parallel spec) with table-driven rows for: renders agencies, formats totals via currencyFormat when >0, shows View details otherwise, navigates to /agencies/:id on click. No pi/build-agent run required for this story; it can be built directly with harness=opencode.",
+  "dependencies": "",
+  "acceptanceCriteria": [
+    {
+      "text": "updateBadge no longer multiplies yoyChange by 100 (consumes the backend percentage directly)",
+      "check": "cd frontend && ! grep -A20 'updateBadge' src/app/agency-spotlight/agency-spotlight.component.ts | grep -qF 'yoyChange * 100'"
+    },
+    {
+      "text": "Award Count is absent from the Spotlight displayedColumns",
+      "check": "cd frontend && ! grep -q \"'awardCount'\" src/app/agency-spotlight/agency-spotlight.component.ts"
+    },
+    {
+      "text": "Award Count column block is absent from the Spotlight template",
+      "check": "cd frontend && ! grep -q 'matColumnDef=\"awardCount\"' src/app/agency-spotlight/agency-spotlight.component.html"
+    },
+    {
+      "text": "populateAvailableYears reconciles fiscalYearStart/End against derived years",
+      "check": "cd frontend && grep -A25 'populateAvailableYears' src/app/agency-spotlight/agency-spotlight.component.ts | grep -q 'fiscalYearStart'"
+    },
+    {
+      "text": "Spotlight table header references fiscalYearStart (range, not just end)",
+      "check": "cd frontend && grep -q 'FY{{ fiscalYearStart }}' src/app/agency-spotlight/agency-spotlight.component.html"
+    },
+    {
+      "text": "agency-list.component.spec.ts exists and passes (table-driven)",
+      "check": "cd frontend && test -f src/app/agency-list/agency-list.component.spec.ts && pnpm test --testPathPatterns=agency-list --passWithNoTests"
+    },
+    {
+      "text": "agency-spotlight.component.spec.ts passes (badge rows use percentage inputs)",
+      "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight --passWithNoTests"
+    },
+    {
+      "text": "meta.pageSize is derived from data length, not hardcoded 6",
+      "check": "cd backend && ! grep -q 'pageSize: 6' src/agencies/agencies.service.ts"
+    },
+    {
+      "text": "frontend builds cleanly",
+      "check": "cd frontend && pnpm build"
+    },
+    {
+      "text": "backend builds cleanly",
+      "check": "cd backend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+      "mode": "slice",
+      "start": 133,
+      "end": 147,
+      "reason": "updateBadge - drop the yoyChange * 100 multiplication; backend already emits a percentage. Use yoyChange.toFixed(1) directly.",
+      "excerpt": " 131:   }\n 132: \n 133:   private updateBadge(): void {\n 134:     if (!this.agency) return;\n 135: \n 136:     const { priorFyTotal, yoyChange } = this.agency;\n 137:     if (priorFyTotal === 0) {\n 138:       this.badgeColor = 'neutral';\n 139:       this.badgeText = '0.0% YoY';\n 140:     } else if (yoyChange >= 0) {\n 141:       this.badgeColor = 'positive';\n 142:       this.badgeText = `+${(yoyChange * 100).toFixed(1)}% YoY`;\n 143:     } else {\n 144:       this.badgeColor = 'negative';\n 145:       this.badgeText = `${(yoyChange * 100).toFixed(1)}% YoY`;\n 146:     }\n 147:   }\n 148: \n 149:   private aggregateAwardTypesForYear(records: SpendingRecord[], fiscalYear: number): {"
+    },
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+      "mode": "slice",
+      "start": 125,
+      "end": 131,
+      "reason": "populateAvailableYears - after deriving availableYears, clamp fiscalYearStart and fiscalYearEnd into the available range (set to min/max when outside).",
+      "excerpt": " 123:   }\n 124: \n 125:   private populateAvailableYears(): void {\n 126:     const years = new Set<number>();\n 127:     for (const record of this.currentRecords) {\n 128:       years.add(record.fiscalYear);\n 129:     }\n 130:     this.availableYears = Array.from(years).sort((a, b) => a - b);\n 131:   }\n 132: \n 133:   private updateBadge(): void {"
+    },
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+      "mode": "slice",
+      "start": 160,
+      "end": 201,
+      "reason": "buildTableData/aggregateAwardTypesForYear - aggregate across [fiscalYearStart..fiscalYearEnd] instead of just fiscalYearEnd; remove the awardCount aggregation (column being dropped).",
+      "excerpt": " 158:       if (r.fiscalYear !== fiscalYear) continue;\n 159:       sumsByType.set(r.awardTypeLabel, (sumsByType.get(r.awardTypeLabel) ?? 0) + r.obligatedAmount);\n 160:       countsByType.set(r.awardTypeLabel, (countsByType.get(r.awardTypeLabel) ?? 0) + r.awardCount);\n 161:       total += r.obligatedAmount;\n 162:     }\n 163:     return { sumsByType, countsByType, total };\n 164:   }\n 165: \n 166:   private computeInsight(): string {\n 167:     if (!this.agency) {\n 168:       return 'No data available for the selected fiscal year.';\n 169:     }\n 170: \n 171:     const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);\n 172:     if (total === 0) {\n 173:       return 'No data available for the selected fiscal year.';\n 174:     }\n 175: \n 176:     let maxType = '';\n 177:     let maxValue = 0;\n 178:     for (const [type, value] of sumsByType) {\n 179:       if (value > maxValue) {\n 180:         maxValue = value;\n 181:         maxType = type;\n 182:       }\n 183:     }\n 184: \n 185:     const pct = (maxValue / total * 100).toFixed(1);\n 186:     const agencyName = this.agency.agency?.name || '';\n 187:     return `In FY${this.fiscalYearEnd}, ${agencyName} spent ${pct}% on ${maxType}.`;\n 188:   }\n 189: \n 190:   private buildTableData(): TableDataRow[] {\n 191:     const { sumsByType, countsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);\n 192: \n 193:     return Array.from(sumsByType.entries())\n 194:       .map(([awardType, obligated]) => ({\n 195:         awardType,\n 196:         obligatedAmount: obligated,\n 197:         percentageOfTotal: total > 0 ? Math.round(obligated / total * 1000) / 10 : 0,\n 198:         awardCount: countsByType.get(awardType) ?? 0,\n 199:       }))\n 200:       .sort((a, b) => b.obligatedAmount - a.obligatedAmount);\n 201:   }\n 202: }"
+    },
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+      "mode": "slice",
+      "start": 166,
+      "end": 190,
+      "reason": "computeInsight - aggregate across the selected range.",
+      "excerpt": " 164:   }\n 165: \n 166:   private computeInsight(): string {\n 167:     if (!this.agency) {\n 168:       return 'No data available for the selected fiscal year.';\n 169:     }\n 170: \n 171:     const { sumsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);\n 172:     if (total === 0) {\n 173:       return 'No data available for the selected fiscal year.';\n 174:     }\n 175: \n 176:     let maxType = '';\n 177:     let maxValue = 0;\n 178:     for (const [type, value] of sumsByType) {\n 179:       if (value > maxValue) {\n 180:         maxValue = value;\n 181:         maxType = type;\n 182:       }\n 183:     }\n 184: \n 185:     const pct = (maxValue / total * 100).toFixed(1);\n 186:     const agencyName = this.agency.agency?.name || '';\n 187:     return `In FY${this.fiscalYearEnd}, ${agencyName} spent ${pct}% on ${maxType}.`;\n 188:   }\n 189: \n 190:   private buildTableData(): TableDataRow[] {\n 191:     const { sumsByType, countsByType, total } = this.aggregateAwardTypesForYear(this.currentRecords, this.fiscalYearEnd);\n 192: "
+    },
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+      "mode": "slice",
+      "start": 48,
+      "end": 58,
+      "reason": "table header FY{{ fiscalYearEnd }} -> FY{{ fiscalYearStart }}-{{ fiscalYearEnd }}; remove the matColumnDef=awardCount block.",
+      "excerpt": "  46:     </ng-container>\n  47:     <ng-container matColumnDef=\"obligatedAmount\">\n  48:       <mat-header-cell *matHeaderCellDef>FY{{ fiscalYearEnd }} Obligated</mat-header-cell>\n  49:       <mat-cell *matCellDef=\"let row\">{{ row.obligatedAmount | currencyFormat }}</mat-cell>\n  50:     </ng-container>\n  51:     <ng-container matColumnDef=\"percentageOfTotal\">\n  52:       <mat-header-cell *matHeaderCellDef>% of Total</mat-header-cell>\n  53:       <mat-cell *matCellDef=\"let row\">{{ row.percentageOfTotal }}%</mat-cell>\n  54:     </ng-container>\n  55:     <ng-container matColumnDef=\"awardCount\">\n  56:       <mat-header-cell *matHeaderCellDef>Award Count</mat-header-cell>\n  57:       <mat-cell *matCellDef=\"let row\">{{ row.awardCount }}</mat-cell>\n  58:     </ng-container>\n  59:     <mat-header-row *matHeaderRowDef=\"displayedColumns\"></mat-header-row>\n  60:     <mat-row *matRowDef=\"let row; columns: displayedColumns;\"></mat-row>"
+    },
+    {
+      "path": "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+      "mode": "slice",
+      "start": 330,
+      "end": 349,
+      "reason": "badge spec rows - switch from fraction inputs (1.0/-0.5/0) to percentage inputs (100/-50/0) now that the frontend consumes % directly.",
+      "excerpt": " 328: \n 329:   describe('badge color computation', () => {\n 330:     it('sets badge color to positive for non-negative yoyChange', () => {\n 331:       component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 1.0 };\n 332:       (component as any).updateBadge();\n 333:       expect(component.badgeColor).toBe('positive');\n 334:       expect(component.badgeText).toBe('+100.0% YoY');\n 335:     });\n 336: \n 337:     it('sets badge color to negative for negative yoyChange', () => {\n 338:       component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 500000, priorFyTotal: 1000000, yoyChange: -0.5 };\n 339:       (component as any).updateBadge();\n 340:       expect(component.badgeColor).toBe('negative');\n 341:       expect(component.badgeText).toBe('-50.0% YoY');\n 342:     });\n 343: \n 344:     it('sets badge to neutral when priorFyTotal is zero', () => {\n 345:       component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 0, yoyChange: 0 };\n 346:       (component as any).updateBadge();\n 347:       expect(component.badgeColor).toBe('neutral');\n 348:       expect(component.badgeText).toBe('0.0% YoY');\n 349:     });\n 350:   });\n 351: "
+    },
+    {
+      "path": "frontend/src/app/api.service.spec.ts",
+      "mode": "slice",
+      "start": 63,
+      "end": 64,
+      "reason": "yoyChange mock 0.25 -> 25 (percentage).",
+      "excerpt": "  61:       args: [1],\n  62:       expectedUrl: 'http://localhost:3000/agencies/1/summary',\n  63:       mockBody: { agency: { id: 1, name: 'Test Agency', abbreviation: 'TA', toptierCode: '01' }, currentFyTotal: 100000, priorFyTotal: 80000, yoyChange: 0.25 },\n  64:       expected: { agency: { id: 1, name: 'Test Agency', abbreviation: 'TA', toptierCode: '01' }, currentFyTotal: 100000, priorFyTotal: 80000, yoyChange: 0.25 },\n  65:     },\n  66:     {"
+    },
+    {
+      "path": "backend/src/agencies/agencies.service.ts",
+      "mode": "slice",
+      "start": 33,
+      "end": 36,
+      "reason": "meta.pageSize hardcoded 6 -> derive from data.length.",
+      "excerpt": "  31:       totalCents: parseInt(row.totalCents, 10),\n  32:     }));\n  33:     return {\n  34:       data,\n  35:       meta: { total: data.length, page: 1, pageSize: 6 },\n  36:     };\n  37:   }\n  38: "
+    }
+  ]
+}

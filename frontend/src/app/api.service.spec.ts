@@ -60,8 +60,8 @@ describe('ApiService', () => {
       methodName: 'getAgencySummary',
       args: [1],
       expectedUrl: 'http://localhost:3000/agencies/1/summary',
-      mockBody: { agency: { id: 1, name: 'Test Agency', abbreviation: 'TA', toptierCode: '01' }, currentFyTotal: 100000, priorFyTotal: 80000, yoyChange: 0.25 },
-      expected: { agency: { id: 1, name: 'Test Agency', abbreviation: 'TA', toptierCode: '01' }, currentFyTotal: 100000, priorFyTotal: 80000, yoyChange: 0.25 },
+      mockBody: { agency: { id: 1, name: 'Test Agency', abbreviation: 'TA', toptierCode: '01' }, currentFyTotal: 100000, priorFyTotal: 80000, yoyChange: 25 },
+      expected: { agency: { id: 1, name: 'Test Agency', abbreviation: 'TA', toptierCode: '01' }, currentFyTotal: 100000, priorFyTotal: 80000, yoyChange: 25 },
     },
     {
       name: 'getAgencySummary falls back to null on server error',
