@@ -33,6 +33,14 @@ export const AWARD_TYPES = [
   'IDVs',
 ];
 
+export const awardTypeToCode: Record<string, string> = {
+  'Contracts': 'C',
+  'Grants': 'G',
+  'Direct Payments': 'DP',
+  'Loans': 'L',
+  'IDVs': 'I',
+};
+
 export const DEF_GROUPS = [
   'COVID-19',
   'Hurricane',

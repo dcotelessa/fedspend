@@ -8,6 +8,7 @@ import {
   RawUsaSpendingGeoRow,
   RawUsaSpendingDefCodeRow,
 } from './usa-spending.types';
+import { AWARD_TYPES, awardTypeToCode } from './sync.constants';
 
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 500;
@@ -140,43 +141,57 @@ export class UsaSpendingService {
   async fetchSpendingByAgency(
     params: { toptierCode: string; fiscalYear: number },
   ): Promise<FetchSpendingResult> {
-    const body = {
-      filters: {
-        time_period: [{
-          start_date: `${params.fiscalYear}-10-01`,
-          end_date: `${params.fiscalYear + 1}-09-30`,
-        }],
-        awarding_agencies: [{
-          toptier_code: params.toptierCode,
-          tier: 'toptier',
-        }],
-      },
-      geo_layer: 'state',
-      scope: 'recipient_location',
-    };
+    let status: 'success' | 'not_found' = 'not_found';
+    let rows: SpendingRecord[] = [];
+    let total = 0;
 
-    const allRows = await fetchAllPages(
-      `${API_BASE}/search/spending_by_geography/`,
-      body,
-    );
+    for (const awardType of AWARD_TYPES) {
+      const code = awardTypeToCode[awardType];
+      const body = {
+        filters: {
+          time_period: [{
+            start_date: `${params.fiscalYear}-10-01`,
+            end_date: `${params.fiscalYear + 1}-09-30`,
+          }],
+          awarding_agencies: [{
+            toptier_code: params.toptierCode,
+            tier: 'toptier',
+          }],
+          award_type: code,
+        },
+        geo_layer: 'state',
+        scope: 'recipient_location',
+      };
 
-    const rawGeo = allRows as RawUsaSpendingGeoRow[];
-    const transformed = transformGeoRows(rawGeo, 'recipient_location', params.fiscalYear, null).map(
-      (r) => ({
-        ...r,
-        id: undefined as any,
-        agencyId: 0,
-        fiscalYear: params.fiscalYear,
-        quarter: 1,
-        awardTypeLabel: 'Total',
-        awardTypeCodes: '',
-        outlayAmount: 0,
-      }) as SpendingRecord,
-    );
+      const allRows = await fetchAllPages(
+        `${API_BASE}/search/spending_by_geography/`,
+        body,
+      );
 
-    return transformed.length > 0
-      ? { status: 'success', rows: transformed, total: rawGeo.length }
-      : { status: 'not_found' };
+      const rawGeo = allRows as RawUsaSpendingGeoRow[];
+      const transformed = transformGeoRows(rawGeo, 'recipient_location', params.fiscalYear, null).map(
+        (r) => ({
+          ...r,
+          id: undefined as any,
+          agencyId: 0,
+          fiscalYear: params.fiscalYear,
+          quarter: 1,
+          awardTypeLabel: awardType,
+          awardTypeCodes: code,
+          outlayAmount: 0,
+        }) as SpendingRecord,
+      );
+
+      if (transformed.length > 0) {
+        if (status === 'not_found') {
+          status = 'success';
+        }
+        rows.push(...transformed);
+        total += rawGeo.length;
+      }
+    }
+
+    return { status, rows, total } as FetchSpendingResult;
   }
 
   async fetchGeoSnapshots(

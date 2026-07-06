@@ -89,7 +89,7 @@ describe('SyncService', () => {
       spendingFetchResults: [],
       expectedUpsertCalls: [
         { repoName: 'agency', count: 2 },
-        { repoName: 'spending', count: 10 },
+        { repoName: 'spending', count: 50 },
       ],
       expectedRepoData: {
         agency: [
@@ -107,7 +107,7 @@ describe('SyncService', () => {
       spendingFetchResults: [],
       expectedUpsertCalls: [
         { repoName: 'agency', count: 1 },
-        { repoName: 'spending', count: 5 },
+        { repoName: 'spending', count: 25 },
       ],
       expectedSpendingDeleteCount: 5,
     },
@@ -120,7 +120,7 @@ describe('SyncService', () => {
       ]},
       expectedUpsertCalls: [
         { repoName: 'agency', count: 2 },
-        { repoName: 'spending', count: 10 },
+        { repoName: 'spending', count: 50 },
       ],
       expectedSpendingDeleteCount: 10,
       expectedSpendingDeleteArgs: twoAgencyDeleteArgs,
@@ -131,7 +131,7 @@ describe('SyncService', () => {
       agencyFetchResult: { status: 'success', agencies: twentyFiveAgencies },
       expectedUpsertCalls: [
         { repoName: 'agency', count: 25 },
-        { repoName: 'spending', count: SPENDING_AGENCY_SYNC_LIMIT * SPENDING_FISCAL_YEARS.length },
+        { repoName: 'spending', count: SPENDING_AGENCY_SYNC_LIMIT * SPENDING_FISCAL_YEARS.length * 5 },
       ],
       expectedSpendingDeleteCount: SPENDING_AGENCY_SYNC_LIMIT * SPENDING_FISCAL_YEARS.length,
     },
@@ -144,14 +144,44 @@ describe('SyncService', () => {
       spendingFetchResults: [],
       expectedUpsertCalls: [
         { repoName: 'agency', count: 1 },
-        { repoName: 'spending', count: 5 },
+        { repoName: 'spending', count: 25 },
       ],
       expectedSpendingUpsertedRows: {
-        '2020': [{ agencyId: 1, fiscalYear: 2020, obligatedAmount: 1000 }],
-        '2021': [{ agencyId: 1, fiscalYear: 2021, obligatedAmount: 2000 }],
-        '2022': [{ agencyId: 1, fiscalYear: 2022, obligatedAmount: 3000 }],
-        '2023': [{ agencyId: 1, fiscalYear: 2023, obligatedAmount: 4000 }],
-        '2024': [{ agencyId: 1, fiscalYear: 2024, obligatedAmount: 5000 }],
+        '2020': [
+          { agencyId: 1, fiscalYear: 2020, obligatedAmount: 1000, quarter: 1, awardTypeLabel: 'Contracts' },
+          { agencyId: 1, fiscalYear: 2020, obligatedAmount: 2000, quarter: 1, awardTypeLabel: 'Grants' },
+          { agencyId: 1, fiscalYear: 2020, obligatedAmount: 3000, quarter: 1, awardTypeLabel: 'Direct Payments' },
+          { agencyId: 1, fiscalYear: 2020, obligatedAmount: 4000, quarter: 1, awardTypeLabel: 'Loans' },
+          { agencyId: 1, fiscalYear: 2020, obligatedAmount: 5000, quarter: 1, awardTypeLabel: 'IDVs' },
+        ],
+        '2021': [
+          { agencyId: 1, fiscalYear: 2021, obligatedAmount: 1000, quarter: 1, awardTypeLabel: 'Contracts' },
+          { agencyId: 1, fiscalYear: 2021, obligatedAmount: 2000, quarter: 1, awardTypeLabel: 'Grants' },
+          { agencyId: 1, fiscalYear: 2021, obligatedAmount: 3000, quarter: 1, awardTypeLabel: 'Direct Payments' },
+          { agencyId: 1, fiscalYear: 2021, obligatedAmount: 4000, quarter: 1, awardTypeLabel: 'Loans' },
+          { agencyId: 1, fiscalYear: 2021, obligatedAmount: 5000, quarter: 1, awardTypeLabel: 'IDVs' },
+        ],
+        '2022': [
+          { agencyId: 1, fiscalYear: 2022, obligatedAmount: 1000, quarter: 1, awardTypeLabel: 'Contracts' },
+          { agencyId: 1, fiscalYear: 2022, obligatedAmount: 2000, quarter: 1, awardTypeLabel: 'Grants' },
+          { agencyId: 1, fiscalYear: 2022, obligatedAmount: 3000, quarter: 1, awardTypeLabel: 'Direct Payments' },
+          { agencyId: 1, fiscalYear: 2022, obligatedAmount: 4000, quarter: 1, awardTypeLabel: 'Loans' },
+          { agencyId: 1, fiscalYear: 2022, obligatedAmount: 5000, quarter: 1, awardTypeLabel: 'IDVs' },
+        ],
+        '2023': [
+          { agencyId: 1, fiscalYear: 2023, obligatedAmount: 1000, quarter: 1, awardTypeLabel: 'Contracts' },
+          { agencyId: 1, fiscalYear: 2023, obligatedAmount: 2000, quarter: 1, awardTypeLabel: 'Grants' },
+          { agencyId: 1, fiscalYear: 2023, obligatedAmount: 3000, quarter: 1, awardTypeLabel: 'Direct Payments' },
+          { agencyId: 1, fiscalYear: 2023, obligatedAmount: 4000, quarter: 1, awardTypeLabel: 'Loans' },
+          { agencyId: 1, fiscalYear: 2023, obligatedAmount: 5000, quarter: 1, awardTypeLabel: 'IDVs' },
+        ],
+        '2024': [
+          { agencyId: 1, fiscalYear: 2024, obligatedAmount: 1000, quarter: 1, awardTypeLabel: 'Contracts' },
+          { agencyId: 1, fiscalYear: 2024, obligatedAmount: 2000, quarter: 1, awardTypeLabel: 'Grants' },
+          { agencyId: 1, fiscalYear: 2024, obligatedAmount: 3000, quarter: 1, awardTypeLabel: 'Direct Payments' },
+          { agencyId: 1, fiscalYear: 2024, obligatedAmount: 4000, quarter: 1, awardTypeLabel: 'Loans' },
+          { agencyId: 1, fiscalYear: 2024, obligatedAmount: 5000, quarter: 1, awardTypeLabel: 'IDVs' },
+        ],
       },
     },
     {
@@ -399,9 +429,17 @@ describe('SyncService', () => {
         return { status: 'success', rows };
       });
     } else if (method === 'syncAgenciesAndSpending' && expectedUpsertCalls.some(c => c.repoName === 'spending')) {
+      const awardLabels = ['Contracts', 'Grants', 'Direct Payments', 'Loans', 'IDVs'];
       usaService.fetchSpendingByAgency.mockImplementation(() => ({
         status: 'success',
-        rows: [{ id: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', obligatedAmount: 1000 }],
+        rows: awardLabels.map((label, idx) => ({
+          id: 0,
+          fiscalYear: 2024,
+          quarter: 1,
+          awardTypeLabel: label,
+          awardTypeCodes: label[0],
+          obligatedAmount: 1000 + idx,
+        })),
       }));
     }
 

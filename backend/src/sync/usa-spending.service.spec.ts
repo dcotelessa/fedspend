@@ -208,8 +208,10 @@ describe('UsaSpendingService', () => {
 
   describe('POST method usage', () => {
     it('uses POST for geography endpoint', async () => {
-      const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
-      fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+      const responses = AWARD_TYPES.map(() => ({ results: [], meta: { total: 0, page: 1, pageSize: 10 } }));
+      for (const resp of responses) {
+        fetchMock.mockResolvedValueOnce(createResponse(resp));
+      }
 
       await svc.fetchSpendingByAgency({
         toptierCode: '080',
@@ -266,20 +268,28 @@ describe('UsaSpendingService', () => {
         display_name: 'California', population: 39538223, per_capita: 5000.5,
         aggregated_amount: 1000.00,
       }];
-      const page2Rows: RawUsaSpendingGeoRow[] = [{
+
+      // 5 responses: page 1 triggers page 2 for first type, rest stop at page 1
+      const page1WithNext = createResponse({
+        results: page1Rows,
+        page_metadata: { has_next: true, page: 1 },
+      });
+      const page2Rows = [{
         shape_code: 'NY',
         display_data: { state: 'NY' },
         aggregated_amount: 2000.00,
       }];
-
-      fetchMock.mockResolvedValueOnce(createResponse({
-        results: page1Rows,
-        page_metadata: { has_next: true, page: 1 },
-      }));
-      fetchMock.mockResolvedValueOnce(createResponse({
+      const page2Stop = createResponse({
         results: page2Rows,
         page_metadata: { has_next: false, page: 2 },
-      }));
+      });
+      const remaining: Response[] = AWARD_TYPES.slice(1).map(() =>
+        createResponse({ results: page1Rows, page_metadata: { has_next: false, page: 1 } }),
+      );
+      const responses: Response[] = [page1WithNext, page2Stop, ...remaining];
+      for (const resp of responses) {
+        fetchMock.mockResolvedValueOnce(resp);
+      }
 
       const result = await svc.fetchSpendingByAgency({
         toptierCode: '080',
@@ -288,12 +298,12 @@ describe('UsaSpendingService', () => {
 
       expect(result).toBeDefined();
       if (result.status === 'success') {
-        expect(result.rows.length).toBe(2);
+        expect(result.rows.length).toBe(6);
         expect(result.rows[0].obligatedAmount).toBe(100000);
         expect(result.rows[1].obligatedAmount).toBe(200000);
       }
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(6);
       const secondCall = fetchMock.mock.calls[1];
       const secondBody = JSON.parse(secondCall[1].body as string);
       expect(secondBody.page).toBe(2);
@@ -314,9 +324,13 @@ describe('UsaSpendingService', () => {
         responses: [
           { status: 500 },
           { status: 200 },
+          { status: 200 },
+          { status: 200 },
+          { status: 200 },
+          { status: 200 },
         ],
         shouldSucceed: true,
-        expectedAttempts: 2,
+        expectedAttempts: 6,
       },
       {
         name: 'HTTP 500 thrice → throws after 3 attempts',
@@ -332,9 +346,13 @@ describe('UsaSpendingService', () => {
         name: 'HTTP 200 first try → no retry needed',
         responses: [
           { status: 200 },
+          { status: 200 },
+          { status: 200 },
+          { status: 200 },
+          { status: 200 },
         ],
         shouldSucceed: true,
-        expectedAttempts: 1,
+        expectedAttempts: 5,
       },
     ];
 
@@ -374,25 +392,44 @@ describe('UsaSpendingService', () => {
     });
   });
 
+  const AWARD_TYPES = ['Contracts', 'Grants', 'Direct Payments', 'Loans', 'IDVs'];
+  const AWARD_TYPE_TO_INDEX: Record<string, number> = {
+    'Contracts': 0,
+    'Grants': 1,
+    'Direct Payments': 2,
+    'Loans': 3,
+    'IDVs': 4,
+  };
+
   interface FetchSpendingByAgencyTestCase {
     name: string;
     toptierCode: string;
     fiscalYear: number;
-    responseBody: unknown;
+    responses: Record<string, unknown>[];
     expectedStatus: string;
     expectedUrl?: string;
     expectedBody?: Record<string, unknown>;
     expectedRowCount?: number;
+    expectedLabels?: string[];
+    expectedCallIndex?: number;
   }
 
   const spendingByAgencyTable: FetchSpendingByAgencyTestCase[] = [
     {
-      name: 'includes toptier_code in awarding_agencies filter',
+      name: 'iterates over all AWARD_TYPES sending one filter per type',
       toptierCode: '097',
       fiscalYear: 2024,
-      responseBody: { results: [] },
+      responses: AWARD_TYPES.map(t => ({ results: [] })),
       expectedStatus: 'not_found',
       expectedUrl: '/search/spending_by_geography/',
+      expectedRowCount: 0,
+    },
+    {
+      name: 'sends filters.award_type = C for Contracts',
+      toptierCode: '097',
+      fiscalYear: 2024,
+      responses: AWARD_TYPES.map(() => ({ results: [] })),
+      expectedStatus: 'not_found',
       expectedBody: {
         filters: {
           time_period: [{
@@ -403,20 +440,110 @@ describe('UsaSpendingService', () => {
             toptier_code: '097',
             tier: 'toptier',
           }],
+          award_type: 'C',
         },
         geo_layer: 'state',
       },
+      expectedCallIndex: 0,
+    },
+    {
+      name: 'sends filters.award_type = G for Grants',
+      toptierCode: '097',
+      fiscalYear: 2024,
+      responses: AWARD_TYPES.map(() => ({ results: [] })),
+      expectedStatus: 'not_found',
+      expectedBody: {
+        filters: {
+          time_period: [{
+            start_date: '2024-10-01',
+            end_date: '2025-09-30',
+          }],
+          awarding_agencies: [{
+            toptier_code: '097',
+            tier: 'toptier',
+          }],
+          award_type: 'G',
+        },
+        geo_layer: 'state',
+      },
+      expectedCallIndex: 1,
+    },
+    {
+      name: 'sends filters.award_type = DP for Direct Payments',
+      toptierCode: '097',
+      fiscalYear: 2024,
+      responses: AWARD_TYPES.map(() => ({ results: [] })),
+      expectedStatus: 'not_found',
+      expectedBody: {
+        filters: {
+          time_period: [{
+            start_date: '2024-10-01',
+            end_date: '2025-09-30',
+          }],
+          awarding_agencies: [{
+            toptier_code: '097',
+            tier: 'toptier',
+          }],
+          award_type: 'DP',
+        },
+        geo_layer: 'state',
+      },
+      expectedCallIndex: 2,
+    },
+    {
+      name: 'sends filters.award_type = L for Loans',
+      toptierCode: '097',
+      fiscalYear: 2024,
+      responses: AWARD_TYPES.map(() => ({ results: [] })),
+      expectedStatus: 'not_found',
+      expectedBody: {
+        filters: {
+          time_period: [{
+            start_date: '2024-10-01',
+            end_date: '2025-09-30',
+          }],
+          awarding_agencies: [{
+            toptier_code: '097',
+            tier: 'toptier',
+          }],
+          award_type: 'L',
+        },
+        geo_layer: 'state',
+      },
+      expectedCallIndex: 3,
+    },
+    {
+      name: 'sends filters.award_type = I for IDVs',
+      toptierCode: '097',
+      fiscalYear: 2024,
+      responses: AWARD_TYPES.map(() => ({ results: [] })),
+      expectedStatus: 'not_found',
+      expectedBody: {
+        filters: {
+          time_period: [{
+            start_date: '2024-10-01',
+            end_date: '2025-09-30',
+          }],
+          awarding_agencies: [{
+            toptier_code: '097',
+            tier: 'toptier',
+          }],
+          award_type: 'I',
+        },
+        geo_layer: 'state',
+      },
+      expectedCallIndex: 4,
     },
     {
       name: 'returns success with rows and total when data exists',
       toptierCode: '080',
       fiscalYear: 2025,
-      responseBody: {
+      responses: [{
         results: [
           { shape_code: 'CA', aggregated_amount: 1234.56 },
           { shape_code: 'NY', aggregated_amount: 789.01 },
         ],
-      },
+      }, ...Array(4).fill({ results: [] })],
       expectedStatus: 'success',
       expectedUrl: '/search/spending_by_geography/',
       expectedRowCount: 2,
@@ -425,7 +552,7 @@ describe('UsaSpendingService', () => {
       name: 'sets fiscal year time period from input',
       toptierCode: '049',
       fiscalYear: 2023,
-      responseBody: { results: [] },
+      responses: AWARD_TYPES.map(() => ({ results: [] })),
       expectedStatus: 'not_found',
       expectedBody: {
         filters: {
@@ -437,27 +564,50 @@ describe('UsaSpendingService', () => {
             toptier_code: '049',
             tier: 'toptier',
           }],
+          award_type: 'C',
         },
         geo_layer: 'state',
       },
+      expectedCallIndex: 0,
     },
     {
       name: 'uses recipient_location as scope',
       toptierCode: '019',
       fiscalYear: 2024,
-      responseBody: { results: [] },
+      responses: AWARD_TYPES.map(() => ({ results: [] })),
       expectedStatus: 'not_found',
       expectedUrl: '/search/spending_by_geography/',
     },
+    {
+      name: 'stamps each row with the correct awardTypeLabel from the award type',
+      toptierCode: '080',
+      fiscalYear: 2024,
+      responses: AWARD_TYPES.map((type, idx) => ({
+        results: [
+          { shape_code: 'CA', aggregated_amount: 100 + idx },
+        ],
+      })),
+      expectedStatus: 'success',
+      expectedRowCount: 5,
+      expectedLabels: ['Contracts', 'Grants', 'Direct Payments', 'Loans', 'IDVs'],
+    },
   ];
 
-  it.each(spendingByAgencyTable)('$name', async ({ toptierCode, fiscalYear, responseBody, expectedStatus, expectedUrl, expectedBody, expectedRowCount }) => {
-    fetchMock.mockResolvedValueOnce(createResponse(responseBody));
+  it.each(spendingByAgencyTable)('$name', async ({ toptierCode, fiscalYear, responses, expectedStatus, expectedUrl, expectedBody, expectedRowCount, expectedLabels, expectedCallIndex }) => {
+    for (const resp of responses) {
+      fetchMock.mockResolvedValueOnce(createResponse(resp));
+    }
 
     const result = await svc.fetchSpendingByAgency({ toptierCode, fiscalYear });
 
     expect(result).toBeDefined();
-    const call = fetchMock.mock.calls[0];
+
+    let call: any;
+    if (expectedCallIndex !== undefined) {
+      call = fetchMock.mock.calls[expectedCallIndex];
+    } else {
+      call = fetchMock.mock.calls[0];
+    }
     const body = JSON.parse(call[1].body as string);
 
     if (expectedUrl) {
@@ -482,6 +632,12 @@ describe('UsaSpendingService', () => {
       }
     } else {
       expect(result.status).toBe('not_found');
+    }
+
+    if (expectedLabels) {
+      for (let i = 0; i < expectedLabels.length && i < result.rows.length; i++) {
+        expect(result.rows[i].awardTypeLabel).toBe(expectedLabels[i]);
+      }
     }
   });
 
