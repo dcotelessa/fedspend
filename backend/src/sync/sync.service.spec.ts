@@ -10,6 +10,7 @@ import { GeoSpendingSnapshot } from '../geography/geo-spending-snapshot.entity';
 import { DisasterFundingRecord } from '../disaster/disaster-funding-record.entity';
 import { DisasterRecoveryRatio } from '../disaster/disaster-recovery-ratio.entity';
 import { StateAggregationResult } from './openfema.service';
+import { SPENDING_FISCAL_YEARS, SPENDING_AGENCY_SYNC_LIMIT } from './sync.constants';
 
 describe('SyncService', () => {
   let service: SyncService;
@@ -37,8 +38,21 @@ describe('SyncService', () => {
     expectedGeoSaveCount?: number;
     expectedTotalGeoRows?: number;
     expectedSpendingDeleteCount?: number;
+    expectedSpendingDeleteArgs?: Array<{ agencyId: number; fiscalYear: number }>;
     expectedSpendingUpsertedRows?: Record<string, any[]>;
   }
+
+  const twoAgencyDeleteArgs = [
+    ...SPENDING_FISCAL_YEARS.map(year => ({ agencyId: 7, fiscalYear: year })),
+    ...SPENDING_FISCAL_YEARS.map(year => ({ agencyId: 9, fiscalYear: year })),
+  ];
+
+  const twentyFiveAgencies = Array.from({ length: 25 }, (_, index) => ({
+    id: index + 1,
+    name: `Agency ${index + 1}`,
+    abbreviation: `A${index + 1}`,
+    toptierCode: `${index + 1}`,
+  }));
 
   const testTable: TestCase[] = [
     {
@@ -96,6 +110,30 @@ describe('SyncService', () => {
         { repoName: 'spending', count: 5 },
       ],
       expectedSpendingDeleteCount: 5,
+    },
+    {
+      name: 'syncAgenciesAndSpending scopes each delete by both agencyId and fiscalYear across agencies and years',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'success', agencies: [
+        { id: 7, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
+        { id: 9, name: 'GSA', abbreviation: 'GSA', toptierCode: '047' },
+      ]},
+      expectedUpsertCalls: [
+        { repoName: 'agency', count: 2 },
+        { repoName: 'spending', count: 10 },
+      ],
+      expectedSpendingDeleteCount: 10,
+      expectedSpendingDeleteArgs: twoAgencyDeleteArgs,
+    },
+    {
+      name: 'syncAgenciesAndSpending syncs spending for at most SPENDING_AGENCY_SYNC_LIMIT agencies while upserting every fetched agency',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'success', agencies: twentyFiveAgencies },
+      expectedUpsertCalls: [
+        { repoName: 'agency', count: 25 },
+        { repoName: 'spending', count: SPENDING_AGENCY_SYNC_LIMIT * SPENDING_FISCAL_YEARS.length },
+      ],
+      expectedSpendingDeleteCount: SPENDING_AGENCY_SYNC_LIMIT * SPENDING_FISCAL_YEARS.length,
     },
     {
       name: 'syncAgenciesAndSpending upserts spending records with correct fiscalYear for each year',
@@ -324,6 +362,7 @@ describe('SyncService', () => {
     expectedGeoSaveCount,
     expectedTotalGeoRows,
     expectedSpendingDeleteCount,
+    expectedSpendingDeleteArgs,
     expectedSpendingUpsertedRows,
   }) => {
     usaService.fetchAgencies.mockResolvedValue({ status: 'not_found' });
@@ -406,6 +445,13 @@ describe('SyncService', () => {
 
     if (expectedSpendingDeleteCount !== undefined) {
       expect(spendingRepo.delete).toHaveBeenCalledTimes(expectedSpendingDeleteCount);
+    }
+
+    if (expectedSpendingDeleteArgs) {
+      expect(spendingRepo.delete).toHaveBeenCalledTimes(expectedSpendingDeleteArgs.length);
+      for (const call of spendingRepo.delete.mock.calls) {
+        expect(expectedSpendingDeleteArgs).toContainEqual(call[0]);
+      }
     }
   });
 

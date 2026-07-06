@@ -10,7 +10,7 @@ import { UsaSpendingService } from './usa-spending.service';
 import { OpenFemaService } from './openfema.service';
 import { computeRecoveryRatio } from './recovery-ratio';
 import { Cron } from '@nestjs/schedule';
-import { GEO_FISCAL_YEARS, SPENDING_FISCAL_YEARS } from './sync.constants';
+import { GEO_FISCAL_YEARS, SPENDING_FISCAL_YEARS, SPENDING_AGENCY_SYNC_LIMIT } from './sync.constants';
 const SYNC_DEF_GROUP = 'L';
 
 const AGENCIES_AND_SPENDING = 'agencies_and_spending';
@@ -66,7 +66,7 @@ export class SyncService {
       }
 
       const agenciesList = agenciesResult.status === 'success'
-        ? agenciesResult.agencies.slice(0, 20)
+        ? agenciesResult.agencies.slice(0, SPENDING_AGENCY_SYNC_LIMIT)
         : [];
 
       await Promise.all(SPENDING_FISCAL_YEARS.map(async (year) => {

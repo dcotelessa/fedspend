@@ -15,6 +15,8 @@ export const SPENDING_FISCAL_YEARS = [
   2024,
 ];
 
+export const SPENDING_AGENCY_SYNC_LIMIT = 20;
+
 export const GEO_FISCAL_YEARS = [
   2020,
   2021,

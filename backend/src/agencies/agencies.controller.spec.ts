@@ -20,13 +20,16 @@ describe('AgenciesController', () => {
   describe('list', () => {
     interface TestCase {
       name: string;
+      fiscalYear?: string;
+      expectedFy?: number;
       serviceReturn: ApiResponse<{ id: number; name: string; totalCents: number }[]>;
       expected: ApiResponse<{ id: number; name: string; totalCents: number }[]>;
     }
 
     const testTable: TestCase[] = [
       {
-        name: 'returns paginated ApiResponse with agency list',
+        name: 'returns paginated ApiResponse with agency list when no fiscalYear param is supplied',
+        expectedFy: undefined,
         serviceReturn: {
           data: [
             { id: 1, name: 'Agency A', totalCents: 300000 },
@@ -40,12 +43,42 @@ describe('AgenciesController', () => {
           meta: { total: 6, page: 1, pageSize: 6 },
         },
       },
+      {
+        name: 'passes a numeric fiscalYear query param through to the service',
+        fiscalYear: '2023',
+        expectedFy: 2023,
+        serviceReturn: {
+          data: [
+            { id: 1, name: 'Agency A', totalCents: 300000 },
+          ],
+          meta: { total: 6, page: 1, pageSize: 6 },
+        },
+        expected: {
+          data: [
+            { id: 1, name: 'Agency A', totalCents: 300000 },
+          ],
+          meta: { total: 6, page: 1, pageSize: 6 },
+        },
+      },
+      {
+        name: 'omits fiscalYear when the query param is an empty string',
+        fiscalYear: '',
+        expectedFy: undefined,
+        serviceReturn: {
+          data: [],
+          meta: { total: 0, page: 1, pageSize: 0 },
+        },
+        expected: {
+          data: [],
+          meta: { total: 0, page: 1, pageSize: 0 },
+        },
+      },
     ];
 
-    it.each(testTable)('$name', async ({ serviceReturn, expected }) => {
+    it.each(testTable)('$name', async ({ fiscalYear, expectedFy, serviceReturn, expected }) => {
       service.findAllWithTotals.mockResolvedValue(serviceReturn);
-      const result = await controller.list();
-      expect(service.findAllWithTotals).toHaveBeenCalled();
+      const result = await controller.list(fiscalYear);
+      expect(service.findAllWithTotals).toHaveBeenCalledWith(expectedFy);
       expect(result).toEqual(expected);
     });
   });
