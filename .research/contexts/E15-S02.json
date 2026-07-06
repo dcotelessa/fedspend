@@ -1,0 +1,201 @@
+{
+  "story": "E15-S02",
+  "epic": "E15",
+  "title": "Agencies: multi-year spending sync (2020-2024) + ?fiscalYear on GET /agencies",
+  "goal": "spending_record only contains FY2024 because syncAgenciesAndSpending hardcodes SYNC_FISCAL_YEAR = 2024, so the Agency Spotlight multi-year UI (From/To selectors, Spending-by-FY chart) only ever surfaces one year and the breakdown table collapses. Mirror the Geography E14-S07 multi-year pattern: loop spending sync over SPENDING_FISCAL_YEARS [2020..2024] and let GET /agencies accept an optional fiscalYear so the list page can reflect a chosen year.",
+  "notes": "Mirror of E14-S07 (geography multi-year). Leave GEO_FISCAL_YEARS and SYNC_FISCAL_YEAR untouched. The per-(agencyId,fiscalYear) delete before save must scope by both columns so clearing one year does not wipe another - the SpendingRecord @Unique([agencyId,fiscalYear,quarter,awardTypeLabel]) gives a clean conflict target. After deploy, trigger /sync to backfill 2020-2023 (~20 agencies x 4 years = 80 fetches, one-time). findAllWithTotals default stays currentFiscalYear() so the agency-list page (which passes no param) is unaffected; the param is opt-in for future FY-selector stories. currentFiscalYear() fallback is 2024 (agencies.service.ts:77) which matches the synced year - keep as-is.",
+  "dependencies": "",
+  "acceptanceCriteria": [
+    {
+      "text": "SPENDING_FISCAL_YEARS is exported from sync.constants.ts",
+      "check": "cd backend && grep -q 'SPENDING_FISCAL_YEARS' src/sync/sync.constants.ts"
+    },
+    {
+      "text": "syncAgenciesAndSpending iterates a year array (not a single const)",
+      "check": "cd backend && grep -A40 'async syncAgenciesAndSpending' src/sync/sync.service.ts | grep -q 'SPENDING_FISCAL_YEARS'"
+    },
+    {
+      "text": "findAllWithTotals accepts an optional fiscalYear parameter",
+      "check": "cd backend && grep -A3 'findAllWithTotals' src/agencies/agencies.service.ts | grep -q 'fiscalYear'"
+    },
+    {
+      "text": "agencies controller forwards the fiscalYear query param",
+      "check": "cd backend && grep -q 'fiscalYear' src/agencies/agencies.controller.ts"
+    },
+    {
+      "text": "sync.service.spec.ts passes (table-driven: multi-year spending loop)",
+      "check": "cd backend && pnpm test --testPathPatterns=sync.service --passWithNoTests"
+    },
+    {
+      "text": "agencies.service.spec.ts passes (findAllWithTotals honors fiscalYear)",
+      "check": "cd backend && pnpm test --testPathPatterns=agencies.service --passWithNoTests"
+    },
+    {
+      "text": "backend builds cleanly",
+      "check": "cd backend && pnpm build"
+    },
+    {
+      "text": "backend full test suite green",
+      "check": "cd backend && pnpm test --passWithNoTests"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/sync/sync.constants.ts",
+      "mode": "slice",
+      "start": 1,
+      "end": 5,
+      "reason": "add SPENDING_FISCAL_YEARS = [2020,2021,2022,2023,2024] export.",
+      "excerpt": "   1: export const TRACKED_AGENCIES = [\n   2:   { abbreviation: 'NASA', id: '080' },\n   3:   { abbreviation: 'GSA', id: '047' },\n   4:   { abbreviation: 'OPM', id: '024' },\n   5:   { abbreviation: 'LOC', id: '036' },\n   6:   { abbreviation: 'HHS', id: '075' },\n   7:   { abbreviation: 'FDIC', id: '581' },"
+    },
+    {
+      "path": "backend/src/sync/sync.service.ts",
+      "mode": "slice",
+      "start": 14,
+      "end": 16,
+      "reason": "import SPENDING_FISCAL_YEARS.",
+      "excerpt": "  12: import { Cron } from '@nestjs/schedule';\n  13: import { GEO_FISCAL_YEARS } from './sync.constants';\n  14: \n  15: const SYNC_FISCAL_YEAR = 2024;\n  16: const SYNC_DEF_GROUP = 'L';\n  17: \n  18: const AGENCIES_AND_SPENDING = 'agencies_and_spending';"
+    },
+    {
+      "path": "backend/src/sync/sync.service.ts",
+      "mode": "slice",
+      "start": 70,
+      "end": 90,
+      "reason": "syncAgenciesAndSpending - wrap the per-agency fetchSpendingByAgency+upsert in an outer loop over SPENDING_FISCAL_YEARS; delete-by-(agencyId,fiscalYear) before save to stay idempotent (mirror Geography clear-then-insert).",
+      "excerpt": "  68:       }\n  69: \n  70:       const agenciesList = agenciesResult.status === 'success'\n  71:         ? agenciesResult.agencies.slice(0, 20)\n  72:         : [];\n  73: \n  74:       await Promise.all(agenciesList.map(async (agency) => {\n  75:         const spendingResult = await this.usaService.fetchSpendingByAgency({\n  76:           toptierCode: agency.toptierCode || '',\n  77:           fiscalYear: SYNC_FISCAL_YEAR,\n  78:         });\n  79:         if (spendingResult.status === 'success') {\n  80:           for (const record of spendingResult.rows) {\n  81:             await this.spendingRepo.upsert({ ...record, agencyId: agency.id }, [\n  82:               'agencyId',\n  83:               'fiscalYear',\n  84:               'quarter',\n  85:               'awardTypeLabel',\n  86:             ]);\n  87:           }\n  88:         }\n  89:       }));\n  90:     });\n  91:   }\n  92: "
+    },
+    {
+      "path": "backend/src/sync/sync.service.spec.ts",
+      "mode": "full",
+      "contents": "import { Test, TestingModule } from '@nestjs/testing';\nimport { getRepositoryToken } from '@nestjs/typeorm';\nimport { Repository } from 'typeorm';\nimport { SyncService } from './sync.service';\nimport { UsaSpendingService } from './usa-spending.service';\nimport { OpenFemaService } from './openfema.service';\nimport { Agency } from '../agencies/agency.entity';\nimport { SpendingRecord } from '../spending/spending-record.entity';\nimport { GeoSpendingSnapshot } from '../geography/geo-spending-snapshot.entity';\nimport { DisasterFundingRecord } from '../disaster/disaster-funding-record.entity';\nimport { DisasterRecoveryRatio } from '../disaster/disaster-recovery-ratio.entity';\nimport { StateAggregationResult } from './openfema.service';\n\ndescribe('SyncService', () => {\n  let service: SyncService;\n  let agencyRepo: { upsert: jest.Mock; createQueryBuilder: jest.Mock };\n  let spendingRepo: { upsert: jest.Mock };\n  let geoRepo: { delete: jest.Mock; save: jest.Mock };\n  let disasterRepo: { upsert: jest.Mock };\n  let ratioRepo: { upsert: jest.Mock };\n  let usaService: UsaSpendingService;\n  let femaService: OpenFemaService;\n\n  interface TestCase {\n    name: string;\n    method: string;\n    agencyFetchResult?: { status: string; agencies?: any[] };\n    spendingFetchResults?: { status: string; rows?: any[]; total?: number }[];\n    geoFetchResult?: { status: string; rows?: any[] };\n    geoFetchSequence?: { status: string; rows?: any[] }[];\n    agenciesWithSpending?: any[];\n    disasterFetchResult?: { status: string; rows?: any[] };\n    femaFetchResult?: StateAggregationResult[];\n    expectedUpsertCalls: { repoName: string; count: number }[];\n    expectedRepoData?: Record<string, any[]>;\n    expectedGeoDeleteCount?: number;\n    expectedGeoSaveCount?: number;\n    expectedTotalGeoRows?: number;\n  }\n\n  const testTable: TestCase[] = [\n    {\n      name: 'syncAgenciesAndSpending upserts a new agency',\n      method: 'syncAgenciesAndSpending',\n      agencyFetchResult: { status: 'success', agencies: [\n        { id: 0, name: 'Test Agency', abbreviation: 'TA', toptierCode: 'ABC' }\n      ]},\n      spendingFetchResults: [{ status: 'not_found' }],\n      expectedUpsertCalls: [{ repoName: 'agency', count: 1 }],\n      expectedRepoData: {\n        agency: [{ name: 'Test Agency', toptierCode: 'ABC' }],\n      },\n    },\n    {\n      name: 'syncAgenciesAndSpending upserts an existing agency',\n      method: 'syncAgenciesAndSpending',\n      agencyFetchResult: { status: 'success', agencies: [\n        { id: 1, name: 'Updated Agency', abbreviation: 'UA', toptierCode: 'ABC' }\n      ]},\n      spendingFetchResults: [{ status: 'not_found' }],\n      expectedUpsertCalls: [{ repoName: 'agency', count: 1 }],\n      expectedRepoData: {\n        agency: [{ name: 'Updated Agency', toptierCode: 'ABC' }],\n      },\n    },\n    {\n      name: 'syncAgenciesAndSpending loops through agencies and upserts spending per agency',\n      method: 'syncAgenciesAndSpending',\n      agencyFetchResult: { status: 'success', agencies: [\n        { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },\n        { id: 2, name: 'DOE', abbreviation: 'DOE', toptierCode: '097' },\n      ]},\n      spendingFetchResults: [\n        { status: 'success', rows: [\n          { id: 0, agencyId: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', awardTypeCodes: '', obligatedAmount: 1000, outlayAmount: 0, awardCount: 0 }\n        ], total: 1},\n        { status: 'success', rows: [\n          { id: 0, agencyId: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', awardTypeCodes: '', obligatedAmount: 2000, outlayAmount: 0, awardCount: 0 }\n        ], total: 1},\n      ],\n      expectedUpsertCalls: [\n        { repoName: 'agency', count: 2 },\n        { repoName: 'spending', count: 2 },\n      ],\n      expectedRepoData: {\n        agency: [\n          { name: 'NASA', toptierCode: '080' },\n          { name: 'DOE', toptierCode: '097' },\n        ],\n        spending: [\n          { agencyId: 1, fiscalYear: 2024, awardTypeLabel: 'Total', obligatedAmount: 1000 },\n          { agencyId: 2, fiscalYear: 2024, awardTypeLabel: 'Total', obligatedAmount: 2000 },\n        ],\n      },\n    },\n    {\n      name: 'syncGeography loops years × recipient/performance scopes × rollup target, all succeed',\n      method: 'syncGeography',\n      geoFetchResult: { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },\n      expectedUpsertCalls: [],\n      expectedGeoDeleteCount: 10,\n      expectedGeoSaveCount: 10,\n      expectedTotalGeoRows: 10,\n    },\n    {\n      name: 'syncGeography skips delete+save when every fetch returns not_found',\n      method: 'syncGeography',\n      geoFetchResult: { status: 'not_found' },\n      expectedUpsertCalls: [],\n      expectedGeoDeleteCount: 0,\n      expectedGeoSaveCount: 0,\n    },\n    {\n      name: 'syncGeography discovers agencies-with-spending and syncs rollup + each across years and scopes',\n      method: 'syncGeography',\n      agenciesWithSpending: [{ id: 30, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }],\n      geoFetchResult: { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },\n      expectedUpsertCalls: [],\n      expectedGeoDeleteCount: 20,\n      expectedGeoSaveCount: 20,\n      expectedTotalGeoRows: 20,\n    },\n    {\n      name: 'syncDisaster upserts a new disaster funding record',\n      method: 'syncDisaster',\n      disasterFetchResult: { status: 'success', rows: [\n        { id: 0, defGroup: 'JF-3038', defCodes: 'JF-3038', stateCode: 'CA', stateName: 'California', obligatedAmount: 10000, outlayAmount: 8000, awardCount: 5, perCapita: 0, population: 0 }\n      ]},\n      femaFetchResult: [],\n      expectedUpsertCalls: [{ repoName: 'disaster', count: 1 }],\n      expectedRepoData: {\n        disaster: [{ defGroup: 'JF-3038', stateCode: 'CA' }],\n      },\n    },\n    {\n      name: 'syncDisaster stores recovery ratio when no federal spending exists for the state',\n      method: 'syncDisaster',\n      disasterFetchResult: { status: 'success', rows: [] },\n      femaFetchResult: [\n        { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }\n      ],\n      expectedUpsertCalls: [{ repoName: 'ratio', count: 1 }],\n      expectedRepoData: {\n        ratio: [{ stateCode: 'CA', recoveryRatio: 0, fedSpendingObligated: 0, femaObligated: 5000 }],\n      },\n    },\n    {\n      name: 'syncDisaster aggregates federal spending per state and computes the recovery ratio',\n      method: 'syncDisaster',\n      disasterFetchResult: { status: 'success', rows: [\n        { id: 0, defGroup: 'JF-3038', defCodes: 'JF-3038', stateCode: 'CA', stateName: 'California', obligatedAmount: 10000, outlayAmount: 8000, awardCount: 5, perCapita: 0, population: 0 }\n      ]},\n      femaFetchResult: [\n        { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }\n      ],\n      expectedUpsertCalls: [\n        { repoName: 'disaster', count: 1 },\n        { repoName: 'ratio', count: 1 },\n      ],\n      expectedRepoData: {\n        disaster: [{ defGroup: 'JF-3038', stateCode: 'CA' }],\n        ratio: [{ stateCode: 'CA', recoveryRatio: 2, fedSpendingObligated: 10000, femaObligated: 5000 }],\n      },\n    },\n    {\n      name: 'syncAll orchestrates all methods',\n      method: 'syncAll',\n      agencyFetchResult: { status: 'success', agencies: [\n        { id: 0, name: 'Test Agency', abbreviation: 'TA', toptierCode: 'ABC' }\n      ]},\n      spendingFetchResults: [{ status: 'not_found' }],\n      geoFetchResult: { status: 'success', rows: [\n        { id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: 1, scope: 'recipient', obligatedAmount: 5000, awardCount: 3, population: 1000, perCapita: 5 }\n      ]},\n      disasterFetchResult: { status: 'success', rows: [] },\n      femaFetchResult: [\n        { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }\n      ],\n      expectedUpsertCalls: [\n        { repoName: 'agency', count: 1 },\n        { repoName: 'ratio', count: 1 },\n      ],\n      expectedRepoData: {\n        agency: [{ name: 'Test Agency' }],\n        ratio: [{ stateCode: 'CA' }],\n      },\n      expectedGeoDeleteCount: 10,\n      expectedGeoSaveCount: 10,\n      expectedTotalGeoRows: 10,\n    },\n    {\n      name: 'syncAgenciesAndSpending empty agency list — nothing to process',\n      method: 'syncAgenciesAndSpending',\n      agencyFetchResult: { status: 'success', agencies: [] },\n      expectedUpsertCalls: [{ repoName: 'agency', count: 0 }],\n    },\n    {\n      name: 'syncAgenciesAndSpending skips spending when agency fetch fails',\n      method: 'syncAgenciesAndSpending',\n      agencyFetchResult: { status: 'not_found' },\n      expectedUpsertCalls: [],\n    },\n    {\n      name: 'syncGeography partial failure — skips delete+save for not_found year/scope combos',\n      method: 'syncGeography',\n      geoFetchSequence: [\n        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2020, agencyId: null, scope: 'recipient', obligatedAmount: 10000, awardCount: 10, population: 4000000, perCapita: 2500 }] },\n        { status: 'not_found' },\n        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2022, agencyId: null, scope: 'recipient', obligatedAmount: 14000, awardCount: 14, population: 4000000, perCapita: 3500 }] },\n        { status: 'not_found' },\n        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 18000, awardCount: 18, population: 4000000, perCapita: 4500 }] },\n        { status: 'not_found' },\n        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2021, agencyId: null, scope: 'recipient', obligatedAmount: 12000, awardCount: 12, population: 4000000, perCapita: 3000 }] },\n        { status: 'not_found' },\n        { status: 'success', rows: [{ id: 0, stateCode: 'CA', stateName: 'California', fiscalYear: 2023, agencyId: null, scope: 'recipient', obligatedAmount: 16000, awardCount: 16, population: 4000000, perCapita: 4000 }] },\n        { status: 'not_found' },\n      ],\n      expectedUpsertCalls: [],\n      expectedGeoDeleteCount: 5,\n      expectedGeoSaveCount: 5,\n      expectedTotalGeoRows: 5,\n    },\n    {\n      name: 'syncGeography empty results — delete runs but save receives empty arrays',\n      method: 'syncGeography',\n      geoFetchResult: { status: 'success', rows: [] },\n      expectedUpsertCalls: [],\n      expectedGeoDeleteCount: 10,\n      expectedGeoSaveCount: 10,\n      expectedTotalGeoRows: 0,\n    },\n    {\n      name: 'syncDisaster recoveryRatio = 1.0 when both fema and fed are zero',\n      method: 'syncDisaster',\n      disasterFetchResult: { status: 'success', rows: [] },\n      femaFetchResult: [\n        { stateCode: 'AK', stateName: 'Alaska', fiscalYear: 2024, femaObligatedCents: 0, declarationCount: 1, dominantIncidentType: 'Wildfire' }\n      ],\n      expectedUpsertCalls: [{ repoName: 'ratio', count: 1 }],\n      expectedRepoData: {\n        ratio: [{ stateCode: 'AK', recoveryRatio: 1.0, fedSpendingObligated: 0, femaObligated: 0 }],\n      },\n    },\n  ];\n\n  beforeEach(async () => {\n    const mockAgencyRepo = { upsert: jest.fn(), createQueryBuilder: jest.fn() };\n    const mockSpendingRepo = { upsert: jest.fn() };\n    const mockGeoRepo = { delete: jest.fn().mockResolvedValue(undefined), save: jest.fn().mockResolvedValue(undefined) };\n    const mockDisasterRepo = { upsert: jest.fn() };\n    const mockRatioRepo = { upsert: jest.fn() };\n    const mockUsaService = {\n      fetchAgencies: jest.fn(),\n      fetchSpendingByAgency: jest.fn(),\n      fetchGeoSnapshots: jest.fn(),\n      fetchDisasterSpending: jest.fn(),\n    };\n    const mockFemaService = {\n      fetchDeclarationsByState: jest.fn(),\n    };\n\n    const module: TestingModule = await Test.createTestingModule({\n      providers: [\n        SyncService,\n        { provide: getRepositoryToken(Agency), useValue: mockAgencyRepo },\n        { provide: getRepositoryToken(SpendingRecord), useValue: mockSpendingRepo },\n        { provide: getRepositoryToken(GeoSpendingSnapshot), useValue: mockGeoRepo },\n        { provide: getRepositoryToken(DisasterFundingRecord), useValue: mockDisasterRepo },\n        { provide: getRepositoryToken(DisasterRecoveryRatio), useValue: mockRatioRepo },\n        { provide: UsaSpendingService, useValue: mockUsaService },\n        { provide: OpenFemaService, useValue: mockFemaService },\n      ],\n    }).compile();\n\n    service = module.get<SyncService>(SyncService);\n    agencyRepo = module.get(getRepositoryToken(Agency));\n    spendingRepo = module.get(getRepositoryToken(SpendingRecord));\n    geoRepo = module.get(getRepositoryToken(GeoSpendingSnapshot));\n    disasterRepo = module.get(getRepositoryToken(DisasterFundingRecord));\n    ratioRepo = module.get(getRepositoryToken(DisasterRecoveryRatio));\n    usaService = module.get<UsaSpendingService>(UsaSpendingService);\n    femaService = module.get<OpenFemaService>(OpenFemaService);\n  });\n\n  afterEach(() => {\n    jest.clearAllMocks();\n  });\n\n  it.each(testTable)('$name', async ({\n    method,\n    agencyFetchResult,\n    spendingFetchResults,\n    geoFetchResult,\n    geoFetchSequence,\n    agenciesWithSpending,\n    disasterFetchResult,\n    femaFetchResult,\n    expectedUpsertCalls,\n    expectedRepoData,\n    expectedGeoDeleteCount,\n    expectedGeoSaveCount,\n    expectedTotalGeoRows,\n  }) => {\n    usaService.fetchAgencies.mockResolvedValue({ status: 'not_found' });\n    usaService.fetchSpendingByAgency.mockResolvedValue({ status: 'not_found' });\n    usaService.fetchGeoSnapshots.mockResolvedValue({ status: 'not_found' });\n    usaService.fetchDisasterSpending.mockResolvedValue({ status: 'not_found' });\n    femaService.fetchDeclarationsByState.mockResolvedValue([]);\n\n    if (agencyFetchResult) usaService.fetchAgencies.mockResolvedValue(agencyFetchResult);\n    if (spendingFetchResults) {\n      for (const r of spendingFetchResults) {\n        usaService.fetchSpendingByAgency.mockResolvedValueOnce(r);\n      }\n    }\n    if (geoFetchResult) usaService.fetchGeoSnapshots.mockResolvedValue(geoFetchResult);\n    if (geoFetchSequence) {\n      for (const r of geoFetchSequence) {\n        usaService.fetchGeoSnapshots.mockResolvedValueOnce(r);\n      }\n    }\n    if (disasterFetchResult) usaService.fetchDisasterSpending.mockResolvedValue(disasterFetchResult);\n    if (femaFetchResult) femaService.fetchDeclarationsByState.mockResolvedValue(femaFetchResult);\n\n    const qb = {\n      innerJoin: jest.fn().mockReturnThis(),\n      getMany: jest.fn().mockResolvedValue(agenciesWithSpending ?? []),\n    };\n    agencyRepo.createQueryBuilder.mockReturnValue(qb);\n\n    await (service as Record<string, unknown>)[method]();\n\n    for (const call of expectedUpsertCalls) {\n      const repo = getRepo(call.repoName);\n      const upsertCalls = (repo.upsert as jest.Mock).mock.calls;\n      expect(upsertCalls.length).toBe(call.count);\n    }\n\n    if (expectedRepoData) {\n      for (const [repoName, expectedData] of Object.entries(expectedRepoData)) {\n        const repo = getRepo(repoName);\n        const upsertCalls = (repo.upsert as jest.Mock).mock.calls;\n        for (let i = 0; i < upsertCalls.length; i++) {\n          const upserted = upsertCalls[i][0];\n          const expected = (expectedData as any[])[i];\n          for (const [key, value] of Object.entries(expected)) {\n            expect(upserted[key]).toBe(value);\n          }\n        }\n      }\n    }\n\n    if (expectedGeoDeleteCount !== undefined) {\n      expect(geoRepo.delete).toHaveBeenCalledTimes(expectedGeoDeleteCount);\n    }\n\n    if (expectedGeoSaveCount !== undefined) {\n      expect(geoRepo.save).toHaveBeenCalledTimes(expectedGeoSaveCount);\n    }\n\n    if (expectedTotalGeoRows !== undefined) {\n      let totalRows = 0;\n      for (const call of geoRepo.save.mock.calls) {\n        totalRows += (call[0] as any[]).length;\n      }\n      expect(totalRows).toBe(expectedTotalGeoRows);\n    }\n  });\n\n  function getRepo(name: string): { upsert: jest.Mock } {\n    switch (name) {\n      case 'agency': return { upsert: agencyRepo.upsert };\n      case 'spending': return { upsert: spendingRepo.upsert };\n      case 'disaster': return { upsert: disasterRepo.upsert };\n      case 'ratio': return { upsert: ratioRepo.upsert };\n      default: throw new Error(`unknown repo: ${name}`);\n    }\n  }\n});\n"
+    },
+    {
+      "path": "backend/src/agencies/agencies.service.ts",
+      "mode": "slice",
+      "start": 18,
+      "end": 30,
+      "reason": "findAllWithTotals(fiscalYear?) - JOIN sr.fiscalYear uses the param when provided, else currentFiscalYear().",
+      "excerpt": "  16:     private readonly configService: ConfigService,\n  17:   ) {}\n  18: \n  19:   async findAllWithTotals(): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {\n  20:     const currentFy = this.currentFiscalYear();\n  21:     const rows = await this.agencyRepo\n  22:       .createQueryBuilder('agency')\n  23:       .leftJoin('agency.spendingRecords', 'sr', 'sr.fiscalYear = :fy', { fy: currentFy })\n  24:       .select(['agency.id', 'agency.name'])\n  25:       .addSelect('COALESCE(SUM(sr.obligatedAmount), 0)', 'totalCents')\n  26:       .groupBy('agency.id')\n  27:       .getRawMany();\n  28:     const data = rows.map(row => ({\n  29:       id: row.agency_id,\n  30:       name: row.agency_name,\n  31:       totalCents: parseInt(row.totalCents, 10),\n  32:     }));"
+    },
+    {
+      "path": "backend/src/agencies/agencies.controller.ts",
+      "mode": "slice",
+      "start": 10,
+      "end": 13,
+      "reason": "forward @Query(fiscalYear) to findAllWithTotals.",
+      "excerpt": "   8:   constructor(private readonly agenciesService: AgenciesService) {}\n   9: \n  10:   @Get()\n  11:   list(): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {\n  12:     return this.agenciesService.findAllWithTotals();\n  13:   }\n  14: \n  15:   @Get(':id/summary')"
+    },
+    {
+      "path": "backend/src/agencies/agencies.service.spec.ts",
+      "mode": "slice",
+      "start": 1,
+      "end": 5,
+      "reason": "add a row asserting findAllWithTotals applies a passed fiscalYear to the JOIN.",
+      "excerpt": "   1: import { AgenciesService } from './agencies.service';\n   2: import { Agency } from './agency.entity';\n   3: import { SpendingRecord } from '../spending/spending-record.entity';\n   4: import { Repository } from 'typeorm';\n   5: \n   6: describe('AgenciesService', () => {\n   7:   describe('findAllWithTotals', () => {"
+    },
+    {
+      "path": "backend/src/agencies/agencies.controller.spec.ts",
+      "mode": "full",
+      "contents": "import { AgenciesController } from './agencies.controller';\nimport { AgenciesService } from './agencies.service';\nimport { ApiResponse, Agency, AgencySummary } from '@shared/interfaces';\nimport { SpendingRecord } from '../spending/spending-record.entity';\n\ndescribe('AgenciesController', () => {\n  let controller: AgenciesController;\n  let service: AgenciesService;\n\n  beforeEach(() => {\n    const mockService = {\n      findAllWithTotals: jest.fn(),\n      findSummary: jest.fn(),\n      findSpotlight: jest.fn(),\n    };\n    service = mockService as any;\n    controller = new AgenciesController(service);\n  });\n\n  describe('list', () => {\n    interface TestCase {\n      name: string;\n      serviceReturn: ApiResponse<{ id: number; name: string; totalCents: number }[]>;\n      expected: ApiResponse<{ id: number; name: string; totalCents: number }[]>;\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'returns paginated ApiResponse with agency list',\n        serviceReturn: {\n          data: [\n            { id: 1, name: 'Agency A', totalCents: 300000 },\n          ],\n          meta: { total: 6, page: 1, pageSize: 6 },\n        },\n        expected: {\n          data: [\n            { id: 1, name: 'Agency A', totalCents: 300000 },\n          ],\n          meta: { total: 6, page: 1, pageSize: 6 },\n        },\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ serviceReturn, expected }) => {\n      service.findAllWithTotals.mockResolvedValue(serviceReturn);\n      const result = await controller.list();\n      expect(service.findAllWithTotals).toHaveBeenCalled();\n      expect(result).toEqual(expected);\n    });\n  });\n\n  describe('summary', () => {\n    interface TestCase {\n      name: string;\n      serviceReturn: AgencySummary;\n      expected: AgencySummary;\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'returns summary for given agency id',\n        serviceReturn: {\n          agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n          currentFyTotal: 300000,\n          priorFyTotal: 200000,\n          yoyChange: 50,\n        },\n        expected: {\n          agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n          currentFyTotal: 300000,\n          priorFyTotal: 200000,\n          yoyChange: 50,\n        },\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ serviceReturn, expected }) => {\n      service.findSummary.mockResolvedValue(serviceReturn);\n      const result = await controller.summary(1);\n      expect(service.findSummary).toHaveBeenCalledWith(1);\n      expect(result).toEqual(expected);\n    });\n  });\n\n  describe('spotlight', () => {\n    interface TestCase {\n      name: string;\n      serviceReturn: SpendingRecord[];\n      expected: SpendingRecord[];\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'returns spotlight data for given agency id',\n        serviceReturn: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 300000, outlayAmount: 230000, awardCount: 15 } as SpendingRecord,\n        ],\n        expected: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 300000, outlayAmount: 230000, awardCount: 15 } as SpendingRecord,\n        ],\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ serviceReturn, expected }) => {\n      service.findSpotlight.mockResolvedValue(serviceReturn);\n      const result = await controller.spotlight(1);\n      expect(service.findSpotlight).toHaveBeenCalledWith(1);\n      expect(result).toEqual(expected);\n    });\n  });\n});\n"
+    }
+  ]
+}

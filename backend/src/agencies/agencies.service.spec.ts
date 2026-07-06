@@ -9,6 +9,7 @@ describe('AgenciesService', () => {
       name: string;
       rawResults: { agency_id: number; agency_name: string; totalCents: string }[];
       currentFy?: number;
+      fiscalYear?: number;
       expected: { id: number; name: string; totalCents: number }[];
     }
 
@@ -53,6 +54,16 @@ describe('AgenciesService', () => {
         ],
       },
       {
+        name: 'findAllWithTotals passes fiscalYear parameter through JOIN when provided',
+        rawResults: [
+          { agency_id: 1, agency_name: 'Agency A', totalCents: '300000' },
+        ],
+        fiscalYear: 2023,
+        expected: [
+          { id: 1, name: 'Agency A', totalCents: 300000 },
+        ],
+      },
+      {
         name: 'returns empty data list when no agencies exist',
         rawResults: [],
         expected: [],
@@ -68,7 +79,7 @@ describe('AgenciesService', () => {
       },
     ];
 
-    it.each(testTable)('$name', async ({ rawResults, currentFy, expected }) => {
+    it.each(testTable)('$name', async ({ rawResults, currentFy, fiscalYear, expected }) => {
       const mockQueryBuilder = {
         leftJoin: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
@@ -86,14 +97,15 @@ describe('AgenciesService', () => {
         return undefined;
       }) } as any;
       const svc = new AgenciesService(agencyRepo, spendingRepo, configService);
-      const result = await svc.findAllWithTotals();
+      const fy = fiscalYear ?? currentFy ?? 2026;
+      const result = await svc.findAllWithTotals(fiscalYear);
       expect(result.data).toEqual(expected);
       expect(agencyRepo.createQueryBuilder).toHaveBeenCalledWith('agency');
       expect(mockQueryBuilder.leftJoin).toHaveBeenCalledWith(
         'agency.spendingRecords',
         'sr',
         'sr.fiscalYear = :fy',
-        { fy: currentFy ?? 2026 },
+        { fy },
       );
       expect(mockQueryBuilder.groupBy).toHaveBeenCalledWith('agency.id');
       expect(mockQueryBuilder.getRawMany).toHaveBeenCalled();

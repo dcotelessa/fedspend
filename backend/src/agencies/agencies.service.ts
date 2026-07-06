@@ -16,8 +16,8 @@ export class AgenciesService {
     private readonly configService: ConfigService,
   ) {}
 
-  async findAllWithTotals(): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
-    const currentFy = this.currentFiscalYear();
+  async findAllWithTotals(fiscalYear?: number): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
+    const currentFy = fiscalYear ?? this.currentFiscalYear();
     const rows = await this.agencyRepo
       .createQueryBuilder('agency')
       .leftJoin('agency.spendingRecords', 'sr', 'sr.fiscalYear = :fy', { fy: currentFy })

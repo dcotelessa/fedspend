@@ -14,7 +14,7 @@ import { StateAggregationResult } from './openfema.service';
 describe('SyncService', () => {
   let service: SyncService;
   let agencyRepo: { upsert: jest.Mock; createQueryBuilder: jest.Mock };
-  let spendingRepo: { upsert: jest.Mock };
+  let spendingRepo: { upsert: jest.Mock; delete: jest.Mock };
   let geoRepo: { delete: jest.Mock; save: jest.Mock };
   let disasterRepo: { upsert: jest.Mock };
   let ratioRepo: { upsert: jest.Mock };
@@ -36,6 +36,8 @@ describe('SyncService', () => {
     expectedGeoDeleteCount?: number;
     expectedGeoSaveCount?: number;
     expectedTotalGeoRows?: number;
+    expectedSpendingDeleteCount?: number;
+    expectedSpendingUpsertedRows?: Record<string, any[]>;
   }
 
   const testTable: TestCase[] = [
@@ -64,34 +66,67 @@ describe('SyncService', () => {
       },
     },
     {
-      name: 'syncAgenciesAndSpending loops through agencies and upserts spending per agency',
+      name: 'syncAgenciesAndSpending loops over all SPENDING_FISCAL_YEARS and upserts spending per year',
       method: 'syncAgenciesAndSpending',
       agencyFetchResult: { status: 'success', agencies: [
         { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
         { id: 2, name: 'DOE', abbreviation: 'DOE', toptierCode: '097' },
       ]},
-      spendingFetchResults: [
-        { status: 'success', rows: [
-          { id: 0, agencyId: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', awardTypeCodes: '', obligatedAmount: 1000, outlayAmount: 0, awardCount: 0 }
-        ], total: 1},
-        { status: 'success', rows: [
-          { id: 0, agencyId: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', awardTypeCodes: '', obligatedAmount: 2000, outlayAmount: 0, awardCount: 0 }
-        ], total: 1},
-      ],
+      spendingFetchResults: [],
       expectedUpsertCalls: [
         { repoName: 'agency', count: 2 },
-        { repoName: 'spending', count: 2 },
+        { repoName: 'spending', count: 10 },
       ],
       expectedRepoData: {
         agency: [
           { name: 'NASA', toptierCode: '080' },
           { name: 'DOE', toptierCode: '097' },
         ],
-        spending: [
-          { agencyId: 1, fiscalYear: 2024, awardTypeLabel: 'Total', obligatedAmount: 1000 },
-          { agencyId: 2, fiscalYear: 2024, awardTypeLabel: 'Total', obligatedAmount: 2000 },
-        ],
       },
+    },
+    {
+      name: 'syncAgenciesAndSpending deletes existing rows per (agencyId, fiscalYear) before upserting',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'success', agencies: [
+        { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
+      ]},
+      spendingFetchResults: [],
+      expectedUpsertCalls: [
+        { repoName: 'agency', count: 1 },
+        { repoName: 'spending', count: 5 },
+      ],
+      expectedSpendingDeleteCount: 5,
+    },
+    {
+      name: 'syncAgenciesAndSpending upserts spending records with correct fiscalYear for each year',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'success', agencies: [
+        { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
+      ]},
+      spendingFetchResults: [],
+      expectedUpsertCalls: [
+        { repoName: 'agency', count: 1 },
+        { repoName: 'spending', count: 5 },
+      ],
+      expectedSpendingUpsertedRows: {
+        '2020': [{ agencyId: 1, fiscalYear: 2020, obligatedAmount: 1000 }],
+        '2021': [{ agencyId: 1, fiscalYear: 2021, obligatedAmount: 2000 }],
+        '2022': [{ agencyId: 1, fiscalYear: 2022, obligatedAmount: 3000 }],
+        '2023': [{ agencyId: 1, fiscalYear: 2023, obligatedAmount: 4000 }],
+        '2024': [{ agencyId: 1, fiscalYear: 2024, obligatedAmount: 5000 }],
+      },
+    },
+    {
+      name: 'syncAgenciesAndSpending skips spending when agency fetch fails',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'not_found' },
+      expectedUpsertCalls: [],
+    },
+    {
+      name: 'syncAgenciesAndSpending empty agency list — nothing to process',
+      method: 'syncAgenciesAndSpending',
+      agencyFetchResult: { status: 'success', agencies: [] },
+      expectedUpsertCalls: [{ repoName: 'agency', count: 0 }],
     },
     {
       name: 'syncGeography loops years × recipient/performance scopes × rollup target, all succeed',
@@ -189,18 +224,6 @@ describe('SyncService', () => {
       expectedTotalGeoRows: 10,
     },
     {
-      name: 'syncAgenciesAndSpending empty agency list — nothing to process',
-      method: 'syncAgenciesAndSpending',
-      agencyFetchResult: { status: 'success', agencies: [] },
-      expectedUpsertCalls: [{ repoName: 'agency', count: 0 }],
-    },
-    {
-      name: 'syncAgenciesAndSpending skips spending when agency fetch fails',
-      method: 'syncAgenciesAndSpending',
-      agencyFetchResult: { status: 'not_found' },
-      expectedUpsertCalls: [],
-    },
-    {
       name: 'syncGeography partial failure — skips delete+save for not_found year/scope combos',
       method: 'syncGeography',
       geoFetchSequence: [
@@ -245,7 +268,7 @@ describe('SyncService', () => {
 
   beforeEach(async () => {
     const mockAgencyRepo = { upsert: jest.fn(), createQueryBuilder: jest.fn() };
-    const mockSpendingRepo = { upsert: jest.fn() };
+    const mockSpendingRepo = { upsert: jest.fn(), delete: jest.fn().mockResolvedValue(undefined) };
     const mockGeoRepo = { delete: jest.fn().mockResolvedValue(undefined), save: jest.fn().mockResolvedValue(undefined) };
     const mockDisasterRepo = { upsert: jest.fn() };
     const mockRatioRepo = { upsert: jest.fn() };
@@ -300,6 +323,8 @@ describe('SyncService', () => {
     expectedGeoDeleteCount,
     expectedGeoSaveCount,
     expectedTotalGeoRows,
+    expectedSpendingDeleteCount,
+    expectedSpendingUpsertedRows,
   }) => {
     usaService.fetchAgencies.mockResolvedValue({ status: 'not_found' });
     usaService.fetchSpendingByAgency.mockResolvedValue({ status: 'not_found' });
@@ -327,6 +352,19 @@ describe('SyncService', () => {
       getMany: jest.fn().mockResolvedValue(agenciesWithSpending ?? []),
     };
     agencyRepo.createQueryBuilder.mockReturnValue(qb);
+
+    if (method === 'syncAgenciesAndSpending' && expectedSpendingUpsertedRows) {
+      usaService.fetchSpendingByAgency.mockImplementation((params: any) => {
+        const year = params.fiscalYear;
+        const rows = (expectedSpendingUpsertedRows as Record<string, any[]>)[String(year)] ?? [];
+        return { status: 'success', rows };
+      });
+    } else if (method === 'syncAgenciesAndSpending' && expectedUpsertCalls.some(c => c.repoName === 'spending')) {
+      usaService.fetchSpendingByAgency.mockImplementation(() => ({
+        status: 'success',
+        rows: [{ id: 0, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Total', obligatedAmount: 1000 }],
+      }));
+    }
 
     await (service as Record<string, unknown>)[method]();
 
@@ -364,6 +402,10 @@ describe('SyncService', () => {
         totalRows += (call[0] as any[]).length;
       }
       expect(totalRows).toBe(expectedTotalGeoRows);
+    }
+
+    if (expectedSpendingDeleteCount !== undefined) {
+      expect(spendingRepo.delete).toHaveBeenCalledTimes(expectedSpendingDeleteCount);
     }
   });
 

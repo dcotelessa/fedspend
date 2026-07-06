@@ -10,9 +10,7 @@ import { UsaSpendingService } from './usa-spending.service';
 import { OpenFemaService } from './openfema.service';
 import { computeRecoveryRatio } from './recovery-ratio';
 import { Cron } from '@nestjs/schedule';
-import { GEO_FISCAL_YEARS } from './sync.constants';
-
-const SYNC_FISCAL_YEAR = 2024;
+import { GEO_FISCAL_YEARS, SPENDING_FISCAL_YEARS } from './sync.constants';
 const SYNC_DEF_GROUP = 'L';
 
 const AGENCIES_AND_SPENDING = 'agencies_and_spending';
@@ -71,21 +69,24 @@ export class SyncService {
         ? agenciesResult.agencies.slice(0, 20)
         : [];
 
-      await Promise.all(agenciesList.map(async (agency) => {
-        const spendingResult = await this.usaService.fetchSpendingByAgency({
-          toptierCode: agency.toptierCode || '',
-          fiscalYear: SYNC_FISCAL_YEAR,
-        });
-        if (spendingResult.status === 'success') {
-          for (const record of spendingResult.rows) {
-            await this.spendingRepo.upsert({ ...record, agencyId: agency.id }, [
-              'agencyId',
-              'fiscalYear',
-              'quarter',
-              'awardTypeLabel',
-            ]);
+      await Promise.all(SPENDING_FISCAL_YEARS.map(async (year) => {
+        await Promise.all(agenciesList.map(async (agency) => {
+          await this.spendingRepo.delete({ agencyId: agency.id, fiscalYear: year });
+          const spendingResult = await this.usaService.fetchSpendingByAgency({
+            toptierCode: agency.toptierCode || '',
+            fiscalYear: year,
+          });
+          if (spendingResult.status === 'success') {
+            for (const record of spendingResult.rows) {
+              await this.spendingRepo.upsert({ ...record, agencyId: agency.id }, [
+                'agencyId',
+                'fiscalYear',
+                'quarter',
+                'awardTypeLabel',
+              ]);
+            }
           }
-        }
+        }));
       }));
     });
   }
