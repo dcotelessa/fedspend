@@ -410,6 +410,7 @@ describe('UsaSpendingService', () => {
     expectedUrl?: string;
     expectedBody?: Record<string, unknown>;
     expectedRowCount?: number;
+    expectedObligatedCents?: number;
     expectedLabels?: string[];
     expectedCallIndex?: number;
   }
@@ -591,9 +592,35 @@ describe('UsaSpendingService', () => {
       expectedRowCount: 5,
       expectedLabels: ['Contracts', 'Grants', 'Direct Payments', 'Loans', 'IDVs'],
     },
+    {
+      name: 'rounds aggregated_amount to integer cents on each spending row',
+      toptierCode: '080',
+      fiscalYear: 2024,
+      responses: [
+        { results: [{ shape_code: 'CA', aggregated_amount: 123.45 }] },
+        ...AWARD_TYPES.slice(1).map(() => ({ results: [] })),
+      ],
+      expectedStatus: 'success',
+      expectedRowCount: 1,
+      expectedObligatedCents: 12345,
+      expectedLabels: ['Contracts'],
+    },
+    {
+      name: 'preserves award-type order when only middle types return data',
+      toptierCode: '080',
+      fiscalYear: 2024,
+      responses: AWARD_TYPES.map((t) =>
+        t === 'Contracts' || t === 'Loans'
+          ? { results: [{ shape_code: 'CA', aggregated_amount: 10 }] }
+          : { results: [] },
+      ),
+      expectedStatus: 'success',
+      expectedRowCount: 2,
+      expectedLabels: ['Contracts', 'Loans'],
+    },
   ];
 
-  it.each(spendingByAgencyTable)('$name', async ({ toptierCode, fiscalYear, responses, expectedStatus, expectedUrl, expectedBody, expectedRowCount, expectedLabels, expectedCallIndex }) => {
+  it.each(spendingByAgencyTable)('$name', async ({ toptierCode, fiscalYear, responses, expectedStatus, expectedUrl, expectedBody, expectedRowCount, expectedObligatedCents, expectedLabels, expectedCallIndex }) => {
     for (const resp of responses) {
       fetchMock.mockResolvedValueOnce(createResponse(resp));
     }
@@ -632,6 +659,10 @@ describe('UsaSpendingService', () => {
       }
     } else {
       expect(result.status).toBe('not_found');
+    }
+
+    if (expectedObligatedCents !== undefined && result.status === 'success') {
+      expect(result.rows[0].obligatedAmount).toBe(expectedObligatedCents);
     }
 
     if (expectedLabels) {

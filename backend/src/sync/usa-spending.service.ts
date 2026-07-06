@@ -169,18 +169,18 @@ export class UsaSpendingService {
       );
 
       const rawGeo = allRows as RawUsaSpendingGeoRow[];
-      const transformed = transformGeoRows(rawGeo, 'recipient_location', params.fiscalYear, null).map(
-        (r) => ({
-          ...r,
-          id: undefined as any,
-          agencyId: 0,
-          fiscalYear: params.fiscalYear,
-          quarter: 1,
-          awardTypeLabel: awardType,
-          awardTypeCodes: code,
-          outlayAmount: 0,
-        }) as SpendingRecord,
-      );
+      const transformed = rawGeo.map((r) => ({
+        id: undefined as any,
+        agencyId: 0,
+        fiscalYear: params.fiscalYear,
+        quarter: 1,
+        awardTypeLabel: awardType,
+        awardTypeCodes: code,
+        obligatedAmount: Math.round(r.aggregated_amount * 100),
+        outlayAmount: 0,
+        awardCount: 0,
+        agency: null as any,
+      }) as SpendingRecord);
 
       if (transformed.length > 0) {
         if (status === 'not_found') {

@@ -31,9 +31,11 @@ export const AWARD_TYPES = [
   'Direct Payments',
   'Loans',
   'IDVs',
-];
+] as const;
 
-export const awardTypeToCode: Record<string, string> = {
+export type AwardType = (typeof AWARD_TYPES)[number];
+
+export const awardTypeToCode: Record<AwardType, string> = {
   'Contracts': 'C',
   'Grants': 'G',
   'Direct Payments': 'DP',
