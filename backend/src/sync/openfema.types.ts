@@ -1,25 +1,18 @@
-// Raw OpenFEMA declaration
-export interface RawFemaDeclaration {
-  id: number;
-  disasterNumber: string;
-  incidentType: string;
+// Raw OpenFEMA Public Assistance Grant Award Activity
+export interface RawFemaPAGrantAwardActivity {
+  federalShareObligated: number;
+  stateAbbreviation: string;
   state: string;
+  incidentType: string;
   declarationDate: string;
-  title: string;
-  federalResponse: string;
-  obligatedAmount: number;
-  disasterDeclarationSummaryId: number;
 }
 
-// Raw OpenFEMA disaster
-export interface RawFemaDisaster {
-  id: number;
-  disasterNumber: string;
+// Raw OpenFEMA disaster declaration summary
+export interface RawFemaDisasterDeclarationSummary {
   incidentType: string;
   state: string;
+  stateName?: string;
   declarationDate: string;
-  title: string;
-  federalResponse: string;
-  obligatedAmount: number;
-  disasterDeclarationSummaryId: number;
+  obligatedAmount?: number;
+  fyDeclared?: number;
 }

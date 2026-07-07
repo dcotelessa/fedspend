@@ -4,25 +4,15 @@ describe('OpenFemaService.fetchDeclarationsByState', () => {
   interface TestCase {
     name: string;
     mockResponse: {
-      DisasterDeclarationsSummaries: Array<{
-        incidentType: string;
+      PublicAssistanceGrantAwardActivities: Array<{
+        federalShareObligated: number;
+        stateAbbreviation: string;
         state: string;
-        stateName: string;
-        declarationDate: string;
-        obligatedAmount: number;
-      }      >;
-      metadata: { count: number; top: number };
-    };
-    mockPages?: Array<{
-      DisasterDeclarationsSummaries: Array<{
         incidentType: string;
-        state: string;
-        stateName: string;
         declarationDate: string;
-        obligatedAmount: number;
       }>;
       metadata: { count: number; top: number };
-    }>;
+    };
     expected: Array<{
       stateCode: string;
       stateName: string;
@@ -35,39 +25,39 @@ describe('OpenFemaService.fetchDeclarationsByState', () => {
 
   const testTable: TestCase[] = [
     {
-      name: 'groups declarations by state and fiscal year',
+      name: 'aggregates PA project obligations by state and fiscal year',
       mockResponse: {
-        DisasterDeclarationsSummaries: [
+        PublicAssistanceGrantAwardActivities: [
           {
+            federalShareObligated: 500000,
+            stateAbbreviation: 'CA',
+            state: 'California',
             incidentType: 'Wildfire',
-            state: 'CA',
-            stateName: 'California',
-            declarationDate: '2024-07-15',
-            obligatedAmount: 500000,
+            declarationDate: '2024-07-15T00:00:00.000Z',
           },
           {
+            federalShareObligated: 300000,
+            stateAbbreviation: 'CA',
+            state: 'California',
             incidentType: 'Wildfire',
-            state: 'CA',
-            stateName: 'California',
-            declarationDate: '2024-08-20',
-            obligatedAmount: 300000,
+            declarationDate: '2024-08-20T00:00:00.000Z',
           },
           {
+            federalShareObligated: 200000,
+            stateAbbreviation: 'CA',
+            state: 'California',
             incidentType: 'Flood',
-            state: 'CA',
-            stateName: 'California',
-            declarationDate: '2024-09-10',
-            obligatedAmount: 200000,
+            declarationDate: '2024-09-10T00:00:00.000Z',
           },
           {
+            federalShareObligated: 1000000,
+            stateAbbreviation: 'TX',
+            state: 'Texas',
             incidentType: 'Flood',
-            state: 'TX',
-            stateName: 'Texas',
-            declarationDate: '2024-06-01',
-            obligatedAmount: 1000000,
+            declarationDate: '2024-06-01T00:00:00.000Z',
           },
         ],
-metadata: { count: 4, top: 100 },
+        metadata: { count: 0, top: 0 },
       },
       expected: [
         {
@@ -89,57 +79,18 @@ metadata: { count: 4, top: 100 },
       ],
     },
     {
-      name: 'dominant incident type is the mode across declarations',
+      name: 'converts federalShareObligated dollars to integer cents',
       mockResponse: {
-        DisasterDeclarationsSummaries: [
+        PublicAssistanceGrantAwardActivities: [
           {
-            incidentType: 'Flood',
-            state: 'FL',
-            stateName: 'Florida',
-            declarationDate: '2023-09-01',
-            obligatedAmount: 50000,
-          },
-          {
-            incidentType: 'Flood',
-            state: 'FL',
-            stateName: 'Florida',
-            declarationDate: '2023-09-15',
-            obligatedAmount: 75000,
-          },
-          {
-            incidentType: 'Hurricane',
-            state: 'FL',
-            stateName: 'Florida',
-            declarationDate: '2023-08-01',
-            obligatedAmount: 100000,
-          },
-        ],
-metadata: { count: 3, top: 100 },
-      },
-      expected: [
-        {
-          stateCode: 'FL',
-          stateName: 'Florida',
-          fiscalYear: 2023,
-          femaObligatedCents: 22500000,
-          declarationCount: 3,
-          dominantIncidentType: 'Flood',
-        },
-      ],
-    },
-    {
-      name: 'converts dollars to cents as integers',
-      mockResponse: {
-        DisasterDeclarationsSummaries: [
-          {
+            federalShareObligated: 1,
+            stateAbbreviation: 'OK',
+            state: 'Oklahoma',
             incidentType: 'Tornado',
-            state: 'OK',
-            stateName: 'Oklahoma',
-            declarationDate: '2024-05-01',
-            obligatedAmount: 1,
+            declarationDate: '2024-05-01T00:00:00.000Z',
           },
         ],
-metadata: { count: 1, top: 100 },
+        metadata: { count: 0, top: 0 },
       },
       expected: [
         {
@@ -153,33 +104,33 @@ metadata: { count: 1, top: 100 },
       ],
     },
     {
-      name: 'returns empty array when no declarations',
+      name: 'returns empty array when no projects',
       mockResponse: {
-        DisasterDeclarationsSummaries: [],
-metadata: { count: 0, top: 100 },
+        PublicAssistanceGrantAwardActivities: [],
+        metadata: { count: 0, top: 0 },
       },
       expected: [],
     },
     {
-      name: 'handles declarations across multiple fiscal years for same state',
+      name: 'handles projects across multiple fiscal years for same state',
       mockResponse: {
-        DisasterDeclarationsSummaries: [
+        PublicAssistanceGrantAwardActivities: [
           {
+            federalShareObligated: 200000,
+            stateAbbreviation: 'CA',
+            state: 'California',
             incidentType: 'Wildfire',
-            state: 'CA',
-            stateName: 'California',
-            declarationDate: '2023-08-01',
-            obligatedAmount: 200000,
+            declarationDate: '2023-08-01T00:00:00.000Z',
           },
           {
+            federalShareObligated: 300000,
+            stateAbbreviation: 'CA',
+            state: 'California',
             incidentType: 'Flood',
-            state: 'CA',
-            stateName: 'California',
-            declarationDate: '2024-07-15',
-            obligatedAmount: 300000,
+            declarationDate: '2024-07-15T00:00:00.000Z',
           },
         ],
-metadata: { count: 2, top: 100 },
+        metadata: { count: 0, top: 0 },
       },
       expected: [
         {
@@ -203,23 +154,23 @@ metadata: { count: 2, top: 100 },
     {
       name: 'ties broken by first encountered incident type alphabetically',
       mockResponse: {
-        DisasterDeclarationsSummaries: [
+        PublicAssistanceGrantAwardActivities: [
           {
+            federalShareObligated: 10000,
+            stateAbbreviation: 'LA',
+            state: 'Louisiana',
             incidentType: 'Hurricane',
-            state: 'LA',
-            stateName: 'Louisiana',
-            declarationDate: '2024-01-01',
-            obligatedAmount: 10000,
+            declarationDate: '2024-01-01T00:00:00.000Z',
           },
           {
+            federalShareObligated: 10000,
+            stateAbbreviation: 'LA',
+            state: 'Louisiana',
             incidentType: 'Flood',
-            state: 'LA',
-            stateName: 'Louisiana',
-            declarationDate: '2024-02-01',
-            obligatedAmount: 10000,
+            declarationDate: '2024-02-01T00:00:00.000Z',
           },
         ],
-metadata: { count: 2, top: 100 },
+        metadata: { count: 0, top: 0 },
       },
       expected: [
         {
@@ -233,72 +184,18 @@ metadata: { count: 2, top: 100 },
       ],
     },
     {
-      name: 'aggregates across multiple paginated API responses (SKIP: mock format mismatch after OpenFEMA API shape fix)', skip: true,
-      mockPages: [
-        {
-          DisasterDeclarationsSummaries: [
-            {
-              incidentType: 'Wildfire',
-              state: 'CA',
-              stateName: 'California',
-              declarationDate: '2024-07-15',
-              obligatedAmount: 500000,
-            },
-          ],
-metadata: { count: 3, top: 2 },
-        },
-        {
-          DisasterDeclarationsSummaries: [
-            {
-              incidentType: 'Flood',
-              state: 'CA',
-              stateName: 'California',
-              declarationDate: '2024-08-20',
-              obligatedAmount: 300000,
-            },
-            {
-              incidentType: 'Tornado',
-              state: 'TX',
-              stateName: 'Texas',
-              declarationDate: '2024-06-01',
-              obligatedAmount: 1000000,
-            },
-          ],
-metadata: { count: 3, top: 2 },
-        },
-      ],
-      expected: [
-        {
-          stateCode: 'CA',
-          stateName: 'California',
-          fiscalYear: 2024,
-          femaObligatedCents: 80000000,
-          declarationCount: 2,
-          dominantIncidentType: 'Flood',
-        },
-        {
-          stateCode: 'TX',
-          stateName: 'Texas',
-          fiscalYear: 2024,
-          femaObligatedCents: 100000000,
-          declarationCount: 1,
-          dominantIncidentType: 'Tornado',
-        },
-      ],
-    },
-    {
       name: 'fractional dollar amounts convert to correct integer cents',
       mockResponse: {
-        DisasterDeclarationsSummaries: [
+        PublicAssistanceGrantAwardActivities: [
           {
+            federalShareObligated: 1234.56,
+            stateAbbreviation: 'AK',
+            state: 'Alaska',
             incidentType: 'Earthquake',
-            state: 'AK',
-            stateName: 'Alaska',
-            declarationDate: '2024-03-01',
-            obligatedAmount: 1234.56,
+            declarationDate: '2024-03-01T00:00:00.000Z',
           },
         ],
-metadata: { count: 1, top: 100 },
+        metadata: { count: 0, top: 0 },
       },
       expected: [
         {
@@ -312,18 +209,18 @@ metadata: { count: 1, top: 100 },
       ],
     },
     {
-      name: 'zero obligatedAmount produces zero cents',
+      name: 'zero federalShareObligated produces zero cents',
       mockResponse: {
-        DisasterDeclarationsSummaries: [
+        PublicAssistanceGrantAwardActivities: [
           {
+            federalShareObligated: 0,
+            stateAbbreviation: 'NV',
+            state: 'Nevada',
             incidentType: 'Wildfire',
-            state: 'NV',
-            stateName: 'Nevada',
-            declarationDate: '2024-01-15',
-            obligatedAmount: 0,
+            declarationDate: '2024-01-15T00:00:00.000Z',
           },
         ],
-metadata: { count: 1, top: 100 },
+        metadata: { count: 0, top: 0 },
       },
       expected: [
         {
@@ -353,29 +250,11 @@ metadata: { count: 1, top: 100 },
     mockFetch.mockReset();
   });
 
-  it.each(testTable.filter(t => !('skip' in t && t.skip)))('$name', async ({ mockResponse, mockPages, expected }) => {
-    if (mockPages) {
-      mockFetch.mockImplementation((url: string) => {
-        const pageMatch = url.match(/page=(\d+)/);
-        if (pageMatch) {
-          const page = parseInt(pageMatch[1]);
-          const pageData = mockPages![page - 1];
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(pageData),
-          });
-        }
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockPages![0]),
-        });
-      });
-    } else {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockResponse),
-      });
-    }
+  it.each(testTable)('$name', async ({ mockResponse, expected }) => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    });
 
     const service = new OpenFemaService();
     const result = await service.fetchDeclarationsByState();

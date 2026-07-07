@@ -1,0 +1,152 @@
+{
+  "story": "E16-S02",
+  "epic": "E16",
+  "title": "Investigate + fix: FEMA obligated data missing (recovery ratio column all zeros)",
+  "goal": "All 158 rows in disaster_recovery_ratio have femaObligated = 0, so recoveryRatio is 0 (or 1.0 when both sides are zero) for every state, the ratio column renders 0.00 with warn-chips on every row, and the Coverage Gaps card counts nearly everything as a gap. The openfema service computes femaObligatedCents from decl.obligatedAmount - either the FEMA API returns no obligatedAmount, the field mapping is wrong, or the sync path is broken. Investigate against the live FEMA API, fix the mapping/extraction, and confirm femaObligated > 0 for at least some states after re-sync.",
+  "notes": "INVESTIGATION STORY - the root cause is NOT confirmed (could be API field name, shape change, a parsing gap, or FEMA genuinely not exposing obligations for the queried disaster declarations). The implementer MUST hit the live FEMA API (https://www.fema.gov/api/open/v2/OpenFemaData...) and confirm what the obligated-amount field looks like before changing the mapping - same diligence as E14-S08/S10 (the USASpending geography endpoint silently ignored awarding_agencies; do not trust assumed field names). If FEMA genuinely does not expose obligated amounts for these declarations, document that in the story notes and consider whether the ratio column/coverage-gap metric should be hidden or redefined. Backfill required: POST /sync/disaster after the fix. Out of scope for E16-S01 (formatting + parens).",
+  "dependencies": "",
+  "acceptanceCriteria": [
+    {
+      "text": "femaObligated > 0 for at least some rows after re-sync",
+      "check": "cd backend && node -e \"const c=require('better-sqlite3')('data/dev.db').prepare('SELECT COUNT(*) c FROM disaster_recovery_ratio WHERE femaObligated > 0').get().c; process.exit(c>0?0:1)\""
+    },
+    {
+      "text": "recoveryRatio is non-zero for at least some rows",
+      "check": "cd backend && node -e \"const c=require('better-sqlite3')('data/dev.db').prepare('SELECT COUNT(*) c FROM disaster_recovery_ratio WHERE recoveryRatio > 0 AND femaObligated > 0').get().c; process.exit(c>=5?0:1)\""
+    },
+    {
+      "text": "openfema.service.spec.ts passes",
+      "check": "cd backend && pnpm test --testPathPatterns=openfema --passWithNoTests"
+    },
+    {
+      "text": "backend builds cleanly",
+      "check": "cd backend && pnpm build"
+    },
+    {
+      "text": "backend full test suite green",
+      "check": "cd backend && pnpm test --passWithNoTests"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/sync/openfema.service.ts",
+      "mode": "slice",
+      "start": 120,
+      "end": 155,
+      "reason": "fetchDeclarationsByState + aggregation - verify obligatedAmount is extracted from the correct FEMA API field and summed into totalCents/femaObligatedCents.",
+      "excerpt": " 118:       count: number;\n 119:       incidentTypes: string[];\n 120:     }\n 121:   >();\n 122: \n 123:   for (const decl of declarations) {\n 124:     const fiscalYear = getFiscalYear(decl.declarationDate);\n 125:     const key = `${decl.state}_${fiscalYear}`;\n 126:     const existing = groups.get(key);\n 127: \n 128:     if (existing) {\n 129:       existing.totalCents += Math.round((decl.obligatedAmount ?? 0) * 100);\n 130:       existing.count += 1;\n 131:       existing.incidentTypes.push(decl.incidentType);\n 132:     } else {\n 133:       groups.set(key, {\n 134:         stateCode: decl.state,\n 135:         stateName: decl.stateName || decl.state,\n 136:         fiscalYear,\n 137:         totalCents: Math.round((decl.obligatedAmount ?? 0) * 100),\n 138:         count: 1,\n 139:         incidentTypes: [decl.incidentType],\n 140:       });\n 141:     }\n 142:   }\n 143: \n 144:   const results: StateAggregationResult[] = [];\n 145: \n 146:   for (const group of groups.values()) {\n 147:     results.push({\n 148:       stateCode: group.stateCode,\n 149:       stateName: group.stateName,\n 150:       fiscalYear: group.fiscalYear,\n 151:       femaObligatedCents: group.totalCents,\n 152:       declarationCount: group.count,\n 153:       dominantIncidentType: computeDominantIncidentType(group.incidentTypes),\n 154:     });\n 155:   }\n 156: \n 157:   return results;"
+    },
+    {
+      "path": "backend/src/sync/openfema.types.ts",
+      "mode": "slice",
+      "start": 1,
+      "end": 30,
+      "reason": "FEMA declaration type - verify obligatedAmount maps to the real API field name.",
+      "excerpt": "   1: // Raw OpenFEMA declaration\n   2: export interface RawFemaDeclaration {\n   3:   id: number;\n   4:   disasterNumber: string;\n   5:   incidentType: string;\n   6:   state: string;\n   7:   declarationDate: string;\n   8:   title: string;\n   9:   federalResponse: string;\n  10:   obligatedAmount: number;\n  11:   disasterDeclarationSummaryId: number;\n  12: }\n  13: \n  14: // Raw OpenFEMA disaster\n  15: export interface RawFemaDisaster {\n  16:   id: number;\n  17:   disasterNumber: string;\n  18:   incidentType: string;\n  19:   state: string;\n  20:   declarationDate: string;\n  21:   title: string;\n  22:   federalResponse: string;\n  23:   obligatedAmount: number;\n  24:   disasterDeclarationSummaryId: number;\n  25: }"
+    },
+    {
+      "path": "backend/src/sync/openfema.service.spec.ts",
+      "mode": "full",
+      "contents": "import { OpenFemaService } from './openfema.service';\n\ndescribe('OpenFemaService.fetchDeclarationsByState', () => {\n  interface TestCase {\n    name: string;\n    mockResponse: {\n      DisasterDeclarationsSummaries: Array<{\n        incidentType: string;\n        state: string;\n        stateName: string;\n        declarationDate: string;\n        obligatedAmount: number;\n      }      >;\n      metadata: { count: number; top: number };\n    };\n    mockPages?: Array<{\n      DisasterDeclarationsSummaries: Array<{\n        incidentType: string;\n        state: string;\n        stateName: string;\n        declarationDate: string;\n        obligatedAmount: number;\n      }>;\n      metadata: { count: number; top: number };\n    }>;\n    expected: Array<{\n      stateCode: string;\n      stateName: string;\n      fiscalYear: number;\n      femaObligatedCents: number;\n      declarationCount: number;\n      dominantIncidentType: string;\n    }>;\n  }\n\n  const testTable: TestCase[] = [\n    {\n      name: 'groups declarations by state and fiscal year',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [\n          {\n            incidentType: 'Wildfire',\n            state: 'CA',\n            stateName: 'California',\n            declarationDate: '2024-07-15',\n            obligatedAmount: 500000,\n          },\n          {\n            incidentType: 'Wildfire',\n            state: 'CA',\n            stateName: 'California',\n            declarationDate: '2024-08-20',\n            obligatedAmount: 300000,\n          },\n          {\n            incidentType: 'Flood',\n            state: 'CA',\n            stateName: 'California',\n            declarationDate: '2024-09-10',\n            obligatedAmount: 200000,\n          },\n          {\n            incidentType: 'Flood',\n            state: 'TX',\n            stateName: 'Texas',\n            declarationDate: '2024-06-01',\n            obligatedAmount: 1000000,\n          },\n        ],\nmetadata: { count: 4, top: 100 },\n      },\n      expected: [\n        {\n          stateCode: 'CA',\n          stateName: 'California',\n          fiscalYear: 2024,\n          femaObligatedCents: 100000000,\n          declarationCount: 3,\n          dominantIncidentType: 'Wildfire',\n        },\n        {\n          stateCode: 'TX',\n          stateName: 'Texas',\n          fiscalYear: 2024,\n          femaObligatedCents: 100000000,\n          declarationCount: 1,\n          dominantIncidentType: 'Flood',\n        },\n      ],\n    },\n    {\n      name: 'dominant incident type is the mode across declarations',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [\n          {\n            incidentType: 'Flood',\n            state: 'FL',\n            stateName: 'Florida',\n            declarationDate: '2023-09-01',\n            obligatedAmount: 50000,\n          },\n          {\n            incidentType: 'Flood',\n            state: 'FL',\n            stateName: 'Florida',\n            declarationDate: '2023-09-15',\n            obligatedAmount: 75000,\n          },\n          {\n            incidentType: 'Hurricane',\n            state: 'FL',\n            stateName: 'Florida',\n            declarationDate: '2023-08-01',\n            obligatedAmount: 100000,\n          },\n        ],\nmetadata: { count: 3, top: 100 },\n      },\n      expected: [\n        {\n          stateCode: 'FL',\n          stateName: 'Florida',\n          fiscalYear: 2023,\n          femaObligatedCents: 22500000,\n          declarationCount: 3,\n          dominantIncidentType: 'Flood',\n        },\n      ],\n    },\n    {\n      name: 'converts dollars to cents as integers',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [\n          {\n            incidentType: 'Tornado',\n            state: 'OK',\n            stateName: 'Oklahoma',\n            declarationDate: '2024-05-01',\n            obligatedAmount: 1,\n          },\n        ],\nmetadata: { count: 1, top: 100 },\n      },\n      expected: [\n        {\n          stateCode: 'OK',\n          stateName: 'Oklahoma',\n          fiscalYear: 2024,\n          femaObligatedCents: 100,\n          declarationCount: 1,\n          dominantIncidentType: 'Tornado',\n        },\n      ],\n    },\n    {\n      name: 'returns empty array when no declarations',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [],\nmetadata: { count: 0, top: 100 },\n      },\n      expected: [],\n    },\n    {\n      name: 'handles declarations across multiple fiscal years for same state',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [\n          {\n            incidentType: 'Wildfire',\n            state: 'CA',\n            stateName: 'California',\n            declarationDate: '2023-08-01',\n            obligatedAmount: 200000,\n          },\n          {\n            incidentType: 'Flood',\n            state: 'CA',\n            stateName: 'California',\n            declarationDate: '2024-07-15',\n            obligatedAmount: 300000,\n          },\n        ],\nmetadata: { count: 2, top: 100 },\n      },\n      expected: [\n        {\n          stateCode: 'CA',\n          stateName: 'California',\n          fiscalYear: 2023,\n          femaObligatedCents: 20000000,\n          declarationCount: 1,\n          dominantIncidentType: 'Wildfire',\n        },\n        {\n          stateCode: 'CA',\n          stateName: 'California',\n          fiscalYear: 2024,\n          femaObligatedCents: 30000000,\n          declarationCount: 1,\n          dominantIncidentType: 'Flood',\n        },\n      ],\n    },\n    {\n      name: 'ties broken by first encountered incident type alphabetically',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [\n          {\n            incidentType: 'Hurricane',\n            state: 'LA',\n            stateName: 'Louisiana',\n            declarationDate: '2024-01-01',\n            obligatedAmount: 10000,\n          },\n          {\n            incidentType: 'Flood',\n            state: 'LA',\n            stateName: 'Louisiana',\n            declarationDate: '2024-02-01',\n            obligatedAmount: 10000,\n          },\n        ],\nmetadata: { count: 2, top: 100 },\n      },\n      expected: [\n        {\n          stateCode: 'LA',\n          stateName: 'Louisiana',\n          fiscalYear: 2024,\n          femaObligatedCents: 2000000,\n          declarationCount: 2,\n          dominantIncidentType: 'Flood',\n        },\n      ],\n    },\n    {\n      name: 'aggregates across multiple paginated API responses (SKIP: mock format mismatch after OpenFEMA API shape fix)', skip: true,\n      mockPages: [\n        {\n          DisasterDeclarationsSummaries: [\n            {\n              incidentType: 'Wildfire',\n              state: 'CA',\n              stateName: 'California',\n              declarationDate: '2024-07-15',\n              obligatedAmount: 500000,\n            },\n          ],\nmetadata: { count: 3, top: 2 },\n        },\n        {\n          DisasterDeclarationsSummaries: [\n            {\n              incidentType: 'Flood',\n              state: 'CA',\n              stateName: 'California',\n              declarationDate: '2024-08-20',\n              obligatedAmount: 300000,\n            },\n            {\n              incidentType: 'Tornado',\n              state: 'TX',\n              stateName: 'Texas',\n              declarationDate: '2024-06-01',\n              obligatedAmount: 1000000,\n            },\n          ],\nmetadata: { count: 3, top: 2 },\n        },\n      ],\n      expected: [\n        {\n          stateCode: 'CA',\n          stateName: 'California',\n          fiscalYear: 2024,\n          femaObligatedCents: 80000000,\n          declarationCount: 2,\n          dominantIncidentType: 'Flood',\n        },\n        {\n          stateCode: 'TX',\n          stateName: 'Texas',\n          fiscalYear: 2024,\n          femaObligatedCents: 100000000,\n          declarationCount: 1,\n          dominantIncidentType: 'Tornado',\n        },\n      ],\n    },\n    {\n      name: 'fractional dollar amounts convert to correct integer cents',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [\n          {\n            incidentType: 'Earthquake',\n            state: 'AK',\n            stateName: 'Alaska',\n            declarationDate: '2024-03-01',\n            obligatedAmount: 1234.56,\n          },\n        ],\nmetadata: { count: 1, top: 100 },\n      },\n      expected: [\n        {\n          stateCode: 'AK',\n          stateName: 'Alaska',\n          fiscalYear: 2024,\n          femaObligatedCents: 123456,\n          declarationCount: 1,\n          dominantIncidentType: 'Earthquake',\n        },\n      ],\n    },\n    {\n      name: 'zero obligatedAmount produces zero cents',\n      mockResponse: {\n        DisasterDeclarationsSummaries: [\n          {\n            incidentType: 'Wildfire',\n            state: 'NV',\n            stateName: 'Nevada',\n            declarationDate: '2024-01-15',\n            obligatedAmount: 0,\n          },\n        ],\nmetadata: { count: 1, top: 100 },\n      },\n      expected: [\n        {\n          stateCode: 'NV',\n          stateName: 'Nevada',\n          fiscalYear: 2024,\n          femaObligatedCents: 0,\n          declarationCount: 1,\n          dominantIncidentType: 'Wildfire',\n        },\n      ],\n    },\n  ];\n\n  const mockFetch = jest.fn();\n  const originalFetch = global.fetch;\n\n  beforeAll(() => {\n    (global.fetch as any) = mockFetch;\n  });\n\n  afterAll(() => {\n    global.fetch = originalFetch;\n  });\n\n  beforeEach(() => {\n    mockFetch.mockReset();\n  });\n\n  it.each(testTable.filter(t => !('skip' in t && t.skip)))('$name', async ({ mockResponse, mockPages, expected }) => {\n    if (mockPages) {\n      mockFetch.mockImplementation((url: string) => {\n        const pageMatch = url.match(/page=(\\d+)/);\n        if (pageMatch) {\n          const page = parseInt(pageMatch[1]);\n          const pageData = mockPages![page - 1];\n          return Promise.resolve({\n            ok: true,\n            json: () => Promise.resolve(pageData),\n          });\n        }\n        return Promise.resolve({\n          ok: true,\n          json: () => Promise.resolve(mockPages![0]),\n        });\n      });\n    } else {\n      mockFetch.mockResolvedValue({\n        ok: true,\n        json: () => Promise.resolve(mockResponse),\n      });\n    }\n\n    const service = new OpenFemaService();\n    const result = await service.fetchDeclarationsByState();\n\n    expect(result).toEqual(expected);\n  });\n});\n"
+    }
+  ]
+}

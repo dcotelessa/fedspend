@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { RawFemaPAGrantAwardActivity, RawFemaDisasterDeclarationSummary } from './openfema.types';
 
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 500;
@@ -49,13 +50,13 @@ const fetchWithRetry = async (url: string): Promise<unknown> => {
   throw lastError;
 };
 
-const fetchAllPages = async (baseUrl: string): Promise<RawDeclaration[]> => {
+const fetchAllPages = async (baseUrl: string): Promise<RawFemaPAGrantAwardActivity[]> => {
   const firstBody = (await fetchWithRetry(baseUrl)) as {
-    DisasterDeclarationsSummaries: RawDeclaration[];
+    PublicAssistanceGrantAwardActivities: RawFemaPAGrantAwardActivity[];
     metadata: { count: number; top: number };
   };
 
-  const allRows = [...(firstBody.DisasterDeclarationsSummaries || [])];
+  const allRows = [...(firstBody.PublicAssistanceGrantAwardActivities || [])];
   const totalCount = firstBody.metadata?.count ?? allRows.length;
   const pageSize = firstBody.metadata?.top ?? 100;
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -65,9 +66,9 @@ const fetchAllPages = async (baseUrl: string): Promise<RawDeclaration[]> => {
       const skip = (page - 1) * pageSize;
       const sep = baseUrl.includes('?') ? '&' : '?';
       const pageBody = (await fetchWithRetry(`${baseUrl}${sep}$skip=${skip}`)) as {
-        DisasterDeclarationsSummaries: RawDeclaration[];
+        PublicAssistanceGrantAwardActivities: RawFemaPAGrantAwardActivity[];
       };
-      allRows.push(...(pageBody.DisasterDeclarationsSummaries || []));
+      allRows.push(...(pageBody.PublicAssistanceGrantAwardActivities || []));
     }
   }
 
@@ -105,8 +106,8 @@ const computeDominantIncidentType = (
   return dominantType;
 };
 
-const aggregateDeclarations = (
-  declarations: RawDeclaration[],
+const aggregatePAGrantAwards = (
+  activities: RawFemaPAGrantAwardActivity[],
 ): StateAggregationResult[] => {
   const groups = new Map<
     string,
@@ -120,23 +121,23 @@ const aggregateDeclarations = (
     }
   >();
 
-  for (const decl of declarations) {
-    const fiscalYear = getFiscalYear(decl.declarationDate);
-    const key = `${decl.state}_${fiscalYear}`;
+  for (const activity of activities) {
+    const fiscalYear = getFiscalYear(activity.declarationDate);
+    const key = `${activity.stateAbbreviation}_${fiscalYear}`;
     const existing = groups.get(key);
 
     if (existing) {
-      existing.totalCents += Math.round((decl.obligatedAmount ?? 0) * 100);
+      existing.totalCents += Math.round((activity.federalShareObligated ?? 0) * 100);
       existing.count += 1;
-      existing.incidentTypes.push(decl.incidentType);
+      existing.incidentTypes.push(activity.incidentType);
     } else {
       groups.set(key, {
-        stateCode: decl.state,
-        stateName: decl.stateName || decl.state,
+        stateCode: activity.stateAbbreviation,
+        stateName: activity.state,
         fiscalYear,
-        totalCents: Math.round((decl.obligatedAmount ?? 0) * 100),
+        totalCents: Math.round((activity.federalShareObligated ?? 0) * 100),
         count: 1,
-        incidentTypes: [decl.incidentType],
+        incidentTypes: [activity.incidentType],
       });
     }
   }
@@ -160,9 +161,9 @@ const aggregateDeclarations = (
 @Injectable()
 export class OpenFemaService {
   async fetchDeclarationsByState(): Promise<StateAggregationResult[]> {
-    const baseUrl = `${API_BASE}/DisasterDeclarationsSummaries?limit=100`;
-    const declarations = await fetchAllPages(baseUrl);
+    const baseUrl = `${API_BASE}/PublicAssistanceGrantAwardActivities?limit=100`;
+    const activities = await fetchAllPages(baseUrl);
 
-    return aggregateDeclarations(declarations);
+    return aggregatePAGrantAwards(activities);
   }
 }
