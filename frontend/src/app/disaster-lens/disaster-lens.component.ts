@@ -30,6 +30,7 @@ import { getRatioColor, RatioColor } from '../ratio-color';
     CurrencyFormatPipe,
   ],
   templateUrl: './disaster-lens.component.html',
+  styleUrl: './disaster-lens.component.scss',
 })
 export class DisasterLensComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);

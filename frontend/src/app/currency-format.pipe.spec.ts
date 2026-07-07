@@ -35,9 +35,9 @@ describe('CurrencyFormatPipe', () => {
       expected: '$15,000,000.00',
     },
     {
-      name: 'formats negative 500 cents as ($5.00)',
+      name: 'formats negative 500 cents as -$5.00',
       input: -500,
-      expected: '($5.00)',
+      expected: '-$5.00',
     },
     {
       name: 'formats undefined as $0.00',

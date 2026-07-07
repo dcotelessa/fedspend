@@ -1,0 +1,172 @@
+{
+  "story": "E16-S01",
+  "epic": "E16",
+  "title": "Disaster formatting + negative-currency parens fix",
+  "goal": "Two Disaster-page fixes. (1) The Recovery Ratios table shows stray parens like ($12,847,333.64) for 88 of 158 rows because currencyFormat wraps negatives in accounting parens via a manual replace block. Intl.NumberFormat already emits a clean minus sign (-$12,847,333.64) for negatives, so delete the override block. (2) The disaster-lens page has no component SCSS - the 4 KPI mat-cards, the chart, and the ratio table are largely unstyled (only .bar-chart-container exists globally). Add a component SCSS mirroring Geography/Agencies: cards grid, chart/table spacing, ratio-chip color fills.",
+  "notes": "The parens fix is GLOBAL (currencyFormat is used across Geography/Agencies/Disaster), but Geography and Agencies data currently has no negative obligations, so only Disaster 88 negative fedSpendingObligated rows visibly flip from ($x) to -$x. The negatives are real USASpending de-obligation/adjustment values - the minus sign preserves the information honestly rather than hiding it. The delete is safe because Intl.NumberFormat already produces -$12,847,333.64 for negatives; the manual replace block was overriding that to accounting parens. The Disaster component SCSS mirrors geographic-view.component.scss and agency-spotlight.component.scss conventions (M3 --mat-sys-* tokens, surface-container cards, level1 shadow, corner vars). No backend change; no pi/build-agent run required (harness=opencode is fine). Does NOT address the ratio=0 / FEMA-missing issue - that is E16-S02.",
+  "dependencies": "",
+  "acceptanceCriteria": [
+    {
+      "text": "currencyFormat no longer wraps negatives in parens (uses a leading minus sign)",
+      "check": "cd frontend && ! grep -qF \"replace('-', '(')\" src/app/currency-format.pipe.ts"
+    },
+    {
+      "text": "currency-format.pipe.spec.ts passes with a minus-sign negative assertion",
+      "check": "cd frontend && pnpm test --testPathPatterns=currency-format --passWithNoTests"
+    },
+    {
+      "text": "disaster-lens has a component scss wired via styleUrl",
+      "check": "cd frontend && test -f src/app/disaster-lens/disaster-lens.component.scss && grep -q 'styleUrl' src/app/disaster-lens/disaster-lens.component.ts"
+    },
+    {
+      "text": "disaster-lens .cards is a responsive grid with gap",
+      "check": "cd frontend && grep -A4 '.cards' src/app/disaster-lens/disaster-lens.component.scss | grep -q 'display: grid' && grep -A4 '.cards' src/app/disaster-lens/disaster-lens.component.scss | grep -q 'gap'"
+    },
+    {
+      "text": "disaster-lens .ratio-chip has warn/accent/primary color rules",
+      "check": "cd frontend && grep -E 'ratio-chip.(warn|accent|primary)|\\.warn|\\.accent|\\.primary' src/app/disaster-lens/disaster-lens.component.scss | head -3"
+    },
+    {
+      "text": "disaster-lens.component.spec.ts passes",
+      "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens --passWithNoTests"
+    },
+    {
+      "text": "frontend builds cleanly",
+      "check": "cd frontend && pnpm build"
+    },
+    {
+      "text": "frontend full test suite green",
+      "check": "cd frontend && pnpm test --passWithNoTests"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "frontend/src/app/currency-format.pipe.ts",
+      "mode": "slice",
+      "start": 23,
+      "end": 27,
+      "reason": "delete the if (amount < 0) parens-override block; Intl.NumberFormat already formats negatives with a leading minus sign.",
+      "excerpt": "  21:     // Handle negative values by converting - to (\n  22:     if (amount < 0) {\n  23:       return formatted.replace('-', '(').replace('.00', '.00)');\n  24:     }\n  25:     \n  26:     return formatted;\n  27:   }\n  28: }"
+    },
+    {
+      "path": "frontend/src/app/currency-format.pipe.spec.ts",
+      "mode": "slice",
+      "start": 1,
+      "end": 5,
+      "reason": "assert a negative input renders with a leading minus sign, not parens.",
+      "excerpt": "   1: import { CurrencyFormatPipe } from './currency-format.pipe';\n   2: \n   3: describe('CurrencyFormatPipe', () => {\n   4:   let pipe: CurrencyFormatPipe;\n   5: \n   6:   beforeEach(() => {\n   7:     pipe = new CurrencyFormatPipe();"
+    },
+    {
+      "path": "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+      "mode": "slice",
+      "start": 30,
+      "end": 40,
+      "reason": "add styleUrl: ./disaster-lens.component.scss to the @Component decorator.",
+      "excerpt": "  28:     MatTooltipModule,\n  29:     BarChartComponent,\n  30:     CurrencyFormatPipe,\n  31:   ],\n  32:   templateUrl: './disaster-lens.component.html',\n  33: })\n  34: export class DisasterLensComponent implements OnInit, OnDestroy {\n  35:   private readonly api = inject(ApiService);\n  36: \n  37:   currentTab = 'COVID-19';\n  38:   tabIndex = 0;\n  39:   selectedFiscalYear: number | null = null;\n  40: \n  41:   defGroups = ['COVID-19', 'Hurricane', 'Wildfire', 'Infrastructure', 'General'];\n  42:   fiscalYears: number[] = [];"
+    },
+    {
+      "path": "frontend/src/app/disaster-lens/disaster-lens.component.html",
+      "mode": "full",
+      "contents": "<h1>Disaster Lens</h1>\n\n<mat-tab-group [selectedIndex]=\"tabIndex\" (selectedTabChange)=\"onTabChange($event)\">\n  <mat-tab *ngFor=\"let group of defGroups\" [label]=\"group\">\n    <div class=\"controls\">\n      <mat-form-field appearance=\"outline\">\n        <mat-label>Fiscal Year</mat-label>\n        <mat-select [(ngModel)]=\"selectedFiscalYear\" (selectionChange)=\"onFiscalYearChange()\">\n          <mat-option [value]=\"null\">All</mat-option>\n          <mat-option *ngFor=\"let fy of fiscalYears\" [value]=\"fy\">\n            {{ fy }}\n          </mat-option>\n        </mat-select>\n      </mat-form-field>\n    </div>\n\n    <div class=\"cards\">\n      <mat-card>\n        <mat-card-header>\n          <mat-card-title>Total Spending</mat-card-title>\n        </mat-card-header>\n        <mat-card-content>\n          {{ totalObligated | currencyFormat }}\n        </mat-card-content>\n      </mat-card>\n\n      <mat-card>\n        <mat-card-header>\n          <mat-card-title>States</mat-card-title>\n        </mat-card-header>\n        <mat-card-content>\n          {{ stateCount }}\n        </mat-card-content>\n      </mat-card>\n\n      <mat-card>\n        <mat-card-header>\n          <mat-card-title>Coverage Gaps</mat-card-title>\n        </mat-card-header>\n        <mat-card-content>\n          <span class=\"gap-count\" [class.severe]=\"coverageGapCount > 0\">\n            {{ coverageGapCount }}\n          </span>\n        </mat-card-content>\n      </mat-card>\n\n      <mat-card>\n        <mat-card-header>\n          <mat-card-title>Highest Per Capita</mat-card-title>\n        </mat-card-header>\n        <mat-card-content>\n          {{ highestPerCapitaState }}\n        </mat-card-content>\n      </mat-card>\n    </div>\n\n    <div class=\"chart-container\">\n      <app-bar-chart\n        [labels]=\"top15Labels\"\n        [datasets]=\"[{ label: 'Obligated Amount', data: top15Datasets }]\"\n        [horizontal]=\"true\"\n        title=\"Top 15 States by Obligated Amount\"\n      ></app-bar-chart>\n    </div>\n\n    <h2>Recovery Ratios by State</h2>\n\n    <table mat-table [dataSource]=\"pagedRatios\" class=\"full-width\">\n      <ng-container matColumnDef=\"state\">\n        <th mat-header-cell *matHeaderCellDef>State</th>\n        <td mat-cell *matCellDef=\"let ratio\">{{ ratio.stateName }}</td>\n      </ng-container>\n\n      <ng-container matColumnDef=\"declarations\">\n        <th mat-header-cell *matHeaderCellDef>Declarations</th>\n        <td mat-cell *matCellDef=\"let ratio\">{{ ratio.declarationCount }}</td>\n      </ng-container>\n\n      <ng-container matColumnDef=\"fema\">\n        <th mat-header-cell *matHeaderCellDef>FEMA</th>\n        <td mat-cell *matCellDef=\"let ratio\">{{ ratio.femaObligated | currencyFormat }}</td>\n      </ng-container>\n\n      <ng-container matColumnDef=\"fedDef\">\n        <th mat-header-cell *matHeaderCellDef>Fed DEF</th>\n        <td mat-cell *matCellDef=\"let ratio\">{{ ratio.fedSpendingObligated | currencyFormat }}</td>\n      </ng-container>\n\n      <ng-container matColumnDef=\"ratio\">\n        <th mat-header-cell *matHeaderCellDef> Ratio </th>\n        <td mat-cell *matCellDef=\"let ratio\">\n          <span\n            class=\"ratio-chip\"\n            [class.warn]=\"getChipClass(ratio.recoveryRatio) === 'warn'\"\n            [class.accent]=\"getChipClass(ratio.recoveryRatio) === 'accent'\"\n            [class.primary]=\"getChipClass(ratio.recoveryRatio) === 'primary'\"\n            matTooltip=\"Recovery Ratio = Federal DEF Spending ÷ FEMA Baseline. A ratio below 1.0 indicates federal spending has not yet matched FEMA's initial obligation level.\"\n          >\n            {{ ratio.recoveryRatio | number:'1.2-2' }}\n          </span>\n        </td>\n      </ng-container>\n\n      <ng-container matColumnDef=\"dominantIncident\">\n        <th mat-header-cell *matHeaderCellDef>Dominant Incident</th>\n        <td mat-cell *matCellDef=\"let ratio\">{{ ratio.dominantIncidentType }}</td>\n      </ng-container>\n\n      <tr mat-header-row *matHeaderRowDef=\"displayedColumns\"></tr>\n      <tr mat-row *matRowDef=\"let row; columns: displayedColumns;\"></tr>\n    </table>\n\n    <mat-paginator [pageSize]=\"15\" [pageSizeOptions]=\"[15]\" showFirstLastButtons></mat-paginator>\n  </mat-tab>\n</mat-tab-group>\n"
+    }
+  ]
+}

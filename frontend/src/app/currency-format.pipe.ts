@@ -18,11 +18,6 @@ export class CurrencyFormatPipe implements PipeTransform {
       maximumFractionDigits: 2,
     }).format(amount);
     
-    // Handle negative values by converting - to (
-    if (amount < 0) {
-      return formatted.replace('-', '(').replace('.00', '.00)');
-    }
-    
     return formatted;
   }
 }
