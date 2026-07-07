@@ -3602,6 +3602,136 @@
         }
       ],
       "notes": "All four changes were applied directly (harness=opencode) and are now formalized for audit completeness, matching the pattern used for E14-S05/S08/S09/S10/S11/S12. The zero-total filter mirrors the Geography dropdown (E14-S06) - the list page previously showed all ~111 agencies with muted View details text for the 105 with no spending. The card-grid layout mirrors dashboard.component.scss nav-cards (surface-container, level1 shadow, hover lift) - MatListModule/MatCardModule were dropped in favor of plain elements + component scss. The Back to Agencies button uses routerLink (not location.back) so it always lands on /agencies regardless of entry point. The header/insight containers mirror the Geography delta-insight card and dashboard cards. YoY badge rendered as a pill (rounded, surface-container-high) with color by positive/negative/neutral via M3 --mat-sys tokens (primary/error/on-surface-variant). No backend change; no pi/build-agent run."
+    },
+    {
+      "id": "E16-S01",
+      "epic": "E16",
+      "title": "Disaster formatting + negative-currency parens fix",
+      "goal": "Two Disaster-page fixes. (1) The Recovery Ratios table shows stray parens like ($12,847,333.64) for 88 of 158 rows because currencyFormat wraps negatives in accounting parens via a manual replace block. Intl.NumberFormat already emits a clean minus sign (-$12,847,333.64) for negatives, so delete the override block. (2) The disaster-lens page has no component SCSS - the 4 KPI mat-cards, the chart, and the ratio table are largely unstyled (only .bar-chart-container exists globally). Add a component SCSS mirroring Geography/Agencies: cards grid, chart/table spacing, ratio-chip color fills.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/currency-format.pipe.ts",
+          "frontend/src/app/currency-format.pipe.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.scss"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/currency-format.pipe.ts",
+            "start": 23,
+            "end": 27,
+            "reason": "delete the if (amount < 0) parens-override block; Intl.NumberFormat already formats negatives with a leading minus sign."
+          },
+          {
+            "file": "frontend/src/app/currency-format.pipe.spec.ts",
+            "start": 1,
+            "end": 5,
+            "reason": "assert a negative input renders with a leading minus sign, not parens."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+            "start": 30,
+            "end": 40,
+            "reason": "add styleUrl: ./disaster-lens.component.scss to the @Component decorator."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.scss",
+            "start": 1,
+            "end": 1,
+            "reason": "NEW - :host block; h1/h2 heading spacing; .controls margin; .cards responsive grid with gap; .chart-container margin; .ratio-chip color fills for warn/accent/primary via M3 tokens; .gap-count.severe color."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "currencyFormat no longer wraps negatives in parens (uses a leading minus sign)",
+          "check": "cd frontend && ! grep -qF \"replace('-', '(')\" src/app/currency-format.pipe.ts"
+        },
+        {
+          "text": "currency-format.pipe.spec.ts passes with a minus-sign negative assertion",
+          "check": "cd frontend && pnpm test --testPathPatterns=currency-format --passWithNoTests"
+        },
+        {
+          "text": "disaster-lens has a component scss wired via styleUrl",
+          "check": "cd frontend && test -f src/app/disaster-lens/disaster-lens.component.scss && grep -q 'styleUrl' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "disaster-lens .cards is a responsive grid with gap",
+          "check": "cd frontend && grep -A4 '.cards' src/app/disaster-lens/disaster-lens.component.scss | grep -q 'display: grid' && grep -A4 '.cards' src/app/disaster-lens/disaster-lens.component.scss | grep -q 'gap'"
+        },
+        {
+          "text": "disaster-lens .ratio-chip has warn/accent/primary color rules",
+          "check": "cd frontend && grep -E 'ratio-chip.(warn|accent|primary)|\\.warn|\\.accent|\\.primary' src/app/disaster-lens/disaster-lens.component.scss | head -3"
+        },
+        {
+          "text": "disaster-lens.component.spec.ts passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "frontend full test suite green",
+          "check": "cd frontend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "The parens fix is GLOBAL (currencyFormat is used across Geography/Agencies/Disaster), but Geography and Agencies data currently has no negative obligations, so only Disaster 88 negative fedSpendingObligated rows visibly flip from ($x) to -$x. The negatives are real USASpending de-obligation/adjustment values - the minus sign preserves the information honestly rather than hiding it. The delete is safe because Intl.NumberFormat already produces -$12,847,333.64 for negatives; the manual replace block was overriding that to accounting parens. The Disaster component SCSS mirrors geographic-view.component.scss and agency-spotlight.component.scss conventions (M3 --mat-sys-* tokens, surface-container cards, level1 shadow, corner vars). No backend change; no pi/build-agent run required (harness=opencode is fine). Does NOT address the ratio=0 / FEMA-missing issue - that is E16-S02."
+    },
+    {
+      "id": "E16-S02",
+      "epic": "E16",
+      "title": "Investigate + fix: FEMA obligated data missing (recovery ratio column all zeros)",
+      "goal": "All 158 rows in disaster_recovery_ratio have femaObligated = 0, so recoveryRatio is 0 (or 1.0 when both sides are zero) for every state, the ratio column renders 0.00 with warn-chips on every row, and the Coverage Gaps card counts nearly everything as a gap. The openfema service computes femaObligatedCents from decl.obligatedAmount - either the FEMA API returns no obligatedAmount, the field mapping is wrong, or the sync path is broken. Investigate against the live FEMA API, fix the mapping/extraction, and confirm femaObligated > 0 for at least some states after re-sync.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/src/sync/openfema.service.ts",
+          "backend/src/sync/openfema.types.ts",
+          "backend/src/sync/openfema.service.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/sync/openfema.service.ts",
+            "start": 120,
+            "end": 155,
+            "reason": "fetchDeclarationsByState + aggregation - verify obligatedAmount is extracted from the correct FEMA API field and summed into totalCents/femaObligatedCents."
+          },
+          {
+            "file": "backend/src/sync/openfema.types.ts",
+            "start": 1,
+            "end": 30,
+            "reason": "FEMA declaration type - verify obligatedAmount maps to the real API field name."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "femaObligated > 0 for at least some rows after re-sync",
+          "check": "cd backend && node -e \"const c=require('better-sqlite3')('data/dev.db').prepare('SELECT COUNT(*) c FROM disaster_recovery_ratio WHERE femaObligated > 0').get().c; process.exit(c>0?0:1)\""
+        },
+        {
+          "text": "recoveryRatio is non-zero for at least some rows",
+          "check": "cd backend && node -e \"const c=require('better-sqlite3')('data/dev.db').prepare('SELECT COUNT(*) c FROM disaster_recovery_ratio WHERE recoveryRatio > 0 AND femaObligated > 0').get().c; process.exit(c>=5?0:1)\""
+        },
+        {
+          "text": "openfema.service.spec.ts passes",
+          "check": "cd backend && pnpm test --testPathPatterns=openfema --passWithNoTests"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "backend full test suite green",
+          "check": "cd backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "INVESTIGATION STORY - the root cause is NOT confirmed (could be API field name, shape change, a parsing gap, or FEMA genuinely not exposing obligations for the queried disaster declarations). The implementer MUST hit the live FEMA API (https://www.fema.gov/api/open/v2/OpenFemaData...) and confirm what the obligated-amount field looks like before changing the mapping - same diligence as E14-S08/S10 (the USASpending geography endpoint silently ignored awarding_agencies; do not trust assumed field names). If FEMA genuinely does not expose obligated amounts for these declarations, document that in the story notes and consider whether the ratio column/coverage-gap metric should be hidden or redefined. Backfill required: POST /sync/disaster after the fix. Out of scope for E16-S01 (formatting + parens)."
     }
   ],
   "storyOrder": [
@@ -3665,7 +3795,9 @@
     "E15-S01",
     "E15-S02",
     "E15-S03",
-    "E15-S04"
+    "E15-S04",
+    "E16-S01",
+    "E16-S02"
   ],
   "resolutions": [
     {
