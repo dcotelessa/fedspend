@@ -3488,6 +3488,120 @@
         }
       ],
       "notes": "CRITICAL - VERIFY-FIRST GATE: the USASpending spending_by_geography endpoint silently ignored filters.awarding_agencies in E14-S08 (every per-agency row stored rollup data until E14-S10 caught it). The same risk applies here: filters.award_type may be accepted but ignored, OR the code mapping may be wrong. Before building, the implementer MUST hit the live API with a known award_type code and confirm the total differs from the rollup (e.g. Contracts-only total < all-awards total). If the endpoint silently ignores award_type, HALT and report back - do not ship a fake breakdown. The AWARD_TYPES constant already exists (sync.constants.ts); this story adds the code mapping. Sync cost after deploy: ~20 agencies x 5 years x 5 types = 500 fetches (one-time backfill, several minutes). The Spotlight needs NO frontend change - buildStackedChartFromRecords/buildTableData/computeInsight already group by awardTypeLabel, so real labels flow through automatically. The SpendingRecord @Unique([agencyId,fiscalYear,quarter,awardTypeLabel]) naturally supports multiple rows per agency-year."
+    },
+    {
+      "id": "E15-S04",
+      "epic": "E15",
+      "title": "Agencies UI polish: zero-total filter, back button, card-grid list, header/insight containers",
+      "goal": "Four Agencies-page polish fixes applied directly (commits 825212b, f42aed1, 68a6b92) and now formalized as a tracked story. (1) The /agencies list rendered all ~111 agencies including the ~105 with zero spending - filter to totalCents > 0 like the Geography dropdown (E14-S06). (2) Agency Spotlight had no way back to the list - add a Back to Agencies button. (3) The list was a bare mat-list with no spacing - convert to a responsive card grid mirroring the dashboard nav-cards convention. (4) The Spotlight header (name/abbr/total/YoY) and the insight line were unstyled prose - wrap each in a surface-container card (mirrors Geography delta-insight + dashboard cards) and render the YoY badge as a pill.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E15-S01"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/agency-list/agency-list.component.ts",
+          "frontend/src/app/agency-list/agency-list.component.html",
+          "frontend/src/app/agency-list/agency-list.component.scss",
+          "frontend/src/app/agency-list/agency-list.component.spec.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.scss"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/agency-list/agency-list.component.ts",
+            "start": 18,
+            "end": 20,
+            "reason": "ngOnInit - filter agencies to totalCents > 0; drop MatListModule/MatCardModule imports; add styleUrl."
+          },
+          {
+            "file": "frontend/src/app/agency-list/agency-list.component.html",
+            "start": 1,
+            "end": 14,
+            "reason": "replace mat-list with a responsive .agencies-grid of .agency-card links."
+          },
+          {
+            "file": "frontend/src/app/agency-list/agency-list.component.scss",
+            "start": 1,
+            "end": 1,
+            "reason": "NEW - card-grid styling mirroring dashboard nav-cards (surface-container, padding, radius, level1 shadow, hover lift)."
+          },
+          {
+            "file": "frontend/src/app/agency-list/agency-list.component.spec.ts",
+            "start": 36,
+            "end": 45,
+            "reason": "replace the zero-total muted-text row with a filters-out-zero-total row."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+            "start": 1,
+            "end": 12,
+            "reason": "add RouterLink, MatButtonModule, MatIconModule imports; add styleUrl."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+            "start": 1,
+            "end": 3,
+            "reason": "add a Back to Agencies mat-button (routerLink /agencies) at the top."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+            "start": 32,
+            "end": 36,
+            "reason": "insight <p> -> flex .insight card with an insights mat-icon."
+          },
+          {
+            "file": "frontend/src/app/agency-spotlight/agency-spotlight.component.scss",
+            "start": 1,
+            "end": 1,
+            "reason": "NEW - header card, insight card, YoY badge pill, fy-range-selector spacing."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "agency-list filters out zero-total agencies",
+          "check": "cd frontend && grep -q 'totalCents > 0' src/app/agency-list/agency-list.component.ts"
+        },
+        {
+          "text": "agency-list has a component scss wired via styleUrl",
+          "check": "cd frontend && test -f src/app/agency-list/agency-list.component.scss && grep -q 'styleUrl' src/app/agency-list/agency-list.component.ts"
+        },
+        {
+          "text": "agency-list renders a card grid (not the old mat-list)",
+          "check": "cd frontend && grep -q 'agencies-grid' src/app/agency-list/agency-list.component.html && ! grep -q 'mat-list' src/app/agency-list/agency-list.component.html"
+        },
+        {
+          "text": "agency-spotlight has a Back to Agencies button linking to /agencies",
+          "check": "cd frontend && grep -q 'back-btn' src/app/agency-spotlight/agency-spotlight.component.html && grep -q '/agencies' src/app/agency-spotlight/agency-spotlight.component.html"
+        },
+        {
+          "text": "agency-spotlight insight is a flex card with an icon",
+          "check": "cd frontend && grep -A3 'class=\"insight\"' src/app/agency-spotlight/agency-spotlight.component.html | grep -q 'mat-icon'"
+        },
+        {
+          "text": "agency-spotlight has a component scss with a header container",
+          "check": "cd frontend && test -f src/app/agency-spotlight/agency-spotlight.component.scss && grep -q 'agency-spotlight-header' src/app/agency-spotlight/agency-spotlight.component.scss"
+        },
+        {
+          "text": "agency-list spec passes (table-driven: filters zero-total)",
+          "check": "cd frontend && pnpm test --testPathPatterns=agency-list --passWithNoTests"
+        },
+        {
+          "text": "agency-spotlight spec passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=agency-spotlight --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "frontend full test suite green",
+          "check": "cd frontend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "All four changes were applied directly (harness=opencode) and are now formalized for audit completeness, matching the pattern used for E14-S05/S08/S09/S10/S11/S12. The zero-total filter mirrors the Geography dropdown (E14-S06) - the list page previously showed all ~111 agencies with muted View details text for the 105 with no spending. The card-grid layout mirrors dashboard.component.scss nav-cards (surface-container, level1 shadow, hover lift) - MatListModule/MatCardModule were dropped in favor of plain elements + component scss. The Back to Agencies button uses routerLink (not location.back) so it always lands on /agencies regardless of entry point. The header/insight containers mirror the Geography delta-insight card and dashboard cards. YoY badge rendered as a pill (rounded, surface-container-high) with color by positive/negative/neutral via M3 --mat-sys tokens (primary/error/on-surface-variant). No backend change; no pi/build-agent run."
     }
   ],
   "storyOrder": [
@@ -3550,7 +3664,8 @@
     "E14-S12",
     "E15-S01",
     "E15-S02",
-    "E15-S03"
+    "E15-S03",
+    "E15-S04"
   ],
   "resolutions": [
     {

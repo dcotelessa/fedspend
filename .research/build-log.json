@@ -1267,6 +1267,59 @@
       "thinking": "medium",
       "timestamp": "2026-07-05T19:28:07.271Z",
       "note": "Formalized two prior direct commits (814b0b0 toggle visibility, 36a1eac award count removal) as a single follow-up story."
+    },
+    {
+      "story": "E15-S01",
+      "epic": "E15",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1101,
+      "thinking": "medium",
+      "timestamp": "2026-07-06T00:26:01Z"
+    },
+    {
+      "story": "E15-S02",
+      "epic": "E15",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 60521,
+      "thinking": "medium",
+      "timestamp": "2026-07-06T18:12:20Z"
+    },
+    {
+      "story": "E15-S03",
+      "epic": "E15",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1737,
+      "thinking": "medium",
+      "timestamp": "2026-07-06T19:51:05Z"
+    },
+    {
+      "story": "E15-S04",
+      "epic": "E15",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 600,
+      "thinking": "medium",
+      "timestamp": "2026-07-07T01:02:59.371Z",
+      "note": "Formalizes three direct commits (zero-agency filter, back button, card-grid list, header/insight containers). Pure frontend polish."
     }
   ]
 }
