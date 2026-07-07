@@ -1,0 +1,37 @@
+:host {
+  display: block;
+}
+
+.agencies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.agency-card {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: var(--mat-sys-on-surface);
+  padding: 1.5rem;
+  border-radius: var(--mat-sys-corner-large, 16px);
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  box-shadow: var(--mat-sys-level1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--mat-sys-level3);
+  }
+}
+
+.agency-name {
+  font: var(--mat-sys-title-medium);
+  margin-bottom: 0.5rem;
+}
+
+.agency-total {
+  font: var(--mat-sys-body-large);
+  color: var(--mat-sys-on-surface-variant);
+}

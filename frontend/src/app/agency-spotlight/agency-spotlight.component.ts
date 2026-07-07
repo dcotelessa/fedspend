@@ -4,7 +4,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatOptionModule } from '@angular/material/core';
 import { MatTableModule } from '@angular/material/table';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
@@ -25,7 +27,7 @@ interface TableDataRow {
   selector: 'app-agency-spotlight',
   templateUrl: './agency-spotlight.component.html',
   standalone: true,
-  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatOptionModule, MatTableModule],
+  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatOptionModule, MatTableModule, RouterLink, MatButtonModule, MatIconModule],
 })
 export class AgencySpotlightComponent implements OnInit {
   readonly route = inject(ActivatedRoute);
