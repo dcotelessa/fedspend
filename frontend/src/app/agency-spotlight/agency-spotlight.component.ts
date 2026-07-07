@@ -26,6 +26,7 @@ interface TableDataRow {
 @Component({
   selector: 'app-agency-spotlight',
   templateUrl: './agency-spotlight.component.html',
+  styleUrl: './agency-spotlight.component.scss',
   standalone: true,
   imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatOptionModule, MatTableModule, RouterLink, MatButtonModule, MatIconModule],
 })

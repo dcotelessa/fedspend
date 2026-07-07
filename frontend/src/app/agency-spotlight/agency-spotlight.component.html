@@ -31,7 +31,10 @@
 </div>
 
 @if (insight) {
-  <p class="insight">{{ insight }}</p>
+  <div class="insight">
+    <mat-icon>insights</mat-icon>
+    <span>{{ insight }}</span>
+  </div>
 }
 
 @if (loading) {
