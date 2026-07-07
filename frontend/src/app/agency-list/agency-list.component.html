@@ -4,11 +4,7 @@
   @for (a of agencies; track a.id) {
     <a mat-list-item [routerLink]="['/agencies', a.id]">
       <span matListItemTitle>{{ a.name }}</span>
-      @if (a.totalCents > 0) {
-        <span matListItemLine>{{ a.totalCents | currencyFormat }}</span>
-      } @else {
-        <span matListItemLine class="muted">View details →</span>
-      }
+      <span matListItemLine>{{ a.totalCents | currencyFormat }}</span>
     </a>
   }
 </mat-list>

@@ -19,36 +19,33 @@ describe('AgencyListComponent', () => {
     agencies: AgencyWithTotal[];
     expectedCount: number;
     expectedFirstHref: string;
-    expectedMutedCount: number;
     expectedFormattedValue: string;
   }> = [
     {
-      name: 'loads and renders agencies with totals',
+      name: 'renders agencies with positive totals',
       agencies: [
         { id: 1, name: 'NASA', totalCents: 500000 },
-        { id: 2, name: 'NASA', totalCents: 300000 },
+        { id: 2, name: 'HHS', totalCents: 300000 },
       ],
       expectedCount: 2,
       expectedFirstHref: '/agencies/1',
-      expectedMutedCount: 0,
       expectedFormattedValue: '$5,000.00',
     },
     {
-      name: 'shows muted text for zero total',
+      name: 'filters out zero-total agencies',
       agencies: [
-        { id: 1, name: 'NASA', totalCents: 0 },
+        { id: 1, name: 'Zero Agency', totalCents: 0 },
+        { id: 2, name: 'NASA', totalCents: 500000 },
       ],
       expectedCount: 1,
-      expectedFirstHref: '/agencies/1',
-      expectedMutedCount: 1,
-      expectedFormattedValue: '$0.00',
+      expectedFirstHref: '/agencies/2',
+      expectedFormattedValue: '$5,000.00',
     },
     {
       name: 'handles empty list',
       agencies: [],
       expectedCount: 0,
       expectedFirstHref: '',
-      expectedMutedCount: 0,
       expectedFormattedValue: '$0.00',
     },
   ];
@@ -73,12 +70,11 @@ describe('AgencyListComponent', () => {
     jest.restoreAllMocks();
   });
 
-  it.each(testTable)('$name', ({ agencies, expectedCount, expectedFirstHref, expectedMutedCount, expectedFormattedValue }) => {
+  it.each(testTable)('$name', ({ agencies, expectedCount, expectedFirstHref, expectedFormattedValue }) => {
     jest.spyOn(apiService, 'getAgencies').mockReturnValueOnce(of(agencies));
     component.ngOnInit();
     fixture.detectChanges();
 
-    expect(component.agencies).toEqual(agencies);
     expect(component.agencies.length).toBe(expectedCount);
 
     if (expectedCount > 0) {
@@ -87,10 +83,7 @@ describe('AgencyListComponent', () => {
       expect(linkEl.getAttribute('href')).toBe(expectedFirstHref);
 
       const pipe = new CurrencyFormatPipe();
-      expect(pipe.transform(agencies[0].totalCents)).toBe(expectedFormattedValue);
+      expect(pipe.transform(component.agencies[0].totalCents)).toBe(expectedFormattedValue);
     }
-
-    const mutedEls = fixture.nativeElement.querySelectorAll('.muted');
-    expect(mutedEls.length).toBe(expectedMutedCount);
   });
 });
