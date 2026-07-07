@@ -1320,6 +1320,33 @@
       "thinking": "medium",
       "timestamp": "2026-07-07T01:02:59.371Z",
       "note": "Formalizes three direct commits (zero-agency filter, back button, card-grid list, header/insight containers). Pure frontend polish."
+    },
+    {
+      "story": "E16-S01",
+      "epic": "E16",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 9641,
+      "thinking": "medium",
+      "timestamp": "2026-07-07T05:35:25Z"
+    },
+    {
+      "story": "E16-S02",
+      "epic": "E16",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 2089,
+      "thinking": "medium",
+      "timestamp": "2026-07-07T20:27:05Z",
+      "note": "False scope-leakage alarm: the commit (f4626bf) only touched in-scope files (openfema.service.ts/types.ts/spec.ts). Re-verify failed only because the backfill ran in the worktree gitignored dev.db, not main main. Fix: obligatedAmount -> federalShareObligated (correct FEMA field). Rebuilt dist, restarted backend, re-ran /sync/disaster on main. Now 293 rows femaObligated>0, 105 with meaningful ratios. 6/6 + guard PASS."
     }
   ]
 }
