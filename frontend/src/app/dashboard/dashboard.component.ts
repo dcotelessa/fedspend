@@ -20,6 +20,7 @@ export interface ChartDataset {
 })
 export class DashboardComponent implements OnInit {
   totalObligated = 0;
+  disasterTotal = 0;
   largestAgency: { name: string; totalCents: number } | null = null;
   coverageGapCount = 0;
   lastSync: string | null = null;
@@ -47,7 +48,15 @@ export class DashboardComponent implements OnInit {
           null,
         );
         this.largestAgency = largest ? { name: largest.name, totalCents: largest.totalCents } : null;
-        this.buildChart(this.agencies);
+      },
+    );
+
+    this.api.getDisasterOverview({}).subscribe(
+      overview => {
+        const disasterTotal = overview.reduce((sum, r) => sum + r.totalObligated, 0);
+        this.totalObligated += disasterTotal;
+        this.disasterTotal = disasterTotal;
+        this.buildChart();
       },
     );
 
@@ -67,11 +76,8 @@ export class DashboardComponent implements OnInit {
     const withData = agencies.filter(a => a.totalCents > 0);
     const sorted = [...withData].sort((a, b) => b.totalCents - a.totalCents);
     const top = sorted.slice(0, DashboardComponent.TOP_N);
-    const otherTotal = sorted.length > DashboardComponent.TOP_N
-      ? sorted.slice(DashboardComponent.TOP_N).reduce((sum, a) => sum + a.totalCents, 0)
-      : sorted.reduce((sum, a) => sum + a.totalCents, 0);
-    const labels = top.map(a => a.name).concat(['Other']);
-    const data = top.map(a => a.totalCents).concat([otherTotal]);
+    const labels = top.map(a => a.name).concat(['Disaster Spending']);
+    const data = top.map(a => a.totalCents).concat([this.disasterTotal]);
     this.chartLabels = labels;
     this.chartDatasets = [{ label: 'Obligated (cents)', data }];
     this.chartAgencyIds = top.map(a => a.id);
