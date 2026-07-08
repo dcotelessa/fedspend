@@ -43,10 +43,7 @@ export const awardTypeToCode: Record<AwardType, string> = {
   'IDVs': 'I',
 };
 
-export const DEF_GROUPS = [
-  'COVID-19',
-  'Hurricane',
-  'Infrastructure',
-  'Wildfire',
-  'General',
-];
+export const DEF_GROUP_MAP: Record<string, string[]> = {
+  'COVID-19': ['L', 'M', 'N', 'O', 'P', 'U', 'V'],
+  'Infrastructure': ['1', 'Z'],
+};

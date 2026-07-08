@@ -1,4 +1,4 @@
-import { TRACKED_AGENCIES, AWARD_TYPES, DEF_GROUPS } from './sync.constants';
+import { TRACKED_AGENCIES, AWARD_TYPES, DEF_GROUP_MAP } from './sync.constants';
 
 describe('Sync Constants', () => {
   interface TestCase {
@@ -105,42 +105,38 @@ describe('Sync Constants', () => {
     });
   });
 
-  describe('DEF_GROUPS', () => {
+  describe('DEF_GROUP_MAP', () => {
+    const keys = Object.keys(DEF_GROUP_MAP);
     const testTable: TestCase[] = [
       {
-        name: 'has exactly 5 def groups',
-        input: DEF_GROUPS,
-        expected: 5
+        name: 'has exactly 2 def groups (COVID-19, Infrastructure)',
+        input: keys,
+        expected: 2
       },
       {
         name: 'contains COVID-19',
-        input: DEF_GROUPS,
+        input: keys,
         expected: 'COVID-19'
       },
       {
-        name: 'contains Hurricane',
-        input: DEF_GROUPS,
-        expected: 'Hurricane'
-      },
-      {
         name: 'contains Infrastructure',
-        input: DEF_GROUPS,
+        input: keys,
         expected: 'Infrastructure'
       },
       {
-        name: 'contains Wildfire',
-        input: DEF_GROUPS,
-        expected: 'Wildfire'
+        name: 'COVID-19 maps to an array of DEF codes',
+        input: DEF_GROUP_MAP['COVID-19'],
+        expected: 'L'
       },
       {
-        name: 'contains General',
-        input: DEF_GROUPS,
-        expected: 'General'
+        name: 'Infrastructure maps to an array of DEF codes',
+        input: DEF_GROUP_MAP['Infrastructure'],
+        expected: '1'
       }
     ];
 
     it.each(testTable)('$name', ({ input, expected }) => {
-      if (expected === 5) {
+      if (expected === 2) {
         expect(input.length).toBe(expected);
       } else {
         expect(input).toContain(expected);

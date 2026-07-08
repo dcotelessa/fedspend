@@ -224,15 +224,18 @@ describe('SyncService', () => {
       expectedTotalGeoRows: 20,
     },
     {
-      name: 'syncDisaster upserts a new disaster funding record',
+      name: 'syncDisaster upserts a new disaster funding record per DEF group',
       method: 'syncDisaster',
       disasterFetchResult: { status: 'success', rows: [
         { id: 0, defGroup: 'JF-3038', defCodes: 'JF-3038', stateCode: 'CA', stateName: 'California', obligatedAmount: 10000, outlayAmount: 8000, awardCount: 5, perCapita: 0, population: 0 }
       ]},
       femaFetchResult: [],
-      expectedUpsertCalls: [{ repoName: 'disaster', count: 1 }],
+      expectedUpsertCalls: [{ repoName: 'disaster', count: 2 }],
       expectedRepoData: {
-        disaster: [{ defGroup: 'JF-3038', stateCode: 'CA' }],
+        disaster: [
+          { defGroup: 'JF-3038', stateCode: 'CA' },
+          { defGroup: 'JF-3038', stateCode: 'CA' },
+        ],
       },
     },
     {
@@ -257,12 +260,15 @@ describe('SyncService', () => {
         { stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligatedCents: 5000, declarationCount: 2, dominantIncidentType: 'Wildfire' }
       ],
       expectedUpsertCalls: [
-        { repoName: 'disaster', count: 1 },
+        { repoName: 'disaster', count: 2 },
         { repoName: 'ratio', count: 1 },
       ],
       expectedRepoData: {
-        disaster: [{ defGroup: 'JF-3038', stateCode: 'CA' }],
-        ratio: [{ stateCode: 'CA', recoveryRatio: 2, fedSpendingObligated: 10000, femaObligated: 5000 }],
+        disaster: [
+          { defGroup: 'JF-3038', stateCode: 'CA' },
+          { defGroup: 'JF-3038', stateCode: 'CA' },
+        ],
+        ratio: [{ stateCode: 'CA', recoveryRatio: 4, fedSpendingObligated: 20000, femaObligated: 5000 }],
       },
     },
     {

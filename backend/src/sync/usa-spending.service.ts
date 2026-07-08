@@ -236,6 +236,7 @@ export class UsaSpendingService {
   }
 
   async fetchDisasterSpending(
+    defCodes: string[],
     defGroup: string,
   ): Promise<FetchDisasterResult> {
     const body = {
@@ -244,7 +245,7 @@ export class UsaSpendingService {
           start_date: `${DISASTER_FISCAL_YEAR}-10-01`,
           end_date: `${DISASTER_FISCAL_YEAR + 1}-09-30`,
         }],
-        def_codes: [defGroup],
+        def_codes: defCodes,
       },
       geo_layer: 'state',
       scope: 'recipient_location',
@@ -261,7 +262,7 @@ export class UsaSpendingService {
         ...r,
         id: undefined as any,
         defGroup,
-        defCodes: defGroup,
+        defCodes: defCodes.join(','),
       }) as DisasterFundingRecord,
     );
 

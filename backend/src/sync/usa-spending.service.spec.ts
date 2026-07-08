@@ -228,7 +228,7 @@ describe('UsaSpendingService', () => {
       const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      await svc.fetchDisasterSpending('L');
+      await svc.fetchDisasterSpending(['L'], 'COVID-19');
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/search/spending_by_geography/'),
@@ -383,12 +383,12 @@ describe('UsaSpendingService', () => {
       const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      await svc.fetchDisasterSpending('L');
+      await svc.fetchDisasterSpending(['L', 'M', 'N'], 'COVID-19');
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const call = fetchMock.mock.calls[0];
       const body = JSON.parse(call[1].body as string);
-      expect(body.filters.def_codes).toContain('L');
+      expect(body.filters.def_codes).toEqual(['L', 'M', 'N']);
     });
   });
 

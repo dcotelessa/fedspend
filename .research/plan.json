@@ -3844,6 +3844,76 @@
         }
       ],
       "notes": "All four fixes were applied directly (harness=opencode) and formalized for audit completeness, matching the pattern used for E14-S05/S08/S09/S10/S11/S12 and E15-S04. ROOT-CAUSE DETAIL: (1) defGroup label/code mismatch - frontend sent human labels (COVID-19) but DB stores USASpending DEF codes (L); the other 4 tabs (Hurricane/Wildfire/Infrastructure/General) remain empty pending a multi-group sync + full DEF-code map. (2) The recovery ratio (fed DEF / FEMA obligated) was conceptually mismatched - USASpending DEF spending includes non-FEMA agencies (trillions for COVID), while FEMA Public Assistance is a narrow physical-disaster-repair program (COVID PA nationwide is -$178M); aligning disaster numbers cannot fix it because the two data sources measure different things. Verified live: COVID disaster 4488 PA sum is -$178M. (3) Paginator missing [length] is a one-binding fix. (4) The per-state-year table repeated each state fedSpendingObligated (per-state value) across all its FEMA declaration-year rows (NY x12) - aggregateByState sums femaObligated + declarationCount and keeps fedSpendingObligated once. The aggregateByState spec row asserts NY fema sums to 150000 while fedSpendingObligated stays at -2820000000 (not doubled). No backend change; no re-sync; no pi/build-agent run."
+    },
+    {
+      "id": "E16-S04",
+      "epic": "E16",
+      "title": "Disaster DEF-code restructure: full COVID-19 group + Infrastructure tab, drop Hurricane/Wildfire/General",
+      "goal": "USASpending DEF codes have only TWO real disaster categories - covid_19 (codes L,M,N,O,P,U,V) and infrastructure (codes 1,Z). There is no Hurricane/Wildfire DEF category (DEF codes are funding-bill categories, not disaster types). The COVID-19 tab mapped to only code L which nets -$0.39B (a small supplemental code); the full covid_19 group is +$107.6B. Restructured: DEF_GROUP_MAP maps the two real groups to their code arrays, syncDisaster loops the map storing the group LABEL as defGroup, the frontend tabs are now [COVID-19, Infrastructure], and the stale Hurricane/Wildfire/General tabs are removed. Supersedes the E16-S03 COVID->L single-code mapping.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E16-S03"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/sync/sync.constants.ts",
+          "backend/src/sync/sync.constants.spec.ts",
+          "backend/src/sync/usa-spending.service.ts",
+          "backend/src/sync/usa-spending.service.spec.ts",
+          "backend/src/sync/sync.service.ts",
+          "backend/src/sync/sync.service.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "DEF_GROUP_MAP is exported with COVID-19 and Infrastructure keys",
+          "check": "cd backend && grep -q \"'COVID-19'\" src/sync/sync.constants.ts && grep -q \"'Infrastructure'\" src/sync/sync.constants.ts && grep -q 'DEF_GROUP_MAP' src/sync/sync.constants.ts"
+        },
+        {
+          "text": "the old DEF_GROUPS array (Hurricane/Wildfire/General) is gone",
+          "check": "cd backend && ! grep -q 'Hurricane' src/sync/sync.constants.ts"
+        },
+        {
+          "text": "syncDisaster iterates DEF_GROUP_MAP (no single SYNC_DEF_GROUP const)",
+          "check": "cd backend && grep -A30 'async syncDisaster' src/sync/sync.service.ts | grep -q 'DEF_GROUP_MAP' && ! grep -q 'SYNC_DEF_GROUP' src/sync/sync.service.ts"
+        },
+        {
+          "text": "fetchDisasterSpending accepts a defCodes array and stamps the group label",
+          "check": "cd backend && grep -A3 'async fetchDisasterSpending' src/sync/usa-spending.service.ts | grep -q 'defCodes: string'"
+        },
+        {
+          "text": "frontend tabs are only COVID-19 and Infrastructure",
+          "check": "cd frontend && grep -q \"'COVID-19', 'Infrastructure'\" src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "frontend sends the label directly (no defGroupCode single-code map)",
+          "check": "cd frontend && ! grep -q \"'COVID-19': 'L'\" src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "sync.constants.spec.ts passes (DEF_GROUP_MAP assertions)",
+          "check": "cd backend && pnpm test --testPathPatterns=sync.constants --passWithNoTests"
+        },
+        {
+          "text": "sync.service.spec.ts + usa-spending.service.spec.ts pass",
+          "check": "cd backend && pnpm test --testPathPatterns=\"sync.service|usa-spending\" --passWithNoTests"
+        },
+        {
+          "text": "disaster-lens spec passes",
+          "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens --passWithNoTests"
+        },
+        {
+          "text": "frontend + backend build cleanly",
+          "check": "cd frontend && pnpm build && cd ../backend && pnpm build"
+        },
+        {
+          "text": "frontend + backend full suites green",
+          "check": "cd frontend && pnpm test --passWithNoTests && cd ../backend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "Verify-first diligence (like E14-S08/S10): hit the live USASpending /references/def_codes endpoint and confirmed only TWO disaster categories exist (covid_19: L,M,N,O,P,U,V; infrastructure: 1,Z). Hurricane/Wildfire are FEMA incidentType concepts, NOT USASpending DEF groups - they cannot be populated from this data source, so the tabs were removed rather than left empty. The COVID-19 tab previously mapped to only L (a supplemental code netting -$0.39B); the full group totals +$107.6B - a 270x correction. fetchDisasterSpending signature changed from (defGroup: string) to (defCodes: string[], defGroup: string) so one API call per group fetches all its codes and stamps the label. syncDisaster accumulates fedSpendingByState across both groups so the ratio-table Fed DEF column shows total federal disaster spending per state. The stored defGroup is now the human label (COVID-19 / Infrastructure) so the frontend sends the label directly - supersedes E16-S03 single-code defGroupCode map. Stale defGroup=L rows from prior syncs were cleaned from the dev DB (the upsert conflict target [defGroup, stateCode] left them orphaned since L != COVID-19). Backfill via POST /sync/disaster verified: COVID-19 total $107.6B, Infrastructure $187.8B. No pi/build-agent run; harness=opencode."
     }
   ],
   "storyOrder": [
@@ -3910,7 +3980,8 @@
     "E15-S04",
     "E16-S01",
     "E16-S02",
-    "E16-S03"
+    "E16-S03",
+    "E16-S04"
   ],
   "resolutions": [
     {

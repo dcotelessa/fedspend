@@ -1361,6 +1361,20 @@
       "thinking": "high",
       "timestamp": "2026-07-08T05:38:11.391Z",
       "note": "Formalizes four direct Disaster fixes (69b5f60 COVID->L mapping, b074b9d drop ratio metric, c67c758 paginator length, 06ba1a8 per-state collapse). 11/11 + guard PASS."
+    },
+    {
+      "story": "E16-S04",
+      "epic": "E16",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1200,
+      "thinking": "high",
+      "timestamp": "2026-07-08T05:56:02.726Z",
+      "note": "DEF-code restructure per live USASpending research. COVID-19 full group $107.6B (was -$0.39B for L alone). Infrastructure $187.8B. Hurricane/Wildfire/General removed (no DEF backing). 12/12 + guard PASS."
     }
   ]
 }

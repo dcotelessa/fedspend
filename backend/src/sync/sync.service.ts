@@ -10,8 +10,7 @@ import { UsaSpendingService } from './usa-spending.service';
 import { OpenFemaService } from './openfema.service';
 import { computeRecoveryRatio } from './recovery-ratio';
 import { Cron } from '@nestjs/schedule';
-import { GEO_FISCAL_YEARS, SPENDING_FISCAL_YEARS, SPENDING_AGENCY_SYNC_LIMIT } from './sync.constants';
-const SYNC_DEF_GROUP = 'L';
+import { GEO_FISCAL_YEARS, SPENDING_FISCAL_YEARS, SPENDING_AGENCY_SYNC_LIMIT, DEF_GROUP_MAP } from './sync.constants';
 
 const AGENCIES_AND_SPENDING = 'agencies_and_spending';
 const GEOGRAPHY = 'geography';
@@ -132,15 +131,17 @@ export class SyncService {
 
   async syncDisaster(): Promise<void> {
     await this.runWithStatus(DISASTER, async () => {
-      const disasterResult = await this.usaService.fetchDisasterSpending(SYNC_DEF_GROUP);
       const fedSpendingByState = new Map<string, number>();
-      if (disasterResult.status === 'success') {
-        for (const record of disasterResult.rows) {
-          await this.disasterRepo.upsert(record, ['defGroup', 'stateCode']);
-          fedSpendingByState.set(
-            record.stateCode,
-            (fedSpendingByState.get(record.stateCode) ?? 0) + record.obligatedAmount,
-          );
+      for (const [defGroup, defCodes] of Object.entries(DEF_GROUP_MAP)) {
+        const disasterResult = await this.usaService.fetchDisasterSpending(defCodes, defGroup);
+        if (disasterResult.status === 'success') {
+          for (const record of disasterResult.rows) {
+            await this.disasterRepo.upsert(record, ['defGroup', 'stateCode']);
+            fedSpendingByState.set(
+              record.stateCode,
+              (fedSpendingByState.get(record.stateCode) ?? 0) + record.obligatedAmount,
+            );
+          }
         }
       }
 

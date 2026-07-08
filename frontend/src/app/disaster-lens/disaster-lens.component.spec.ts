@@ -179,13 +179,12 @@ describe('DisasterLensComponent', () => {
     apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
 
     component.currentTab = defGroup ?? 'COVID-19';
-    const sentCode = component.currentTab === 'COVID-19' ? 'L' : component.currentTab;
     component.ngOnInit();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(apiSpy.getDisasterOverview).toHaveBeenCalledWith({ defGroup: sentCode });
-    expect(apiSpy.getDisasterStates).toHaveBeenCalledWith(expect.objectContaining({ defGroup: sentCode }));
+    expect(apiSpy.getDisasterOverview).toHaveBeenCalledWith({ defGroup: component.currentTab });
+    expect(apiSpy.getDisasterStates).toHaveBeenCalledWith(expect.objectContaining({ defGroup: component.currentTab }));
     expect(component.totalObligated).toBe(expectedTotalObligated);
     expect(component.stateCount).toBe(expectedStateCount);
     expect(component.highestPerCapitaState).toBe(expectedHighestPerCapitaState);
