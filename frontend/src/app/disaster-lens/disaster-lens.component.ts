@@ -40,6 +40,9 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
   selectedFiscalYear: number | null = null;
 
   defGroups = ['COVID-19', 'Hurricane', 'Wildfire', 'Infrastructure', 'General'];
+  private readonly defGroupCode: Record<string, string> = {
+    'COVID-19': 'L',
+  };
   fiscalYears: number[] = [];
 
   totalObligated = 0;
@@ -94,9 +97,13 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
     }
   }
 
+  private defGroupFor(tab: string): string {
+    return this.defGroupCode[tab] ?? tab;
+  }
+
   private fetchOverview(): void {
     this.overviewSub?.unsubscribe();
-    this.overviewSub = this.api.getDisasterOverview({ defGroup: this.currentTab }).subscribe((overview: DisasterOverview[]) => {
+    this.overviewSub = this.api.getDisasterOverview({ defGroup: this.defGroupFor(this.currentTab) }).subscribe((overview: DisasterOverview[]) => {
       const current = overview[0];
       if (current) {
         this.totalObligated = current.totalObligated;
@@ -110,7 +117,7 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
 
   private fetchStates(): void {
     this.statesSub?.unsubscribe();
-    const params: { defGroup?: string; fiscalYear?: number } = { defGroup: this.currentTab };
+    const params: { defGroup?: string; fiscalYear?: number } = { defGroup: this.defGroupFor(this.currentTab) };
     if (this.selectedFiscalYear) {
       params.fiscalYear = this.selectedFiscalYear;
     }
