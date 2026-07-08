@@ -246,6 +246,7 @@ describe('DisasterLensComponent', () => {
     name: string;
     ratios: DisasterRecoveryRatio[];
     expectedOrder: string[];
+    expectedState?: { stateName: string; femaObligated: number; fedSpendingObligated: number };
   }
 
   const testTableSortedRatios: SortedRatiosTestCase[] = [
@@ -257,6 +258,16 @@ describe('DisasterLensComponent', () => {
         { id: 3, stateCode: 'NY', stateName: 'New York', fiscalYear: 2024, femaObligated: 50000, fedSpendingObligated: 25000, declarationCount: 1, recoveryRatio: 0.5, dominantIncidentType: 'Hurricane' },
       ],
       expectedOrder: ['California', 'New York', 'Florida'],
+    },
+    {
+      name: 'collapses same-state rows: FEMA sums, Fed DEF does not double-count',
+      ratios: [
+        { id: 1, stateCode: 'NY', stateName: 'New York', fiscalYear: 2020, femaObligated: 100000, fedSpendingObligated: -2820000000, declarationCount: 2, recoveryRatio: 0, dominantIncidentType: 'Hurricane' },
+        { id: 2, stateCode: 'NY', stateName: 'New York', fiscalYear: 2021, femaObligated: 50000, fedSpendingObligated: -2820000000, declarationCount: 1, recoveryRatio: 0, dominantIncidentType: 'Snowstorm' },
+        { id: 3, stateCode: 'CA', stateName: 'California', fiscalYear: 2020, femaObligated: 200000, fedSpendingObligated: 500000, declarationCount: 3, recoveryRatio: 0, dominantIncidentType: 'Wildfire' },
+      ],
+      expectedOrder: ['California', 'New York'],
+      expectedState: { stateName: 'New York', femaObligated: 150000, fedSpendingObligated: -2820000000 },
     },
     {
       name: 'handles empty ratios array',
@@ -272,7 +283,7 @@ describe('DisasterLensComponent', () => {
     },
   ];
 
-  it.each(testTableSortedRatios)('$name', async ({ ratios, expectedOrder }) => {
+  it.each(testTableSortedRatios)('$name', async ({ ratios, expectedOrder, expectedState }) => {
     apiSpy.getDisasterOverview.mockReturnValue(of([]));
     apiSpy.getDisasterStates.mockReturnValue(of([]));
     apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
@@ -282,5 +293,12 @@ describe('DisasterLensComponent', () => {
     fixture.detectChanges();
 
     expect(component.sortedRatios.map((r) => r.stateName)).toEqual(expectedOrder);
+
+    if (expectedState) {
+      const row = component.sortedRatios.find((r) => r.stateName === expectedState.stateName);
+      expect(row).toBeTruthy();
+      expect(row!.femaObligated).toBe(expectedState.femaObligated);
+      expect(row!.fedSpendingObligated).toBe(expectedState.fedSpendingObligated);
+    }
   });
 });

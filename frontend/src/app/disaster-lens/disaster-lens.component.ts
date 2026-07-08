@@ -138,8 +138,22 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
       params.fiscalYear = this.selectedFiscalYear;
     }
     this.ratiosSub = this.api.getDisasterRecoveryRatios(params).subscribe((ratios: DisasterRecoveryRatio[]) => {
-      this.sortedRatios = [...ratios].sort((a, b) => b.fedSpendingObligated - a.fedSpendingObligated);
+      this.sortedRatios = this.aggregateByState(ratios).sort((a, b) => b.fedSpendingObligated - a.fedSpendingObligated);
     });
+  }
+
+  private aggregateByState(ratios: DisasterRecoveryRatio[]): DisasterRecoveryRatio[] {
+    const byState = new Map<string, DisasterRecoveryRatio>();
+    for (const r of ratios) {
+      const existing = byState.get(r.stateCode);
+      if (existing) {
+        existing.femaObligated += r.femaObligated;
+        existing.declarationCount += r.declarationCount;
+      } else {
+        byState.set(r.stateCode, { ...r });
+      }
+    }
+    return [...byState.values()];
   }
 
   get pagedRatios(): DisasterRecoveryRatio[] {
