@@ -33,7 +33,13 @@
   <mat-button-toggle value="performance">Performance</mat-button-toggle>
 </mat-button-toggle-group>
 
+<div *ngIf="noData()" class="no-data-message">
+  <mat-icon>info</mat-icon>
+  <span>No geography data available for the selected agency. Showing all agencies data instead.</span>
+</div>
+
 <app-bar-chart
+  *ngIf="!noData()"
   [labels]="chartLabels"
   [datasets]="chartData"
   title="Top 10 States by Obligated Amount"

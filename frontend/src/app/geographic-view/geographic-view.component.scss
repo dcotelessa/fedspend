@@ -42,6 +42,22 @@ mat-button-toggle-group.controls-bar {
   margin-bottom: 2.5rem;
 }
 
+.no-data-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: var(--mat-sys-corner-medium, 12px);
+  background: var(--mat-sys-surface-container-low);
+  border: 1px solid var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    color: var(--mat-sys-primary);
+  }
+}
+
 .table-section {
   h2 {
     margin: 0 0 1rem;

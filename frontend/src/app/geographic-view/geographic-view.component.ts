@@ -39,6 +39,7 @@ export class GeographicViewComponent implements OnInit {
   chartLabels: string[] = [];
   chartData: ChartDataset[] = [];
   delta: number | null = null;
+  noData = signal<boolean>(false);
 
   paginator = { pageSize: 15, length: 0 } as { pageSize: number; length: number };
 
@@ -115,6 +116,16 @@ export class GeographicViewComponent implements OnInit {
   }
 
   processData(data: GeoSpendingSnapshot[]): void {
+    if (data.length === 0) {
+      this.noData.set(true);
+      this.top10 = [];
+      this.allStates = [];
+      this.chartLabels = [];
+      this.chartData = [];
+      return;
+    }
+
+    this.noData.set(false);
     const sorted = [...data].sort((a, b) => b.obligatedAmount - a.obligatedAmount);
 
     this.top10 = sorted.slice(0, 10).map(s => ({
