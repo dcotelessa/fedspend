@@ -12,9 +12,21 @@ import { AWARD_TYPES, awardTypeToCode } from './sync.constants';
 
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 500;
+const RATE_LIMIT_MS = 500;
 
 const API_BASE = 'https://api.usaspending.gov/api/v2';
 const DISASTER_FISCAL_YEAR = 2024;
+
+let lastRequestTime = 0;
+
+const rateLimit = async (): Promise<void> => {
+  const now = Date.now();
+  const elapsed = now - lastRequestTime;
+  if (elapsed < RATE_LIMIT_MS) {
+    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS - elapsed));
+  }
+  lastRequestTime = Date.now();
+};
 
 type FetchSpendingResult =
   | { status: 'success'; rows: SpendingRecord[]; total: number }
@@ -64,6 +76,7 @@ const fetchWithRetry = async (
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
+      await rateLimit();
       const response = await fetch(url, options);
 
       if (!response.ok) {
