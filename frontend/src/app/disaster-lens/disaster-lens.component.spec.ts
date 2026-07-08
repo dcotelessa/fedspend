@@ -48,7 +48,6 @@ describe('DisasterLensComponent', () => {
     ratios: DisasterRecoveryRatio[];
     expectedTotalObligated: number;
     expectedStateCount: number;
-    expectedGapCount: number;
     expectedHighestPerCapitaState: string;
   }
 
@@ -82,7 +81,6 @@ describe('DisasterLensComponent', () => {
       ratios: [],
       expectedTotalObligated: 500000,
       expectedStateCount: 2,
-      expectedGapCount: 0,
       expectedHighestPerCapitaState: 'CA',
     },
     {
@@ -103,11 +101,10 @@ describe('DisasterLensComponent', () => {
       ratios: [],
       expectedTotalObligated: 0,
       expectedStateCount: 0,
-      expectedGapCount: 0,
       expectedHighestPerCapitaState: '',
     },
     {
-      name: 'counts coverage gaps from recovery ratios below 0.5',
+      name: 'renders overview + states + highest per capita for a populated tab',
       defGroup: 'COVID-19',
       overview: [
         {
@@ -156,7 +153,6 @@ describe('DisasterLensComponent', () => {
       ],
       expectedTotalObligated: 1000000,
       expectedStateCount: 3,
-      expectedGapCount: 1,
       expectedHighestPerCapitaState: 'FL',
     },
     {
@@ -167,14 +163,13 @@ describe('DisasterLensComponent', () => {
       ratios: [],
       expectedTotalObligated: 0,
       expectedStateCount: 0,
-      expectedGapCount: 0,
       expectedHighestPerCapitaState: '',
     },
   ];
 
   it.each(testTable)('$name', async ({
     defGroup, overview, states, ratios,
-    expectedTotalObligated, expectedStateCount, expectedGapCount, expectedHighestPerCapitaState,
+    expectedTotalObligated, expectedStateCount, expectedHighestPerCapitaState,
   }) => {
     const overviewPayload = defGroup
       ? overview.filter((o) => o.defGroup === defGroup)
@@ -193,7 +188,6 @@ describe('DisasterLensComponent', () => {
     expect(apiSpy.getDisasterStates).toHaveBeenCalledWith(expect.objectContaining({ defGroup: sentCode }));
     expect(component.totalObligated).toBe(expectedTotalObligated);
     expect(component.stateCount).toBe(expectedStateCount);
-    expect(component.coverageGapCount).toBe(expectedGapCount);
     expect(component.highestPerCapitaState).toBe(expectedHighestPerCapitaState);
   });
 
@@ -256,13 +250,13 @@ describe('DisasterLensComponent', () => {
 
   const testTableSortedRatios: SortedRatiosTestCase[] = [
     {
-      name: 'sorts ratios ascending by recoveryRatio',
+      name: 'sorts ratios descending by federal DEF spending',
       ratios: [
         { id: 1, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 500000, declarationCount: 3, recoveryRatio: 5.0, dominantIncidentType: 'Wildfire' },
         { id: 2, stateCode: 'FL', stateName: 'Florida', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 20000, declarationCount: 2, recoveryRatio: 0.2, dominantIncidentType: 'Hurricane' },
         { id: 3, stateCode: 'NY', stateName: 'New York', fiscalYear: 2024, femaObligated: 50000, fedSpendingObligated: 25000, declarationCount: 1, recoveryRatio: 0.5, dominantIncidentType: 'Hurricane' },
       ],
-      expectedOrder: ['Florida', 'New York', 'California'],
+      expectedOrder: ['California', 'New York', 'Florida'],
     },
     {
       name: 'handles empty ratios array',

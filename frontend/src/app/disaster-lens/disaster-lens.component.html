@@ -35,17 +35,6 @@
 
       <mat-card>
         <mat-card-header>
-          <mat-card-title>Coverage Gaps</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <span class="gap-count" [class.severe]="coverageGapCount > 0">
-            {{ coverageGapCount }}
-          </span>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card>
-        <mat-card-header>
           <mat-card-title>Highest Per Capita</mat-card-title>
         </mat-card-header>
         <mat-card-content>
@@ -63,7 +52,7 @@
       ></app-bar-chart>
     </div>
 
-    <h2>Recovery Ratios by State</h2>
+    <h2>Disaster Spending by State</h2>
 
     <table mat-table [dataSource]="pagedRatios" class="full-width">
       <ng-container matColumnDef="state">
@@ -84,21 +73,6 @@
       <ng-container matColumnDef="fedDef">
         <th mat-header-cell *matHeaderCellDef>Fed DEF</th>
         <td mat-cell *matCellDef="let ratio">{{ ratio.fedSpendingObligated | currencyFormat }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="ratio">
-        <th mat-header-cell *matHeaderCellDef> Ratio </th>
-        <td mat-cell *matCellDef="let ratio">
-          <span
-            class="ratio-chip"
-            [class.warn]="getChipClass(ratio.recoveryRatio) === 'warn'"
-            [class.accent]="getChipClass(ratio.recoveryRatio) === 'accent'"
-            [class.primary]="getChipClass(ratio.recoveryRatio) === 'primary'"
-            matTooltip="Recovery Ratio = Federal DEF Spending ÷ FEMA Baseline. A ratio below 1.0 indicates federal spending has not yet matched FEMA's initial obligation level."
-          >
-            {{ ratio.recoveryRatio | number:'1.2-2' }}
-          </span>
-        </td>
       </ng-container>
 
       <ng-container matColumnDef="dominantIncident">

@@ -6,13 +6,11 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { BarChartComponent } from '../bar-chart/bar-chart.component';
 import { Subscription } from 'rxjs';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { DisasterOverview, DisasterFundingRecord, DisasterRecoveryRatio } from '@shared/interfaces';
-import { getRatioColor, RatioColor } from '../ratio-color';
 
 @Component({
   selector: 'app-disaster-lens',
@@ -25,7 +23,6 @@ import { getRatioColor, RatioColor } from '../ratio-color';
     MatCardModule,
     MatTableModule,
     MatPaginatorModule,
-    MatTooltipModule,
     BarChartComponent,
     CurrencyFormatPipe,
   ],
@@ -47,14 +44,13 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
 
   totalObligated = 0;
   stateCount = 0;
-  coverageGapCount = 0;
   highestPerCapitaState = '';
 
   top15Labels: string[] = [];
   top15Datasets: number[] = [];
 
   sortedRatios: DisasterRecoveryRatio[] = [];
-  displayedColumns: string[] = ['state', 'declarations', 'fema', 'fedDef', 'ratio', 'dominantIncident'];
+  displayedColumns: string[] = ['state', 'declarations', 'fema', 'fedDef', 'dominantIncident'];
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
@@ -142,13 +138,8 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
       params.fiscalYear = this.selectedFiscalYear;
     }
     this.ratiosSub = this.api.getDisasterRecoveryRatios(params).subscribe((ratios: DisasterRecoveryRatio[]) => {
-      this.coverageGapCount = ratios.filter((r) => r.recoveryRatio < 0.5).length;
-      this.sortedRatios = [...ratios].sort((a, b) => a.recoveryRatio - b.recoveryRatio);
+      this.sortedRatios = [...ratios].sort((a, b) => b.fedSpendingObligated - a.fedSpendingObligated);
     });
-  }
-
-  getChipClass(ratio: number): RatioColor {
-    return getRatioColor(ratio);
   }
 
   get pagedRatios(): DisasterRecoveryRatio[] {
