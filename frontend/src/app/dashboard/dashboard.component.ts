@@ -72,8 +72,8 @@ export class DashboardComponent implements OnInit {
     );
   }
 
-  buildChart(agencies: Array<{ id: number; name: string; totalCents: number }>): void {
-    const withData = agencies.filter(a => a.totalCents > 0);
+  buildChart(): void {
+    const withData = this.agencies.filter(a => a.totalCents > 0);
     const sorted = [...withData].sort((a, b) => b.totalCents - a.totalCents);
     const top = sorted.slice(0, DashboardComponent.TOP_N);
     const labels = top.map(a => a.name).concat(['Disaster Spending']);
