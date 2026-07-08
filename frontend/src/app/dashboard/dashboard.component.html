@@ -1,6 +1,6 @@
 <h1>Dashboard</h1>
 
-<p class="about">FedSpend surfaces federal spending data drawn from USASpending.gov and OpenFEMA to make government obligations transparent and comparable. The navigation cards below open three lenses on the same underlying records: Geography breaks obligations down by where money is received or performed, Agencies profiles each agency totals and year-over-year trends, and Disaster compares federal disaster spending against FEMA recovery obligations. The summary cards report portfolio-wide figures for the current fiscal year — total obligated across agencies, the single largest agency, and the count of states where federal recovery spending falls short of 50% of FEMA obligations (coverage gaps). The agency chart ranks the top five agencies by obligated amount for FY2024, with all remaining agencies consolidated into Other; click any bar to open that agency spotlight.</p>
+<p class="about">FedSpend surfaces federal spending data drawn from USASpending.gov and OpenFEMA to make government obligations transparent and comparable. The navigation cards below open three lenses on the same underlying records: Geography breaks obligations down by where money is received or performed, Agencies profiles each agency totals and year-over-year trends, and Disaster compares federal disaster spending against FEMA recovery obligations. The summary cards report portfolio-wide figures — total obligated across agencies and disaster spending, the single largest agency, and the count of states where federal recovery spending falls short of 50% of FEMA obligations (coverage gaps). The agency chart ranks the top five agencies by obligated amount, with disaster spending (COVID-19 + Infrastructure) shown as a separate bar; click any bar to open that agency spotlight.</p>
 
 <div class="nav-cards">
   <a [routerLink]="'/geography'" class="nav-card" (click)="onNavClick('/geography', $event)">
@@ -28,32 +28,32 @@
   </a>
 </div>
 
-<div class="cards-grid">
-  <div class="card">
-    <h2>Total Obligated</h2>
-    <p class="value">{{ totalObligated | currencyFormat }}</p>
+  <div class="cards-grid">
+    <div class="card">
+      <h2>Total Obligated</h2>
+      <p class="value value-sm">{{ totalObligated | currencyFormat }}</p>
+    </div>
+ 
+    <div class="card">
+      <h2>Largest Agency (FY2024)</h2>
+      <p class="value value-sm">{{ largestAgency?.name || 'N/A' }}</p>
+      <p class="sub">{{ largestAgency ? (largestAgency.totalCents | currencyFormat) : '' }}</p>
+    </div>
+ 
+    <div class="card">
+      <h2>Coverage Gaps</h2>
+      <p class="value value-sm">{{ coverageGapCount }}</p>
+      <p class="sub">states with ratio &lt; 0.5</p>
+    </div>
+ 
+    <div class="card">
+      <h2>Last Sync</h2>
+      <p class="value value-sm">{{ lastSync || 'Never' }}</p>
+    </div>
   </div>
-
-  <div class="card">
-    <h2>Largest Agency (FY2024)</h2>
-    <p class="value">{{ largestAgency?.name || 'N/A' }}</p>
-    <p class="sub">{{ largestAgency ? (largestAgency.totalCents | currencyFormat) : '' }}</p>
-  </div>
-
-  <div class="card">
-    <h2>Coverage Gaps</h2>
-    <p class="value">{{ coverageGapCount }}</p>
-    <p class="sub">states with ratio &lt; 0.5</p>
-  </div>
-
-  <div class="card">
-    <h2>Last Sync</h2>
-    <p class="value">{{ lastSync || 'Never' }}</p>
-  </div>
-</div>
 
 <div class="chart-section">
-  <h2>Agency Obligated by FY2024</h2>
+  <h2>Agency & Disaster Spending</h2>
   <canvas baseChart
     [type]="'bar'"
     [data]="{ labels: chartLabels, datasets: chartDatasets }"
