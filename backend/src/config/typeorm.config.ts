@@ -12,7 +12,7 @@ export function getTypeOrmConfig(configService: ConfigService): TypeOrmModuleOpt
       autoLoadEntities: true,
       entities: [__dirname + '/../**/*.entity{.ts,.js}'],
       migrationsRun: false,
-      synchronize: true,
+      synchronize: false,
     };
   }
 
