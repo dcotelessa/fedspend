@@ -77,7 +77,13 @@ const fetchWithRetry = async (
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       await rateLimit();
-      const response = await fetch(url, options);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
       if (!response.ok) {
         throw new Error(
@@ -88,6 +94,7 @@ const fetchWithRetry = async (
       return await response.json();
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[Sync] fetch attempt ${attempt} failed: ${lastError.message}`);
 
       if (attempt < MAX_ATTEMPTS) {
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
