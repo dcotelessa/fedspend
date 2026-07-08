@@ -1375,6 +1375,20 @@
       "thinking": "high",
       "timestamp": "2026-07-08T05:56:02.726Z",
       "note": "DEF-code restructure per live USASpending research. COVID-19 full group $107.6B (was -$0.39B for L alone). Infrastructure $187.8B. Hurricane/Wildfire/General removed (no DEF backing). 12/12 + guard PASS."
+    },
+    {
+      "story": "E17-S01",
+      "epic": "E17",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 1200,
+      "thinking": "high",
+      "timestamp": "2026-07-08T06:28:57.599Z",
+      "note": "Deploy prep: NestExpressApplication serves Angular SPA + API under /api + render.yaml. Verified live: SPA deep-links work, API responds under /api, health at /health."
     }
   ]
 }

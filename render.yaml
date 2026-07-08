@@ -1,25 +1,23 @@
 services:
   - type: web
-    name: fedspend-api
-    env: node
-    buildCommand: "cd backend && pnpm install --frozen-lockfile && pnpm build"
-    startCommand: "cd backend && node dist/main.js"
+    name: fedspend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter frontend build && pnpm --filter backend build
+    startCommand: node backend/dist/backend/src/main.js
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: "3000"
       - key: DATABASE_URL
-        value: "postgres://fedspend:fedspend@fedspend-db:5432/fedspend"
-    healthCheckPath: /health
-    autoDeploy: false
-
-  - type: static
-    name: fedspend-ui
-    env: static
-    staticPublishPath: frontend/dist/frontend/browser
-    autoDeploy: false
-
+        fromDatabase:
+          name: fedspend-db
+          property: connectionString
+      - key: PORT
+        value: 10000
 databases:
   - name: fedspend-db
     plan: free
+    databaseName: fedspend
+    ipAllowList: []

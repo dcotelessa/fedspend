@@ -3914,6 +3914,60 @@
         }
       ],
       "notes": "Verify-first diligence (like E14-S08/S10): hit the live USASpending /references/def_codes endpoint and confirmed only TWO disaster categories exist (covid_19: L,M,N,O,P,U,V; infrastructure: 1,Z). Hurricane/Wildfire are FEMA incidentType concepts, NOT USASpending DEF groups - they cannot be populated from this data source, so the tabs were removed rather than left empty. The COVID-19 tab previously mapped to only L (a supplemental code netting -$0.39B); the full group totals +$107.6B - a 270x correction. fetchDisasterSpending signature changed from (defGroup: string) to (defCodes: string[], defGroup: string) so one API call per group fetches all its codes and stamps the label. syncDisaster accumulates fedSpendingByState across both groups so the ratio-table Fed DEF column shows total federal disaster spending per state. The stored defGroup is now the human label (COVID-19 / Infrastructure) so the frontend sends the label directly - supersedes E16-S03 single-code defGroupCode map. Stale defGroup=L rows from prior syncs were cleaned from the dev DB (the upsert conflict target [defGroup, stateCode] left them orphaned since L != COVID-19). Backfill via POST /sync/disaster verified: COVID-19 total $107.6B, Infrastructure $187.8B. No pi/build-agent run; harness=opencode."
+    },
+    {
+      "id": "E17-S01",
+      "epic": "E17",
+      "title": "Deploy prep: backend serves frontend (SPA) + API under /api + render.yaml",
+      "goal": "Make the app deployable as a single service. The Nest backend now serves the Angular static build (useStaticAssets + SPA fallback to index.html for non-API GET routes), all API routes are namespaced under /api (via setGlobalPrefix) to avoid collision with Angular client-side routes (/agencies, /geography, /disaster), and render.yaml defines the free-tier web service + Postgres for Render.com deploy. The frontend prod apiUrl is /api (relative, same-origin).",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/src/main.ts",
+          "backend/src/app.module.ts",
+          "frontend/src/environments/environment.prod.ts",
+          "frontend/src/environments/environment.ts",
+          "frontend/src/app/api.service.spec.ts",
+          "render.yaml"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "backend main.ts sets global prefix api (excluding health)",
+          "check": "cd backend && grep -q \"setGlobalPrefix('api'\" src/main.ts"
+        },
+        {
+          "text": "backend serves static assets with SPA fallback to index.html",
+          "check": "cd backend && grep -q 'useStaticAssets' src/main.ts && grep -q 'indexHtml' src/main.ts"
+        },
+        {
+          "text": "frontend prod apiUrl is /api (relative same-origin)",
+          "check": "cd frontend && grep -q \"apiUrl: '/api'\" src/environments/environment.prod.ts"
+        },
+        {
+          "text": "render.yaml exists with a free-tier web service + database",
+          "check": "test -f render.yaml && grep -q 'plan: free' render.yaml && grep -q 'databases:' render.yaml"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        },
+        {
+          "text": "backend full test suite green",
+          "check": "cd backend && pnpm test --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "frontend full test suite green",
+          "check": "cd frontend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "Deploy architecture: single Render web service (free tier) running node backend/dist/backend/src/main.js which serves both the API (under /api) and the Angular SPA (static assets + index.html fallback). DATABASE_URL from Render Postgres (free tier, 90 days) switches TypeORM to postgres automatically (typeorm.config.ts). On first deploy the Postgres DB is empty; the Init migration (migrationsRun:true) creates the schema, then a manual POST /api/sync/agencies, /api/sync/geography, /api/sync/disaster backfill populates the data against the live USASpending/FEMA APIs. The SPA fallback middleware in main.ts serves index.html for any GET that is not /api, /health, or a file extension (so deep-links like /agencies/30 work). NestExpressApplication gives direct express access for useStaticAssets + the fallback. CORS origin is FRONTEND_URL or * (not strictly needed for same-origin deploy but kept for dev). No pi/build-agent run; harness=opencode."
     }
   ],
   "storyOrder": [
@@ -3981,7 +4035,8 @@
     "E16-S01",
     "E16-S02",
     "E16-S03",
-    "E16-S04"
+    "E16-S04",
+    "E17-S01"
   ],
   "resolutions": [
     {
