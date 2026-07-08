@@ -22,7 +22,7 @@ export class GeoSpendingSnapshot {
   @Column({ type: 'varchar', length: 255 })
   scope: string;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   obligatedAmount: number;
 
   @Column()
@@ -31,7 +31,7 @@ export class GeoSpendingSnapshot {
   @Column()
   population: number;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   perCapita: number;
 
   @ManyToOne(() => Agency, { nullable: true })

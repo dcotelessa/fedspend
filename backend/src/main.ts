@@ -2,9 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
+import { types } from 'pg';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { AppModule } from './app.module';
+
+types.setTypeParser(types.builtins.INT8, (value: string) => Number(value));
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);

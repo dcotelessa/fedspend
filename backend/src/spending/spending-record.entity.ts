@@ -22,10 +22,10 @@ export class SpendingRecord {
   @Column({ type: 'text' })
   awardTypeCodes: string;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   obligatedAmount: number;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   outlayAmount: number;
 
   @Column()

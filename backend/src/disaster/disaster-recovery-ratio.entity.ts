@@ -15,10 +15,10 @@ export class DisasterRecoveryRatio {
   @Column()
   fiscalYear: number;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   femaObligated: number;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   fedSpendingObligated: number;
 
   @Column()

@@ -18,13 +18,13 @@ export class DisasterFundingRecord {
   @Column({ type: 'varchar', length: 255 })
   stateName: string;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   obligatedAmount: number;
 
   @Column()
   awardCount: number;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'bigint' })
   perCapita: number;
 
   @Column()

@@ -11,8 +11,8 @@ export function getTypeOrmConfig(configService: ConfigService): TypeOrmModuleOpt
       url: databaseUrl,
       autoLoadEntities: true,
       entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-      migrationsRun: true,
-      synchronize: false,
+      migrationsRun: false,
+      synchronize: true,
     };
   }
 
