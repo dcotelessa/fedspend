@@ -17,10 +17,9 @@ export class AgenciesService {
   ) {}
 
   async findAllWithTotals(fiscalYear?: number): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
-    const currentFy = fiscalYear ?? this.currentFiscalYear();
     const rows = await this.agencyRepo
       .createQueryBuilder('agency')
-      .leftJoin('agency.spendingRecords', 'sr', 'sr.fiscalYear = :fy', { fy: currentFy })
+      .leftJoin('agency.spendingRecords', 'sr')
       .select(['agency.id', 'agency.name'])
       .addSelect('COALESCE(SUM(sr.obligatedAmount), 0)', 'totalCents')
       .groupBy('agency.id')
