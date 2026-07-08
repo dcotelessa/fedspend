@@ -12,7 +12,7 @@ import { AWARD_TYPES, awardTypeToCode } from './sync.constants';
 
 const MAX_ATTEMPTS = 3;
 const BASE_DELAY_MS = 500;
-const RATE_LIMIT_MS = 500;
+const RATE_LIMIT_MS = 1000;
 
 const API_BASE = 'https://api.usaspending.gov/api/v2';
 const DISASTER_FISCAL_YEAR = 2024;
