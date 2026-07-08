@@ -1347,6 +1347,20 @@
       "thinking": "medium",
       "timestamp": "2026-07-07T20:27:05Z",
       "note": "False scope-leakage alarm: the commit (f4626bf) only touched in-scope files (openfema.service.ts/types.ts/spec.ts). Re-verify failed only because the backfill ran in the worktree gitignored dev.db, not main main. Fix: obligatedAmount -> federalShareObligated (correct FEMA field). Rebuilt dist, restarted backend, re-ran /sync/disaster on main. Now 293 rows femaObligated>0, 105 with meaningful ratios. 6/6 + guard PASS."
+    },
+    {
+      "story": "E16-S03",
+      "epic": "E16",
+      "tier": "manual",
+      "harness": "opencode",
+      "model": "zai-coding-plan/glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 900,
+      "thinking": "high",
+      "timestamp": "2026-07-08T05:38:11.391Z",
+      "note": "Formalizes four direct Disaster fixes (69b5f60 COVID->L mapping, b074b9d drop ratio metric, c67c758 paginator length, 06ba1a8 per-state collapse). 11/11 + guard PASS."
     }
   ]
 }

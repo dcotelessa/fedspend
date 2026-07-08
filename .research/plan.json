@@ -3732,6 +3732,118 @@
         }
       ],
       "notes": "INVESTIGATION STORY - the root cause is NOT confirmed (could be API field name, shape change, a parsing gap, or FEMA genuinely not exposing obligations for the queried disaster declarations). The implementer MUST hit the live FEMA API (https://www.fema.gov/api/open/v2/OpenFemaData...) and confirm what the obligated-amount field looks like before changing the mapping - same diligence as E14-S08/S10 (the USASpending geography endpoint silently ignored awarding_agencies; do not trust assumed field names). If FEMA genuinely does not expose obligated amounts for these declarations, document that in the story notes and consider whether the ratio column/coverage-gap metric should be hidden or redefined. Backfill required: POST /sync/disaster after the fix. Out of scope for E16-S01 (formatting + parens)."
+    },
+    {
+      "id": "E16-S03",
+      "epic": "E16",
+      "title": "Disaster display fixes: COVID DEF-code mapping, drop ratio metric, paginator length, per-state collapse",
+      "goal": "Four Disaster-page fixes applied directly (commits 69b5f60, b074b9d, c67c758, 06ba1a8) and now formalized as a tracked story. (1) The KPI cards showed $0/0/blank because the frontend queried defGroup=COVID-19 (human label) while the DB stores defGroup=L (USASpending DEF code) - map COVID-19 -> L so the default tab lights up. (2) The recovery-ratio metric was conceptually mismatched (USASpending DEF spending includes non-FEMA agencies; FEMA PA for COVID is itself negative -$178M nationwide), producing absurd values like -1,036,972 - drop the ratio column, the Coverage Gaps card, and ratio-chip styling. (3) The paginator had no [length] binding so it reported 0 of 0 and dumped all rows on one page. (4) The Fed DEF column repeated each state value across every state-year row (NY appeared 12x with identical -$282M) and mixed FEMA declaration-years with COVID-only federal spending - collapse the table to one aggregated row per state.",
+      "build": "BUILD-FAST",
+      "dependencies": [
+        "E16-S01",
+        "E16-S02"
+      ],
+      "scope": {
+        "files": [
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.scss",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+            "start": 42,
+            "end": 44,
+            "reason": "add defGroupCode map ({ COVID-19: L }) + defGroupFor() helper; fetchOverview/fetchStates send the mapped code."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+            "start": 45,
+            "end": 48,
+            "reason": "remove coverageGapCount field."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+            "start": 131,
+            "end": 145,
+            "reason": "fetchRatios + aggregateByState: collapse per-state-year rows to one row per state (sum femaObligated + declarationCount, keep fedSpendingObligated once); remove coverageGapCount computation + getChipClass; sort by fedSpendingObligated DESC."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+            "start": 1,
+            "end": 16,
+            "reason": "remove MatTooltipModule, getRatioColor/RatioColor imports (ratio chip dropped); remove ratio from displayedColumns."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.html",
+            "start": 36,
+            "end": 45,
+            "reason": "remove the Coverage Gaps mat-card."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.html",
+            "start": 66,
+            "end": 102,
+            "reason": "rename heading to Disaster Spending by State; remove the ratio matColumnDef block."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.html",
+            "start": 87,
+            "end": 87,
+            "reason": "mat-paginator: add [length]=sortedRatios.length; expand pageSizeOptions to [15,30,50]."
+          },
+          {
+            "file": "frontend/src/app/disaster-lens/disaster-lens.component.scss",
+            "start": 1,
+            "end": 1,
+            "reason": "remove dead .ratio-chip rules (chips dropped in this story)."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "COVID-19 tab queries DEF code L (not the human label)",
+          "check": "cd frontend && grep -q \"'COVID-19': 'L'\" src/app/disaster-lens/disaster-lens.component.ts && grep -q 'defGroupFor' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "Coverage Gaps card is absent from the template",
+          "check": "cd frontend && ! grep -q 'Coverage Gaps' src/app/disaster-lens/disaster-lens.component.html"
+        },
+        {
+          "text": "ratio column is absent from displayedColumns and the template",
+          "check": "cd frontend && ! grep -q \"'ratio'\" src/app/disaster-lens/disaster-lens.component.ts && ! grep -q 'matColumnDef=\"ratio\"' src/app/disaster-lens/disaster-lens.component.html"
+        },
+        {
+          "text": "getChipClass and getRatioColor are removed (no ratio chips)",
+          "check": "cd frontend && ! grep -q 'getChipClass' src/app/disaster-lens/disaster-lens.component.ts && ! grep -q 'getRatioColor' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "paginator binds [length] to sortedRatios.length",
+          "check": "cd frontend && grep -qF '[length]=\"sortedRatios.length\"' src/app/disaster-lens/disaster-lens.component.html"
+        },
+        {
+          "text": "aggregateByState collapses per-state-year rows to one row per state",
+          "check": "cd frontend && grep -q 'aggregateByState' src/app/disaster-lens/disaster-lens.component.ts"
+        },
+        {
+          "text": "table heading is Disaster Spending by State (not Recovery Ratios)",
+          "check": "cd frontend && grep -q 'Disaster Spending by State' src/app/disaster-lens/disaster-lens.component.html"
+        },
+        {
+          "text": "disaster-lens spec passes (table-driven: COVID->L mapping, per-state collapse math, fed-DESC sort)",
+          "check": "cd frontend && pnpm test --testPathPatterns=disaster-lens --passWithNoTests"
+        },
+        {
+          "text": "frontend builds cleanly",
+          "check": "cd frontend && pnpm build"
+        },
+        {
+          "text": "frontend full test suite green",
+          "check": "cd frontend && pnpm test --passWithNoTests"
+        }
+      ],
+      "notes": "All four fixes were applied directly (harness=opencode) and formalized for audit completeness, matching the pattern used for E14-S05/S08/S09/S10/S11/S12 and E15-S04. ROOT-CAUSE DETAIL: (1) defGroup label/code mismatch - frontend sent human labels (COVID-19) but DB stores USASpending DEF codes (L); the other 4 tabs (Hurricane/Wildfire/Infrastructure/General) remain empty pending a multi-group sync + full DEF-code map. (2) The recovery ratio (fed DEF / FEMA obligated) was conceptually mismatched - USASpending DEF spending includes non-FEMA agencies (trillions for COVID), while FEMA Public Assistance is a narrow physical-disaster-repair program (COVID PA nationwide is -$178M); aligning disaster numbers cannot fix it because the two data sources measure different things. Verified live: COVID disaster 4488 PA sum is -$178M. (3) Paginator missing [length] is a one-binding fix. (4) The per-state-year table repeated each state fedSpendingObligated (per-state value) across all its FEMA declaration-year rows (NY x12) - aggregateByState sums femaObligated + declarationCount and keeps fedSpendingObligated once. The aggregateByState spec row asserts NY fema sums to 150000 while fedSpendingObligated stays at -2820000000 (not doubled). No backend change; no re-sync; no pi/build-agent run."
     }
   ],
   "storyOrder": [
@@ -3797,7 +3909,8 @@
     "E15-S03",
     "E15-S04",
     "E16-S01",
-    "E16-S02"
+    "E16-S02",
+    "E16-S03"
   ],
   "resolutions": [
     {
