@@ -98,7 +98,7 @@ describe('AgenciesService', () => {
       }) } as any;
       const svc = new AgenciesService(agencyRepo, spendingRepo, configService);
       const result = await svc.findAllWithTotals(fiscalYear);
-      expect(result.data).toEqual(expected);
+      expect(result).toEqual(expected);
       expect(agencyRepo.createQueryBuilder).toHaveBeenCalledWith('agency');
       expect(mockQueryBuilder.leftJoin).toHaveBeenCalledWith(
         'agency.spendingRecords',

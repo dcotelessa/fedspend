@@ -31,11 +31,11 @@ describe('ApiService', () => {
 
   const testTable: TestCase[] = [
     {
-      name: 'getAgencies fetches wrapped response and returns data',
+      name: 'getAgencies fetches raw array',
       methodName: 'getAgencies',
       args: [],
       expectedUrl: 'http://localhost:3000/api/agencies',
-      mockBody: { data: [{ id: 1, name: 'Test Agency', totalCents: 100000 }], meta: { total: 1, page: 1, pageSize: 10 } },
+      mockBody: [{ id: 1, name: 'Test Agency', totalCents: 100000 }],
       expected: [{ id: 1, name: 'Test Agency', totalCents: 100000 }],
     },
     {

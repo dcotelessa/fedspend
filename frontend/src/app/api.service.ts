@@ -44,8 +44,7 @@ export class ApiService {
   }
 
   getAgencies(): Observable<AgencyWithTotal[]> {
-    return this.http.get<{ data: AgencyWithTotal[] }>(`${environment.apiUrl}/agencies`).pipe(
-      map(r => r.data),
+    return this.http.get<AgencyWithTotal[]>(`${environment.apiUrl}/agencies`).pipe(
       catchError(() => of([] as AgencyWithTotal[])),
     );
   }

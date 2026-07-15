@@ -1,6 +1,6 @@
 import { AgenciesController } from './agencies.controller';
 import { AgenciesService } from './agencies.service';
-import { ApiResponse, Agency, AgencySummary } from '@shared/interfaces';
+import { AgencySummary } from '@shared/interfaces';
 import { SpendingRecord } from '../spending/spending-record.entity';
 import { AgencyListQueryDto } from './dto/agency-list-query.dto';
 
@@ -23,8 +23,8 @@ describe('AgenciesController', () => {
       name: string;
       input: Partial<AgencyListQueryDto>;
       expectedFy?: number;
-      serviceReturn: ApiResponse<{ id: number; name: string; totalCents: number }[]>;
-      expected: ApiResponse<{ id: number; name: string; totalCents: number }[]>;
+      serviceReturn: { id: number; name: string; totalCents: number }[];
+      expected: { id: number; name: string; totalCents: number }[];
     }
 
     const testTable: TestCase[] = [
@@ -32,31 +32,19 @@ describe('AgenciesController', () => {
         name: 'forwards fiscalYear query param through to the service',
         input: { fiscalYear: 2023 },
         expectedFy: 2023,
-        serviceReturn: {
-          data: [
-            { id: 1, name: 'Agency A', totalCents: 300000 },
-          ],
-          meta: { total: 6, page: 1, pageSize: 6 },
-        },
-        expected: {
-          data: [
-            { id: 1, name: 'Agency A', totalCents: 300000 },
-          ],
-          meta: { total: 6, page: 1, pageSize: 6 },
-        },
+        serviceReturn: [
+          { id: 1, name: 'Agency A', totalCents: 300000 },
+        ],
+        expected: [
+          { id: 1, name: 'Agency A', totalCents: 300000 },
+        ],
       },
       {
         name: 'forwards undefined when no fiscalYear query param',
         input: {},
         expectedFy: undefined,
-        serviceReturn: {
-          data: [],
-          meta: { total: 0, page: 1, pageSize: 0 },
-        },
-        expected: {
-          data: [],
-          meta: { total: 0, page: 1, pageSize: 0 },
-        },
+        serviceReturn: [],
+        expected: [],
       },
     ];
 

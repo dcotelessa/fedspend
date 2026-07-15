@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { AgenciesService } from './agencies.service';
-import { ApiResponse, AgencySummary } from '@shared/interfaces';
+import { AgencySummary } from '@shared/interfaces';
 import { SpendingRecord } from '../spending/spending-record.entity';
 import { AgencyListQueryDto } from './dto/agency-list-query.dto';
 
@@ -9,7 +9,7 @@ export class AgenciesController {
   constructor(private readonly agenciesService: AgenciesService) {}
 
   @Get()
-  list(@Query() dto: AgencyListQueryDto): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
+  list(@Query() dto: AgencyListQueryDto): Promise<{ id: number; name: string; totalCents: number }[]> {
     return this.agenciesService.findAllWithTotals(dto.fiscalYear);
   }
 

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Agency } from './agency.entity';
 import { SpendingRecord } from '../spending/spending-record.entity';
-import { ApiResponse, AgencySummary } from '@shared/interfaces';
+import { AgencySummary } from '@shared/interfaces';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class AgenciesService {
     private readonly configService: ConfigService,
   ) {}
 
-  async findAllWithTotals(fiscalYear?: number): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {
+  async findAllWithTotals(fiscalYear?: number): Promise<{ id: number; name: string; totalCents: number }[]> {
     const rows = await this.agencyRepo
       .createQueryBuilder('agency')
       .leftJoin('agency.spendingRecords', 'sr')
@@ -29,10 +29,7 @@ export class AgenciesService {
       name: row.agency_name,
       totalCents: parseInt(row.totalCents, 10),
     }));
-    return {
-      data,
-      meta: { total: data.length, page: 1, pageSize: data.length },
-    };
+    return data;
   }
 
   async findSummary(agencyId: number): Promise<AgencySummary | null> {

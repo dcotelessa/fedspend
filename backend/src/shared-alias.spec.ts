@@ -1,26 +1,28 @@
-import { ApiResponse } from '@shared/interfaces';
+import { AgencySummary } from '@shared/interfaces';
 
 describe('shared-alias', () => {
   interface TestCase {
     name: string;
-    expectedShape: Partial<ApiResponse<unknown>>;
+    expectedShape: Partial<AgencySummary>;
   }
 
   const testTable: TestCase[] = [
     {
-      name: 'ApiResponse interface is defined with expected shape',
+      name: 'AgencySummary interface is defined with expected shape',
       expectedShape: {
-        data: {},
-        meta: { total: 0, page: 1, pageSize: 10 },
+        agency: { id: 0, name: '', abbreviation: '', toptierCode: '' },
+        currentFyTotal: 0,
+        priorFyTotal: 0,
+        yoyChange: 0,
       },
     },
   ];
 
   it.each(testTable)('$name', ({ expectedShape }) => {
     expect(expectedShape).toBeDefined();
-    expect(expectedShape.meta).toBeDefined();
-    expect(typeof expectedShape.meta?.total).toBe('number');
-    expect(typeof expectedShape.meta?.page).toBe('number');
-    expect(typeof expectedShape.meta?.pageSize).toBe('number');
+    expect(expectedShape.agency).toBeDefined();
+    expect(typeof expectedShape.currentFyTotal).toBe('number');
+    expect(typeof expectedShape.priorFyTotal).toBe('number');
+    expect(typeof expectedShape.yoyChange).toBe('number');
   });
 });

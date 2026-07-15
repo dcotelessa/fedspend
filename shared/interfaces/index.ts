@@ -54,15 +54,6 @@ export interface DisasterRecoveryRatio {
   dominantIncidentType: string;
 }
 
-export interface ApiResponse<T> {
-  data: T;
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-  };
-}
-
 export interface AgencySummary {
   agency: Agency;
   currentFyTotal: number;
