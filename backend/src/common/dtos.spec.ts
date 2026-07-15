@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { validate } from 'class-validator';
 import { PaginationDto, ScopeEnum } from '../common/pagination.dto';
 import { GeographyQueryDto } from '../geography/dto/geography-query.dto';

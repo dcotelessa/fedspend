@@ -1402,6 +1402,32 @@
       "elapsedSec": 0,
       "thinking": "high",
       "timestamp": "2026-07-15T02:40:44Z"
+    },
+    {
+      "story": "E19-S01",
+      "epic": "E19",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:9b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 2416,
+      "thinking": "medium",
+      "timestamp": "2026-07-15T21:42:57Z"
+    },
+    {
+      "story": "E19-S01",
+      "epic": "E19",
+      "tier": "T1",
+      "harness": "opencode",
+      "model": "glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 0,
+      "thinking": "high",
+      "timestamp": "2026-07-15T21:48:24Z"
     }
   ]
 }
