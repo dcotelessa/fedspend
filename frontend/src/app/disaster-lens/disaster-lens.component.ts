@@ -1,16 +1,17 @@
-import { Component, OnInit, OnDestroy, inject, ViewChild } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTabsModule, MatTabChangeEvent } from '@angular/material/tabs';
 import { MatSelectModule } from '@angular/material/select';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatPaginatorModule } from '@angular/material/paginator';
 import { BarChartComponent } from '../bar-chart/bar-chart.component';
-import { Subscription } from 'rxjs';
+import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { DisasterOverview, DisasterFundingRecord, DisasterRecoveryRatio } from '@shared/interfaces';
+import { switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-disaster-lens',
@@ -29,113 +30,103 @@ import { DisasterOverview, DisasterFundingRecord, DisasterRecoveryRatio } from '
   templateUrl: './disaster-lens.component.html',
   styleUrl: './disaster-lens.component.scss',
 })
-export class DisasterLensComponent implements OnInit, OnDestroy {
+export class DisasterLensComponent {
   private readonly api = inject(ApiService);
 
-  currentTab = 'COVID-19';
-  tabIndex = 0;
-  selectedFiscalYear: number | null = null;
+  readonly currentTab = signal('COVID-19');
+  readonly tabIndex = signal(0);
+  readonly selectedFiscalYear = signal<number | null>(null);
 
-  defGroups = ['COVID-19', 'Infrastructure'];
-  fiscalYears: number[] = [];
-
-  totalObligated = 0;
-  stateCount = 0;
-  highestPerCapitaState = '';
-
-  top15Labels: string[] = [];
-  top15Datasets: number[] = [];
-
-  sortedRatios: DisasterRecoveryRatio[] = [];
-  displayedColumns: string[] = ['state', 'declarations', 'fema', 'fedDef', 'dominantIncident'];
-
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-
-  private overviewSub?: Subscription;
-  private statesSub?: Subscription;
-  private ratiosSub?: Subscription;
-
-  ngOnInit(): void {
-    this.buildFiscalYearOptions();
-    this.refresh();
-  }
-
-  ngOnDestroy(): void {
-    this.overviewSub?.unsubscribe();
-    this.statesSub?.unsubscribe();
-    this.ratiosSub?.unsubscribe();
-  }
-
-  onTabChange(event: MatTabChangeEvent): void {
-    this.currentTab = this.defGroups[event.index];
-    this.tabIndex = event.index;
-    this.refresh();
-  }
-
-  onFiscalYearChange(): void {
-    this.refresh();
-  }
-
-  private refresh(): void {
-    this.fetchOverview();
-    this.fetchStates();
-    this.fetchRatios();
-  }
-
-  private buildFiscalYearOptions(): void {
+  readonly defGroups = ['COVID-19', 'Infrastructure'];
+  readonly fiscalYears = (() => {
     const now = new Date();
     const currentFy = now.getMonth() < 9 ? now.getFullYear() : now.getFullYear() + 1;
-    for (let fy = currentFy; fy >= 2018; fy--) {
-      this.fiscalYears.push(fy);
-    }
+    const years: number[] = [];
+    for (let fy = currentFy; fy >= 2018; fy--) years.push(fy);
+    return years;
+  })();
+  readonly displayedColumns: string[] = ['state', 'declarations', 'fema', 'fedDef', 'dominantIncident'];
+
+  readonly pageIndex = signal(0);
+  readonly pageSize = signal(15);
+
+  private readonly overview$ = toSignal(
+    toObservable(this.currentTab).pipe(
+      switchMap(tab => this.api.getDisasterOverview({ defGroup: tab })),
+    ),
+    { initialValue: [] as DisasterOverview[] },
+  );
+
+  private readonly statesParams = computed(() => {
+    const params: { defGroup: string; fiscalYear?: number } = { defGroup: this.currentTab() };
+    if (this.selectedFiscalYear() !== null) params.fiscalYear = this.selectedFiscalYear()!;
+    return params;
+  });
+
+  private readonly states$ = toSignal(
+    toObservable(this.statesParams).pipe(switchMap(p => this.api.getDisasterStates(p))),
+    { initialValue: [] as DisasterFundingRecord[] },
+  );
+
+  private readonly ratiosParams = computed(() => {
+    const params: { fiscalYear?: number } = {};
+    if (this.selectedFiscalYear() !== null) params.fiscalYear = this.selectedFiscalYear()!;
+    return params;
+  });
+
+  private readonly ratios$ = toSignal(
+    toObservable(this.ratiosParams).pipe(switchMap(p => this.api.getDisasterRecoveryRatios(p))),
+    { initialValue: [] as DisasterRecoveryRatio[] },
+  );
+
+  readonly totalObligated = computed(() => {
+    const current = this.overview$()[0];
+    return current ? current.totalObligated : 0;
+  });
+
+  readonly highestPerCapitaState = computed(() => {
+    const current = this.overview$()[0];
+    return current ? current.highestPerCapitaState : '';
+  });
+
+  readonly stateCount = computed(() => this.states$().length);
+
+  private readonly top15 = computed(() => DisasterLensComponent.pickTop15(this.states$()));
+  readonly top15Labels = computed(() => this.top15().map(s => s.stateName));
+  readonly top15Datasets = computed(() => this.top15().map(s => s.obligatedAmount));
+
+  readonly sortedRatios = computed(() =>
+    DisasterLensComponent.aggregateByState(this.ratios$()).sort(
+      (a, b) => b.fedSpendingObligated - a.fedSpendingObligated,
+    ),
+  );
+
+  readonly pagedRatios = computed(() => {
+    const start = this.pageIndex() * this.pageSize();
+    return this.sortedRatios().slice(start, start + this.pageSize());
+  });
+
+  onTabChange(event: MatTabChangeEvent): void {
+    this.currentTab.set(this.defGroups[event.index]);
+    this.tabIndex.set(event.index);
   }
 
-  private fetchOverview(): void {
-    this.overviewSub?.unsubscribe();
-    this.overviewSub = this.api.getDisasterOverview({ defGroup: this.currentTab }).subscribe((overview: DisasterOverview[]) => {
-      const current = overview[0];
-      if (current) {
-        this.totalObligated = current.totalObligated;
-        this.highestPerCapitaState = current.highestPerCapitaState;
-      } else {
-        this.totalObligated = 0;
-        this.highestPerCapitaState = '';
-      }
-    });
+  onFiscalYearChange(value: number | null): void {
+    this.selectedFiscalYear.set(value);
   }
 
-  private fetchStates(): void {
-    this.statesSub?.unsubscribe();
-    const params: { defGroup?: string; fiscalYear?: number } = { defGroup: this.currentTab };
-    if (this.selectedFiscalYear) {
-      params.fiscalYear = this.selectedFiscalYear;
-    }
-    this.statesSub = this.api.getDisasterStates(params).subscribe((states: DisasterFundingRecord[]) => {
-      this.stateCount = states.length;
-      this.assignTop15(states);
-    });
+  onPage(event: { pageIndex: number; pageSize: number }): void {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
   }
 
-  private assignTop15(states: DisasterFundingRecord[]): void {
-    const top = [...states]
+  static pickTop15(states: DisasterFundingRecord[]): DisasterFundingRecord[] {
+    return [...states]
       .sort((a, b) => b.obligatedAmount - a.obligatedAmount)
       .slice(0, 15);
-    this.top15Labels = top.map((s) => s.stateName);
-    this.top15Datasets = top.map((s) => s.obligatedAmount);
   }
 
-  private fetchRatios(): void {
-    this.ratiosSub?.unsubscribe();
-    const params: { fiscalYear?: number } = {};
-    if (this.selectedFiscalYear) {
-      params.fiscalYear = this.selectedFiscalYear;
-    }
-    this.ratiosSub = this.api.getDisasterRecoveryRatios(params).subscribe((ratios: DisasterRecoveryRatio[]) => {
-      this.sortedRatios = this.aggregateByState(ratios).sort((a, b) => b.fedSpendingObligated - a.fedSpendingObligated);
-    });
-  }
-
-  private aggregateByState(ratios: DisasterRecoveryRatio[]): DisasterRecoveryRatio[] {
+  static aggregateByState(ratios: DisasterRecoveryRatio[]): DisasterRecoveryRatio[] {
     const byState = new Map<string, DisasterRecoveryRatio>();
     for (const r of ratios) {
       const existing = byState.get(r.stateCode);
@@ -147,11 +138,5 @@ export class DisasterLensComponent implements OnInit, OnDestroy {
       }
     }
     return [...byState.values()];
-  }
-
-  get pagedRatios(): DisasterRecoveryRatio[] {
-    if (!this.paginator) return [];
-    const start = this.paginator.pageIndex * this.paginator.pageSize;
-    return this.sortedRatios.slice(start, start + this.paginator.pageSize);
   }
 }

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { provideRouter, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, ParamMap, provideRouter, convertToParamMap } from '@angular/router';
+import { Subject } from 'rxjs';
 import { of } from 'rxjs';
 
 import { AgencySpotlightComponent } from './agency-spotlight.component';
@@ -21,9 +22,16 @@ interface TestCase {
 }
 
 describe('AgencySpotlightComponent', () => {
-  let component: AgencySpotlightComponent;
   let fixture: ComponentFixture<AgencySpotlightComponent>;
+  let paramMap$: Subject<ParamMap>;
   let apiService: ApiService;
+
+  const summary: AgencySummary = {
+    agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
+    currentFyTotal: 1000000,
+    priorFyTotal: 950000,
+    yoyChange: 25,
+  };
 
   const testTable: TestCase[] = [
     {
@@ -118,63 +126,48 @@ describe('AgencySpotlightComponent', () => {
   ];
 
   beforeEach(async () => {
+    paramMap$ = new Subject<ParamMap>();
     await TestBed.configureTestingModule({
       imports: [AgencySpotlightComponent],
       providers: [
         provideRouter([]),
         provideHttpClient(),
+        { provide: ActivatedRoute, useValue: { paramMap: paramMap$ } },
       ],
     }).compileComponents();
+  });
+
+  function bootstrapWithId(id: number, records: SpendingRecord[] | null) {
+    apiService = TestBed.inject(ApiService);
+    jest.spyOn(apiService, 'getAgencySpotlight').mockReturnValue(of(records));
+    jest.spyOn(apiService, 'getAgencySummary').mockReturnValue(of(summary));
 
     fixture = TestBed.createComponent(AgencySpotlightComponent);
-    component = fixture.componentInstance;
-    apiService = TestBed.inject(ApiService);
-  });
+    paramMap$.next(convertToParamMap({ id: String(id) }));
+    fixture.detectChanges();
+  }
 
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  function setupRoute(id: number) {
-    const paramMap = convertToParamMap({ id: String(id) });
-    (component as any).route = {
-      paramMap: {
-        subscribe: jest.fn().mockImplementation((fn: (val: any) => void) => {
-          fn(paramMap);
-        }),
-      },
-    } as any;
-  }
-
-  function flushService(id: number, records: SpendingRecord[] | null) {
-    jest.spyOn(apiService, 'getAgencySpotlight').mockReturnValueOnce(of(records));
-    jest.spyOn(apiService, 'getAgencySummary').mockReturnValueOnce(of({
-      agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' },
-      currentFyTotal: 1000000,
-      priorFyTotal: 950000,
-      yoyChange: 25,
-    }));
-  }
-
   it.each(testTable)('$name', ({ id, records, fiscalYearStart, fiscalYearEnd, expectedLabels, expectedDatasetCount, expectedAwardTypes, expectedData }) => {
-    setupRoute(id);
-    flushService(id, records);
+    bootstrapWithId(id, records);
+    const component = fixture.componentInstance;
 
-    (component as any).ngOnInit();
-
-    expect(component.fiscalYearStart).toBe(fiscalYearStart);
-    expect(component.fiscalYearEnd).toBe(fiscalYearEnd);
-    expect(component.loading).toBe(false);
-    expect(component.chartData.labels).toEqual(expectedLabels);
-    expect(component.chartData.datasets.length).toBe(expectedDatasetCount);
+    expect(component.fiscalYearStart()).toBe(fiscalYearStart);
+    expect(component.fiscalYearEnd()).toBe(fiscalYearEnd);
+    expect(component.loading()).toBe(false);
+    expect(component.chartData().labels).toEqual(expectedLabels);
+    expect(component.chartData().datasets.length).toBe(expectedDatasetCount);
 
     if (expectedAwardTypes.length > 0) {
-      const datasetLabels = component.chartData.datasets.map(d => d.label);
+      const datasetLabels = component.chartData().datasets.map(d => d.label);
       expect(datasetLabels).toEqual(expect.arrayContaining(expectedAwardTypes));
     }
 
     for (const [awardType, expectedValues] of Object.entries(expectedData)) {
-      const dataset = component.chartData.datasets.find(d => d.label === awardType);
+      const dataset = component.chartData().datasets.find(d => d.label === awardType);
       expect(dataset).toBeDefined();
       expect(dataset!.data).toEqual(expectedValues);
     }
@@ -259,12 +252,9 @@ describe('AgencySpotlightComponent', () => {
   ];
 
   describe('computeInsight', () => {
+    const agency = summary;
     it.each(insightTestTable)('$name', ({ records, fiscalYearStart, fiscalYearEnd, expectedInsight }) => {
-      component.currentRecords = records;
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
-      component.fiscalYearStart = fiscalYearStart;
-      component.fiscalYearEnd = fiscalYearEnd;
-      const insight = (component as any).computeInsight();
+      const insight = AgencySpotlightComponent.computeInsight(agency, records, fiscalYearStart, fiscalYearEnd);
       expect(insight).toBe(expectedInsight);
     });
   });
@@ -326,11 +316,7 @@ describe('AgencySpotlightComponent', () => {
 
   describe('buildTableData', () => {
     it.each(tableDataTestTable)('$name', ({ records, fiscalYearStart, fiscalYearEnd, expectedRowCount, expectedFirstRow }) => {
-      component.currentRecords = records;
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal: 500000, yoyChange: 100 };
-      component.fiscalYearStart = fiscalYearStart;
-      component.fiscalYearEnd = fiscalYearEnd;
-      const tableData = (component as any).buildTableData();
+      const tableData = AgencySpotlightComponent.buildTableData(records, fiscalYearStart, fiscalYearEnd);
       expect(tableData.length).toBe(expectedRowCount);
       if (expectedRowCount > 0) {
         expect(tableData[0].awardType).toBe(expectedFirstRow.awardType);
@@ -379,20 +365,18 @@ describe('AgencySpotlightComponent', () => {
     },
   ];
 
-  describe('badge color computation', () => {
+  describe('computeBadge', () => {
     it.each(badgeTestTable)('$name', ({ priorFyTotal, yoyChange, expectedColor, expectedText }) => {
-      component.agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal, yoyChange };
-      (component as any).updateBadge();
-      expect(component.badgeColor).toBe(expectedColor);
-      expect(component.badgeText).toBe(expectedText);
+      const agency = { agency: { id: 1, name: 'NASA', abbreviation: 'NASA', toptierCode: '080' }, currentFyTotal: 1000000, priorFyTotal, yoyChange };
+      const badge = AgencySpotlightComponent.computeBadge(agency);
+      expect(badge.color).toBe(expectedColor);
+      expect(badge.text).toBe(expectedText);
     });
   });
 
   interface AvailableYearsTestCase {
     name: string;
     records: SpendingRecord[];
-    presetStart?: number;
-    presetEnd?: number;
     expectedAvailableYears: number[];
     expectedStart: number;
     expectedEnd: number;
@@ -427,38 +411,31 @@ describe('AgencySpotlightComponent', () => {
       expectedEnd: 2024,
     },
     {
-      name: 'clamps preset fiscalYearStart down to min available year',
+      name: 'clamps fiscalYearStart down to min available year',
       records: [
         { id: 1, agencyId: 1, fiscalYear: 2024, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
       ],
-      presetStart: 2015,
-      presetEnd: 2030,
       expectedAvailableYears: [2024],
       expectedStart: 2024,
       expectedEnd: 2024,
     },
     {
-      name: 'clamps preset fiscalYearEnd up to max available year',
+      name: 'clamps fiscalYearEnd up to max available year',
       records: [
         { id: 1, agencyId: 1, fiscalYear: 2020, quarter: 1, awardTypeLabel: 'Contracts', awardTypeCodes: 'A', obligatedAmount: 100000, outlayAmount: 0, awardCount: 1 },
       ],
-      presetStart: 2010,
-      presetEnd: 2025,
       expectedAvailableYears: [2020],
       expectedStart: 2020,
       expectedEnd: 2020,
     },
   ];
 
-  describe('populateAvailableYears', () => {
-    it.each(availableYearsTestTable)('$name', ({ records, presetStart, presetEnd, expectedAvailableYears, expectedStart, expectedEnd }) => {
-      component.currentRecords = records;
-      if (presetStart !== undefined) component.fiscalYearStart = presetStart;
-      if (presetEnd !== undefined) component.fiscalYearEnd = presetEnd;
-      (component as any).populateAvailableYears();
-      expect(component.availableYears).toEqual(expectedAvailableYears);
-      expect(component.fiscalYearStart).toBe(expectedStart);
-      expect(component.fiscalYearEnd).toBe(expectedEnd);
+  describe('computeAvailableYears', () => {
+    it.each(availableYearsTestTable)('$name', ({ records, expectedAvailableYears, expectedStart, expectedEnd }) => {
+      const result = AgencySpotlightComponent.computeAvailableYears(records);
+      expect(result.years).toEqual(expectedAvailableYears);
+      expect(result.start).toBe(expectedStart);
+      expect(result.end).toBe(expectedEnd);
     });
   });
 
@@ -501,7 +478,7 @@ describe('AgencySpotlightComponent', () => {
 
   describe('aggregateAwardTypesForRange', () => {
     it.each(rangeAggregationTestTable)('$name', ({ records, rangeStart, rangeEnd, expectedSums, expectedTotal }) => {
-      const result = (component as any).aggregateAwardTypesForRange(records, rangeStart, rangeEnd);
+      const result = AgencySpotlightComponent.aggregateAwardTypesForRange(records, rangeStart, rangeEnd);
       for (const [awardType, expectedSum] of Object.entries(expectedSums)) {
         expect(result.sumsByType.get(awardType)).toBe(expectedSum);
       }

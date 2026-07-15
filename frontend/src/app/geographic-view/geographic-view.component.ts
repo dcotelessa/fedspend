@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -13,6 +13,8 @@ import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.componen
 import { ApiService, AgencyWithTotal } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { GeoSpendingSnapshot } from '@shared/interfaces';
+import { toSignal, toObservable } from '@angular/core/rxjs-interop';
+import { switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-geographic-view',
@@ -25,77 +27,115 @@ import { GeoSpendingSnapshot } from '@shared/interfaces';
   templateUrl: './geographic-view.component.html',
   styleUrl: './geographic-view.component.scss',
 })
-export class GeographicViewComponent implements OnInit {
-  agencyId = signal<number | null>(null);
-  fiscalYear = signal<number>(2024);
-  scope = signal<'recipient' | 'performance'>('recipient');
+export class GeographicViewComponent {
+  private readonly apiService = inject(ApiService);
 
-  agencyList: AgencyWithTotal[] = [];
-  fiscalYearList: number[] = [];
+  readonly agencyId = signal<number | null>(null);
+  readonly fiscalYear = signal<number>(2024);
+  readonly scope = signal<'recipient' | 'performance'>('recipient');
+  readonly noData = computed(() => this.primary$().length === 0);
+  readonly delta = computed(() =>
+    GeographicViewComponent.computeDelta(this.primary$(), this.secondary$()),
+  );
 
-  top10: Array<{ stateName: string; obligatedAmount: number }> = [];
-  allStates: GeoSpendingSnapshot[] = [];
-  vsAvg: number[] = [];
-  chartLabels: string[] = [];
-  chartData: ChartDataset[] = [];
-  delta: number | null = null;
-  noData = signal<boolean>(false);
+  readonly paginator = { pageSize: 15, length: 0 } as { pageSize: number; length: number };
+  readonly displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'vsAvg'];
 
-  paginator = { pageSize: 15, length: 0 } as { pageSize: number; length: number };
+  private readonly agenciesSource$ = toSignal(this.apiService.getAgencies(), {
+    initialValue: [] as AgencyWithTotal[],
+  });
+  readonly agencyList = computed(() => this.agenciesSource$().filter(a => a.totalCents > 0));
 
-  displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'vsAvg'];
+  private readonly yearsSource$ = toSignal(
+    this.apiService.getGeographyStates({ scope: 'recipient' }),
+    { initialValue: [] as GeoSpendingSnapshot[] },
+  );
+  readonly fiscalYearList = computed(() =>
+    Array.from(new Set(this.yearsSource$().map(d => d.fiscalYear))).sort((a, b) => a - b),
+  );
 
-  constructor(private readonly apiService: ApiService) {}
+  private readonly oppositeScope = computed(() =>
+    this.scope() === 'recipient' ? 'performance' : 'recipient',
+  );
 
-  ngOnInit(): void {
-    this.loadAgencies();
-    this.loadFiscalYears();
-    this.loadData();
-  }
-
-  loadAgencies(): void {
-    this.apiService.getAgencies().subscribe(agencies => {
-      this.agencyList = agencies.filter(a => a.totalCents > 0);
-    });
-  }
-
-  loadFiscalYears(): void {
-    this.apiService.getGeographyStates({ scope: 'recipient' }).subscribe(all => {
-      const years = Array.from(new Set(all.map(d => d.fiscalYear))).sort((a, b) => a - b);
-      if (years.length === 0) return;
-      this.fiscalYearList = years;
-      if (!years.includes(this.fiscalYear())) {
-        this.fiscalYear.set(years[years.length - 1]);
-      }
-    });
-  }
-
-  loadData(): void {
-    const agencyIdVal = this.agencyId();
+  private readonly primaryParams = computed(() => {
     const params: { fiscalYear: number; agencyId?: number; scope: 'recipient' | 'performance' } = {
       fiscalYear: this.fiscalYear(),
       scope: this.scope(),
     };
-    if (agencyIdVal !== null) {
-      params.agencyId = agencyIdVal;
-    }
+    if (this.agencyId() !== null) params.agencyId = this.agencyId()!;
+    return params;
+  });
 
-    const oppositeScope = this.scope() === 'recipient' ? 'performance' : 'recipient';
-    const oppParams = { ...params, scope: oppositeScope };
+  private readonly secondaryParams = computed(() => ({
+    ...this.primaryParams(),
+    scope: this.oppositeScope(),
+  }));
 
-    this.apiService.getGeographyStates(params).subscribe(primary => {
-      this.processData(primary);
+  private readonly primary$ = toSignal(
+    toObservable(this.primaryParams).pipe(switchMap(p => this.apiService.getGeographyStates(p))),
+    { initialValue: [] as GeoSpendingSnapshot[] },
+  );
 
-      this.apiService.getGeographyStates(oppParams).subscribe(secondary => {
-        this.computeDelta(primary, secondary);
-      });
+  private readonly secondary$ = toSignal(
+    toObservable(this.secondaryParams).pipe(switchMap(p => this.apiService.getGeographyStates(p))),
+    { initialValue: [] as GeoSpendingSnapshot[] },
+  );
+
+  readonly allStates = computed(() =>
+    [...this.primary$()].sort((a, b) => b.obligatedAmount - a.obligatedAmount),
+  );
+
+  readonly top10 = computed(() =>
+    this.allStates()
+      .slice(0, 10)
+      .map(s => ({ stateName: s.stateName, obligatedAmount: s.obligatedAmount })),
+  );
+
+  readonly chartLabels = computed(() => this.top10().map(t => t.stateName));
+
+  readonly chartData = computed<ChartDataset[]>(() => {
+    const top = this.top10();
+    if (top.length === 0) return [];
+    return [{ label: 'Obligated Amount (cents)', data: top.map(t => t.obligatedAmount) }];
+  });
+
+  readonly vsAvg = computed(() => {
+    const sorted = this.allStates();
+    if (sorted.length === 0) return [];
+    const total = sorted.reduce((sum, s) => sum + s.obligatedAmount, 0);
+    const avg = total / sorted.length;
+    return sorted.map(s => ((s.obligatedAmount - avg) / avg) * 100);
+  });
+
+  constructor() {
+    effect(() => {
+      const years = this.fiscalYearList();
+      if (years.length > 0 && !years.includes(this.fiscalYear())) {
+        this.fiscalYear.set(years[years.length - 1]);
+      }
+    });
+
+    effect(() => {
+      this.paginator.length = this.allStates().length;
     });
   }
 
-  computeDelta(primary: GeoSpendingSnapshot[], secondary: GeoSpendingSnapshot[]): void {
+  onAgencyChange(value: number | null): void {
+    this.agencyId.set(value);
+  }
+
+  onFiscalYearChange(value: number): void {
+    this.fiscalYear.set(value);
+  }
+
+  onScopeChange(value: 'recipient' | 'performance'): void {
+    this.scope.set(value);
+  }
+
+  static computeDelta(primary: GeoSpendingSnapshot[], secondary: GeoSpendingSnapshot[]): number | null {
     if (primary.length === 0 || secondary.length === 0) {
-      this.delta = null;
-      return;
+      return null;
     }
 
     const sorted = [...primary].sort((a, b) => b.obligatedAmount - a.obligatedAmount);
@@ -108,58 +148,9 @@ export class GeographicViewComponent implements OnInit {
     const performanceMatch = performanceData.find(s => s.stateCode === topState.stateCode);
 
     if (!recipientMatch || !performanceMatch) {
-      this.delta = null;
-      return;
+      return null;
     }
 
-    this.delta = recipientMatch.obligatedAmount - performanceMatch.obligatedAmount;
-  }
-
-  processData(data: GeoSpendingSnapshot[]): void {
-    if (data.length === 0) {
-      this.noData.set(true);
-      this.top10 = [];
-      this.allStates = [];
-      this.chartLabels = [];
-      this.chartData = [];
-      return;
-    }
-
-    this.noData.set(false);
-    const sorted = [...data].sort((a, b) => b.obligatedAmount - a.obligatedAmount);
-
-    this.top10 = sorted.slice(0, 10).map(s => ({
-      stateName: s.stateName,
-      obligatedAmount: s.obligatedAmount,
-    }));
-
-    this.allStates = sorted;
-    this.paginator.length = sorted.length;
-
-    const total = sorted.reduce((sum, s) => sum + s.obligatedAmount, 0);
-    const avg = total / sorted.length;
-
-    this.vsAvg = sorted.map(s => ((s.obligatedAmount - avg) / avg) * 100);
-
-    this.chartLabels = this.top10.map(t => t.stateName);
-    this.chartData = [{
-      label: 'Obligated Amount (cents)',
-      data: this.top10.map(t => t.obligatedAmount),
-    }];
-  }
-
-  onAgencyChange(value: number | null): void {
-    this.agencyId.set(value);
-    this.loadData();
-  }
-
-  onFiscalYearChange(value: number): void {
-    this.fiscalYear.set(value);
-    this.loadData();
-  }
-
-  onScopeChange(value: 'recipient' | 'performance'): void {
-    this.scope.set(value);
-    this.loadData();
+    return recipientMatch.obligatedAmount - performanceMatch.obligatedAmount;
   }
 }

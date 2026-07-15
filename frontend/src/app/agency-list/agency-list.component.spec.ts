@@ -61,8 +61,6 @@ describe('AgencyListComponent', () => {
       ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(AgencyListComponent);
-    component = fixture.componentInstance;
     apiService = TestBed.inject(ApiService);
   });
 
@@ -72,10 +70,11 @@ describe('AgencyListComponent', () => {
 
   it.each(testTable)('$name', ({ agencies, expectedCount, expectedFirstHref, expectedFormattedValue }) => {
     jest.spyOn(apiService, 'getAgencies').mockReturnValueOnce(of(agencies));
-    component.ngOnInit();
+    fixture = TestBed.createComponent(AgencyListComponent);
+    component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(component.agencies.length).toBe(expectedCount);
+    expect(component.agencies().length).toBe(expectedCount);
 
     if (expectedCount > 0) {
       const linkEl = fixture.nativeElement.querySelector('a');
@@ -83,7 +82,7 @@ describe('AgencyListComponent', () => {
       expect(linkEl.getAttribute('href')).toBe(expectedFirstHref);
 
       const pipe = new CurrencyFormatPipe();
-      expect(pipe.transform(component.agencies[0].totalCents)).toBe(expectedFormattedValue);
+      expect(pipe.transform(component.agencies()[0].totalCents)).toBe(expectedFormattedValue);
     }
   });
 });

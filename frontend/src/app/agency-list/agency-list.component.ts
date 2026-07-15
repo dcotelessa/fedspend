@@ -1,8 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { ApiService, AgencyWithTotal } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
 
 @Component({
   selector: 'app-agency-list',
@@ -10,11 +12,10 @@ import { CurrencyFormatPipe } from '../currency-format.pipe';
   templateUrl: './agency-list.component.html',
   styleUrl: './agency-list.component.scss',
 })
-export class AgencyListComponent implements OnInit {
+export class AgencyListComponent {
   private readonly api = inject(ApiService);
-  agencies: AgencyWithTotal[] = [];
-
-  ngOnInit(): void {
-    this.api.getAgencies().subscribe(a => (this.agencies = a.filter(x => x.totalCents > 0)));
-  }
+  readonly agencies = toSignal(
+    this.api.getAgencies().pipe(map(a => a.filter(x => x.totalCents > 0))),
+    { initialValue: [] as AgencyWithTotal[] },
+  );
 }

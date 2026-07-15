@@ -18,6 +18,7 @@ describe('DashboardComponent', () => {
   };
   let apiSpy: {
     getAgencies: jest.Mock;
+    getDisasterOverview: jest.Mock;
     getDisasterRecoveryRatios: jest.Mock;
     getLastSync: jest.Mock;
   };
@@ -33,6 +34,7 @@ describe('DashboardComponent', () => {
     };
     apiSpy = {
       getAgencies: jest.fn().mockReturnValue(of([])),
+      getDisasterOverview: jest.fn().mockReturnValue(of([])),
       getDisasterRecoveryRatios: jest.fn().mockReturnValue(of([])),
       getLastSync: jest.fn().mockReturnValue(of(null)),
     };
@@ -114,12 +116,12 @@ describe('DashboardComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(component.totalObligated).toBe(expectedTotal);
-    expect(component.largestAgency).toEqual(expectedLargest);
-    expect(component.coverageGapCount).toBe(expectedGapCount);
+    expect(component.totalObligated()).toBe(expectedTotal);
+    expect(component.largestAgency()).toEqual(expectedLargest);
+    expect(component.coverageGapCount()).toBe(expectedGapCount);
   });
 
-  it('groups 6 agencies into top-5 bars plus Other bar', () => {
+  it('groups 6 agencies into top-5 bars plus Disaster Spending bar', () => {
     apiSpy.getAgencies.mockReturnValue(of([
       { id: 1, name: 'Agency A', totalCents: 500000 },
       { id: 2, name: 'Agency B', totalCents: 300000 },
@@ -134,15 +136,15 @@ describe('DashboardComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(component.chartLabels).toEqual([
-      'Agency A', 'Agency B', 'Agency C', 'Agency D', 'Agency E', 'Other',
+    expect(component.chartLabels()).toEqual([
+      'Agency A', 'Agency B', 'Agency C', 'Agency D', 'Agency E', 'Disaster Spending',
     ]);
-    expect(component.chartDatasets[0].data).toEqual([500000, 300000, 200000, 100000, 50000, 10000]);
-    expect(component.chartAgencyIds).toEqual([1, 2, 3, 4, 5]);
-    expect(component.chartLabels.length).toBe(6);
+    expect(component.chartDatasets()[0].data).toEqual([500000, 300000, 200000, 100000, 50000, 0]);
+    expect(component.chartAgencyIds()).toEqual([1, 2, 3, 4, 5]);
+    expect(component.chartLabels().length).toBe(6);
   });
 
-  it('shows single Other bar when all agencies have zero spending', () => {
+  it('shows single Disaster Spending bar when all agencies have zero spending', () => {
     apiSpy.getAgencies.mockReturnValue(of([
       { id: 1, name: 'Agency A', totalCents: 0 },
       { id: 2, name: 'Agency B', totalCents: 0 },
@@ -154,13 +156,13 @@ describe('DashboardComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(component.chartLabels).toEqual(['Other']);
-    expect(component.chartDatasets[0].data).toEqual([0]);
-    expect(component.chartAgencyIds).toEqual([]);
-    expect(component.chartLabels.length).toBe(1);
+    expect(component.chartLabels()).toEqual(['Disaster Spending']);
+    expect(component.chartDatasets()[0].data).toEqual([0]);
+    expect(component.chartAgencyIds()).toEqual([]);
+    expect(component.chartLabels().length).toBe(1);
   });
 
-  it('shows fewer bars than TOP_N plus Other when fewer agencies have data', () => {
+  it('shows fewer bars than TOP_N plus Disaster Spending when fewer agencies have data', () => {
     apiSpy.getAgencies.mockReturnValue(of([
       { id: 1, name: 'Agency A', totalCents: 500000 },
       { id: 2, name: 'Agency B', totalCents: 300000 },
@@ -171,10 +173,10 @@ describe('DashboardComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(component.chartLabels).toEqual(['Agency A', 'Agency B', 'Other']);
-    expect(component.chartDatasets[0].data).toEqual([500000, 300000, 800000]);
-    expect(component.chartAgencyIds).toEqual([1, 2]);
-    expect(component.chartLabels.length).toBe(3);
+    expect(component.chartLabels()).toEqual(['Agency A', 'Agency B', 'Disaster Spending']);
+    expect(component.chartDatasets()[0].data).toEqual([500000, 300000, 0]);
+    expect(component.chartAgencyIds()).toEqual([1, 2]);
+    expect(component.chartLabels().length).toBe(3);
   });
 
   it('navigates to top bar agency on chart click', () => {
@@ -199,7 +201,7 @@ describe('DashboardComponent', () => {
     expect(routerSpy.navigate).toHaveBeenCalledWith(['/agencies', 4]);
   });
 
-  it('does not navigate when Other bar is clicked', () => {
+  it('does not navigate when Disaster Spending bar is clicked', () => {
     apiSpy.getAgencies.mockReturnValue(of([
       { id: 1, name: 'Agency A', totalCents: 500000 },
       { id: 2, name: 'Agency B', totalCents: 300000 },
@@ -226,7 +228,7 @@ describe('DashboardComponent', () => {
     expect(routerSpy.navigate).not.toHaveBeenCalled();
   });
 
-  it('fetches agencies, ratios, and last sync on init', () => {
+  it('fetches agencies, overview, ratios, and last sync on construction', () => {
     apiSpy.getAgencies.mockReturnValue(of([]));
     apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
     apiSpy.getLastSync.mockReturnValue(of('2024-01-15T10:00:00Z'));
@@ -236,9 +238,10 @@ describe('DashboardComponent', () => {
     fixture.detectChanges();
 
     expect(apiSpy.getAgencies).toHaveBeenCalled();
+    expect(apiSpy.getDisasterOverview).toHaveBeenCalled();
     expect(apiSpy.getDisasterRecoveryRatios).toHaveBeenCalled();
     expect(apiSpy.getLastSync).toHaveBeenCalled();
-    expect(component.lastSync).toBe('2024-01-15T10:00:00Z');
+    expect(component.lastSync()).toBe('2024-01-15T10:00:00Z');
   });
 
   it('renders 3 nav cards with correct routerLink targets', () => {
@@ -322,7 +325,6 @@ describe('DashboardComponent', () => {
     const navCards = fixture.nativeElement.querySelector('.nav-cards');
     expect(navCards).toBeTruthy();
 
-    // Verify about is between h1 and nav-cards
     const h1Index = Array.from(fixture.nativeElement.childNodes).indexOf(h1);
     const aboutIndex = Array.from(fixture.nativeElement.childNodes).indexOf(about);
     const navCardsIndex = Array.from(fixture.nativeElement.childNodes).indexOf(navCards);

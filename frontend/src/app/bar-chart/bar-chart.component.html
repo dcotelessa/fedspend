@@ -1,8 +1,8 @@
 <div class="bar-chart-container">
-  <h3>{{ title }}</h3>
+  <h3>{{ title() }}</h3>
   <canvas baseChart base-chart
     [type]="chartType"
-    [data]="chartData"
-    [options]="chartOptions">
+    [data]="chartData()"
+    [options]="chartOptions()">
   </canvas>
 </div>

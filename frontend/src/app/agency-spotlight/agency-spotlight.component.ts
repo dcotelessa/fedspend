@@ -1,16 +1,17 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatOptionModule } from '@angular/material/core';
 import { MatTableModule } from '@angular/material/table';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
 import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
 import { AgencySummary, SpendingRecord } from '@shared/interfaces';
+import { catchError, filter, map, of, switchMap } from 'rxjs';
 
 interface ChartData {
   labels: string[];
@@ -28,72 +29,110 @@ interface TableDataRow {
   templateUrl: './agency-spotlight.component.html',
   styleUrl: './agency-spotlight.component.scss',
   standalone: true,
-  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatOptionModule, MatTableModule, RouterLink, MatButtonModule, MatIconModule],
+  imports: [CurrencyFormatPipe, BarChartComponent, FormsModule, MatSelectModule, MatFormFieldModule, MatTableModule, RouterLink, MatButtonModule, MatIconModule],
 })
-export class AgencySpotlightComponent implements OnInit {
-  readonly route = inject(ActivatedRoute);
-  readonly apiService = inject(ApiService);
+export class AgencySpotlightComponent {
+  private readonly route = inject(ActivatedRoute);
+  private readonly apiService = inject(ApiService);
 
-  agency: AgencySummary | null = null;
-  loading = true;
-  error = '';
-  badgeColor = 'neutral';
-  badgeText = '';
-  fiscalYearStart = 2020;
-  fiscalYearEnd = 2024;
-  availableYears: number[] = [2020, 2021, 2022, 2023, 2024];
-  chartData: ChartData = { labels: [], datasets: [] };
-  insight = '';
-  tableData: TableDataRow[] = [];
-  displayedColumns = ['awardType', 'obligatedAmount', 'percentageOfTotal'];
+  private readonly agencyId = toSignal(
+    this.route.paramMap.pipe(map(p => p.get('id'))),
+    { initialValue: null as string | null },
+  );
 
-  private currentRecords: SpendingRecord[] = [];
+  readonly agency = toSignal(
+    toObservable(this.agencyId).pipe(
+      filter((id): id is string => id !== null),
+      switchMap(id => this.apiService.getAgencySummary(Number(id)).pipe(
+        catchError(() => of(null as AgencySummary | null)),
+      )),
+    ),
+    { initialValue: null as AgencySummary | null },
+  );
 
-  ngOnInit() {
-    this.route.paramMap.subscribe(params => {
-      const id = params.get('id');
-      if (id) {
-        this.loading = true;
-        this.apiService.getAgencySummary(Number(id)).subscribe({
-          next: (summary) => {
-            if (summary) {
-              this.agency = summary;
-              this.updateBadge();
-            }
-            this.apiService.getAgencySpotlight(Number(id)).subscribe({
-              next: (records) => {
-                this.loading = false;
-                this.currentRecords = records ?? [];
-                if (this.currentRecords.length > 0) {
-                  this.populateAvailableYears();
-                  this.buildStackedChartFromRecords(this.currentRecords);
-                }
-                this.insight = this.computeInsight();
-                this.tableData = this.buildTableData();
-              },
-              error: () => {
-                this.error = 'Failed to load agency data';
-                this.loading = false;
-              },
-            });
-          },
-          error: () => {
-            this.loading = false;
-            this.error = 'Failed to load agency summary';
-          },
-        });
+  private readonly records = toSignal(
+    toObservable(this.agencyId).pipe(
+      filter((id): id is string => id !== null),
+      switchMap(id => this.apiService.getAgencySpotlight(Number(id)).pipe(
+        catchError(() => {
+          this.error.set('Failed to load agency data');
+          return of(null as SpendingRecord[] | null);
+        }),
+      )),
+    ),
+    { initialValue: null as SpendingRecord[] | null },
+  );
+
+  readonly error = signal('');
+  readonly loading = computed(() => this.records() === null);
+  readonly fiscalYearStart = signal(2020);
+  readonly fiscalYearEnd = signal(2024);
+  readonly displayedColumns = ['awardType', 'obligatedAmount', 'percentageOfTotal'];
+
+  readonly availableYears = computed(() => {
+    const records = this.records();
+    if (!records || records.length === 0) return [2020, 2021, 2022, 2023, 2024];
+    return AgencySpotlightComponent.computeAvailableYears(records).years;
+  });
+
+  readonly chartData = computed<ChartData>(() =>
+    AgencySpotlightComponent.buildStackedChart(
+      this.records() ?? [],
+      this.fiscalYearStart(),
+      this.fiscalYearEnd(),
+    ),
+  );
+
+  readonly tableData = computed<TableDataRow[]>(() =>
+    AgencySpotlightComponent.buildTableData(
+      this.records() ?? [],
+      this.fiscalYearStart(),
+      this.fiscalYearEnd(),
+    ),
+  );
+
+  readonly insight = computed(() =>
+    AgencySpotlightComponent.computeInsight(
+      this.agency(),
+      this.records() ?? [],
+      this.fiscalYearStart(),
+      this.fiscalYearEnd(),
+    ),
+  );
+
+  readonly badge = computed(() => AgencySpotlightComponent.computeBadge(this.agency()));
+
+  constructor() {
+    effect(() => {
+      const records = this.records();
+      if (records && records.length > 0) {
+        const { start, end } = AgencySpotlightComponent.computeAvailableYears(records);
+        this.fiscalYearStart.set(start);
+        this.fiscalYearEnd.set(end);
       }
     });
   }
 
-  onRangeChange(): void {
-    this.buildStackedChartFromRecords(this.currentRecords);
-    this.tableData = this.buildTableData();
+  onFiscalYearStartChange(value: number): void {
+    this.fiscalYearStart.set(value);
   }
 
-  private buildStackedChartFromRecords(records: SpendingRecord[]): void {
+  onFiscalYearEndChange(value: number): void {
+    this.fiscalYearEnd.set(value);
+  }
+
+  static computeAvailableYears(records: SpendingRecord[]): { years: number[]; start: number; end: number } {
+    const years = Array.from(new Set(records.map(r => r.fiscalYear))).sort((a, b) => a - b);
+    return {
+      years,
+      start: Math.min(...years),
+      end: Math.max(...years),
+    };
+  }
+
+  static buildStackedChart(records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): ChartData {
     const inRange = records.filter(
-      r => r.fiscalYear >= this.fiscalYearStart && r.fiscalYear <= this.fiscalYearEnd,
+      r => r.fiscalYear >= fiscalYearStart && r.fiscalYear <= fiscalYearEnd,
     );
 
     const years = new Set<number>();
@@ -114,44 +153,19 @@ export class AgencySpotlightComponent implements OnInit {
     const sortedYears = Array.from(years).sort((a, b) => a - b);
     const sortedAwardTypes = Array.from(sumsByAwardType.keys()).sort();
 
-    this.chartData.labels = sortedYears.map(String);
-    this.chartData.datasets = sortedAwardTypes.map(awardType => {
-      const sumsByYear = sumsByAwardType.get(awardType)!;
-      return {
-        label: awardType,
-        data: sortedYears.map(year => sumsByYear.get(year) ?? 0),
-      };
-    });
+    return {
+      labels: sortedYears.map(String),
+      datasets: sortedAwardTypes.map(awardType => {
+        const sumsByYear = sumsByAwardType.get(awardType)!;
+        return {
+          label: awardType,
+          data: sortedYears.map(year => sumsByYear.get(year) ?? 0),
+        };
+      }),
+    };
   }
 
-  private populateAvailableYears(): void {
-    const years = new Set<number>();
-    for (const record of this.currentRecords) {
-      years.add(record.fiscalYear);
-    }
-    this.availableYears = Array.from(years).sort((a, b) => a - b);
-    const [min, max] = [Math.min(...this.availableYears), Math.max(...this.availableYears)];
-    this.fiscalYearStart = min;
-    this.fiscalYearEnd = max;
-  }
-
-  private updateBadge(): void {
-    if (!this.agency) return;
-
-    const { priorFyTotal, yoyChange } = this.agency;
-    if (priorFyTotal === 0) {
-      this.badgeColor = 'neutral';
-      this.badgeText = '0.0% YoY';
-    } else if (yoyChange >= 0) {
-      this.badgeColor = 'positive';
-      this.badgeText = `+${yoyChange.toFixed(1)}% YoY`;
-    } else {
-      this.badgeColor = 'negative';
-      this.badgeText = `${yoyChange.toFixed(1)}% YoY`;
-    }
-  }
-
-  private aggregateAwardTypesForRange(records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): {
+  static aggregateAwardTypesForRange(records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): {
     sumsByType: Map<string, number>;
     total: number;
   } {
@@ -165,12 +179,12 @@ export class AgencySpotlightComponent implements OnInit {
     return { sumsByType, total };
   }
 
-  private computeInsight(): string {
-    if (!this.agency) {
+  static computeInsight(agency: AgencySummary | null, records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): string {
+    if (!agency) {
       return 'No data available for the selected fiscal year.';
     }
 
-    const { sumsByType, total } = this.aggregateAwardTypesForRange(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
+    const { sumsByType, total } = AgencySpotlightComponent.aggregateAwardTypesForRange(records, fiscalYearStart, fiscalYearEnd);
     if (total === 0) {
       return 'No data available for the selected fiscal year.';
     }
@@ -185,12 +199,12 @@ export class AgencySpotlightComponent implements OnInit {
     }
 
     const pct = (maxValue / total * 100).toFixed(1);
-    const agencyName = this.agency.agency?.name || '';
-    return `In FY${this.fiscalYearStart}-${this.fiscalYearEnd}, ${agencyName} spent ${pct}% on ${maxType}.`;
+    const agencyName = agency.agency?.name || '';
+    return `In FY${fiscalYearStart}-${fiscalYearEnd}, ${agencyName} spent ${pct}% on ${maxType}.`;
   }
 
-  private buildTableData(): TableDataRow[] {
-    const { sumsByType, total } = this.aggregateAwardTypesForRange(this.currentRecords, this.fiscalYearStart, this.fiscalYearEnd);
+  static buildTableData(records: SpendingRecord[], fiscalYearStart: number, fiscalYearEnd: number): TableDataRow[] {
+    const { sumsByType, total } = AgencySpotlightComponent.aggregateAwardTypesForRange(records, fiscalYearStart, fiscalYearEnd);
 
     return Array.from(sumsByType.entries())
       .map(([awardType, obligated]) => ({
@@ -199,5 +213,18 @@ export class AgencySpotlightComponent implements OnInit {
         percentageOfTotal: total > 0 ? Math.round(obligated / total * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.obligatedAmount - a.obligatedAmount);
+  }
+
+  static computeBadge(agency: AgencySummary | null): { color: string; text: string } {
+    if (!agency) return { color: 'neutral', text: '0.0% YoY' };
+
+    const { priorFyTotal, yoyChange } = agency;
+    if (priorFyTotal === 0) {
+      return { color: 'neutral', text: '0.0% YoY' };
+    }
+    if (yoyChange >= 0) {
+      return { color: 'positive', text: `+${yoyChange.toFixed(1)}% YoY` };
+    }
+    return { color: 'negative', text: `${yoyChange.toFixed(1)}% YoY` };
   }
 }

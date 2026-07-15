@@ -1,11 +1,11 @@
 <h1>Geographic View</h1>
 
-<div *ngIf="delta !== null" class="delta-insight">
+<div *ngIf="delta() !== null" class="delta-insight">
   <mat-icon>compare_arrows</mat-icon>
   <span>
-    Top state {{ top10[0]?.stateName }} contractors receive {{ top10[0]?.obligatedAmount | currencyFormat }} while only
-    {{ (top10[0]?.obligatedAmount || 0) - delta | currencyFormat }} is performed in-state.
-    Delta: {{ delta | currencyFormat }}
+    Top state {{ top10()[0]?.stateName }} contractors receive {{ top10()[0]?.obligatedAmount | currencyFormat }} while only
+    {{ (top10()[0]?.obligatedAmount || 0) - (delta() ?? 0) | currencyFormat }} is performed in-state.
+    Delta: {{ delta() | currencyFormat }}
   </span>
 </div>
 
@@ -13,7 +13,7 @@
   <mat-label>Agency</mat-label>
   <mat-select [ngModel]="agencyId()" (ngModelChange)="onAgencyChange($event)">
     <mat-option [value]="null">All Agencies</mat-option>
-    <mat-option *ngFor="let agency of agencyList" [value]="agency.id">
+    <mat-option *ngFor="let agency of agencyList()" [value]="agency.id">
       {{ agency.name }}
     </mat-option>
   </mat-select>
@@ -22,7 +22,7 @@
 <mat-form-field appearance="outline" class="controls-bar">
   <mat-label>Fiscal Year</mat-label>
   <mat-select [ngModel]="fiscalYear()" (ngModelChange)="onFiscalYearChange($event)">
-    <mat-option *ngFor="let fy of fiscalYearList" [value]="fy">
+    <mat-option *ngFor="let fy of fiscalYearList()" [value]="fy">
       {{ fy }}
     </mat-option>
   </mat-select>
@@ -40,8 +40,8 @@
 
 <app-bar-chart
   *ngIf="!noData()"
-  [labels]="chartLabels"
-  [datasets]="chartData"
+  [labels]="chartLabels()"
+  [datasets]="chartData()"
   title="Top 10 States by Obligated Amount"
   [horizontal]="true"
   class="bar-chart-section">
@@ -49,7 +49,7 @@
 
 <div class="table-section">
   <h2>All States</h2>
-  <table mat-table [dataSource]="allStates" matSort class="states-table">
+  <table mat-table [dataSource]="allStates()" matSort class="states-table">
     <ng-container matColumnDef="state">
       <th mat-header-cell *matHeaderCellDef mat-sort-header>State</th>
       <td mat-cell *matCellDef="let state">{{ state.stateName }}</td>
@@ -68,7 +68,7 @@
     <ng-container matColumnDef="vsAvg">
       <th mat-header-cell *matHeaderCellDef mat-sort-header>vs Avg</th>
       <td mat-cell *matCellDef="let state, let i = index">
-        {{ vsAvg[i] | number:'1.1-1' }}%
+        {{ vsAvg()[i] | number:'1.1-1' }}%
       </td>
     </ng-container>
 

@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
 import { of } from 'rxjs';
 import { DisasterLensComponent } from './disaster-lens.component';
 import { ApiService } from '../api.service';
@@ -11,7 +11,6 @@ import {
 } from '@shared/interfaces';
 
 describe('DisasterLensComponent', () => {
-  let component: DisasterLensComponent;
   let fixture: ComponentFixture<DisasterLensComponent>;
   let apiSpy: {
     getDisasterOverview: jest.Mock;
@@ -30,15 +29,31 @@ describe('DisasterLensComponent', () => {
       imports: [
         DisasterLensComponent,
         CurrencyFormatPipe,
-        HttpClientTestingModule,
       ],
-      providers: [{ provide: ApiService, useValue: apiSpy }],
+      providers: [
+        provideHttpClient(),
+        { provide: ApiService, useValue: apiSpy },
+      ],
     }).compileComponents();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  function mount(overview: DisasterOverview[], states: DisasterFundingRecord[], ratios: DisasterRecoveryRatio[], tab = 'COVID-19') {
+    apiSpy.getDisasterOverview.mockImplementation((params: { defGroup: string }) =>
+      of(overview.filter(o => o.defGroup === params.defGroup)),
+    );
+    apiSpy.getDisasterStates.mockReturnValue(of(states));
+    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
 
     fixture = TestBed.createComponent(DisasterLensComponent);
-    component = fixture.componentInstance;
-    component.paginator = { pageIndex: 0, pageSize: 15, length: 0 } as any;
-  });
+    const component = fixture.componentInstance;
+    component.currentTab.set(tab);
+    fixture.detectChanges();
+    return component;
+  }
 
   interface CardTestCase {
     name: string;
@@ -167,27 +182,17 @@ describe('DisasterLensComponent', () => {
     },
   ];
 
-  it.each(testTable)('$name', async ({
+  it.each(testTable)('$name', ({
     defGroup, overview, states, ratios,
     expectedTotalObligated, expectedStateCount, expectedHighestPerCapitaState,
   }) => {
-    const overviewPayload = defGroup
-      ? overview.filter((o) => o.defGroup === defGroup)
-      : overview;
-    apiSpy.getDisasterOverview.mockReturnValue(of(overviewPayload));
-    apiSpy.getDisasterStates.mockReturnValue(of(states));
-    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
+    const component = mount(overview, states, ratios, defGroup ?? 'COVID-19');
 
-    component.currentTab = defGroup ?? 'COVID-19';
-    component.ngOnInit();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(apiSpy.getDisasterOverview).toHaveBeenCalledWith({ defGroup: component.currentTab });
-    expect(apiSpy.getDisasterStates).toHaveBeenCalledWith(expect.objectContaining({ defGroup: component.currentTab }));
-    expect(component.totalObligated).toBe(expectedTotalObligated);
-    expect(component.stateCount).toBe(expectedStateCount);
-    expect(component.highestPerCapitaState).toBe(expectedHighestPerCapitaState);
+    expect(apiSpy.getDisasterOverview).toHaveBeenCalledWith({ defGroup: component.currentTab() });
+    expect(apiSpy.getDisasterStates).toHaveBeenCalledWith(expect.objectContaining({ defGroup: component.currentTab() }));
+    expect(component.totalObligated()).toBe(expectedTotalObligated);
+    expect(component.stateCount()).toBe(expectedStateCount);
+    expect(component.highestPerCapitaState()).toBe(expectedHighestPerCapitaState);
   });
 
   interface Top15TestCase {
@@ -226,19 +231,13 @@ describe('DisasterLensComponent', () => {
     },
   ];
 
-  it.each(testTableTop15)('$name', async ({
+  it.each(testTableTop15)('$name', ({
     states, expectedLabels, expectedDataset,
   }) => {
-    apiSpy.getDisasterOverview.mockReturnValue(of([]));
-    apiSpy.getDisasterStates.mockReturnValue(of(states));
-    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of([]));
+    const component = mount([], states, []);
 
-    component.ngOnInit();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(component.top15Labels).toEqual(expectedLabels);
-    expect(component.top15Datasets).toEqual(expectedDataset);
+    expect(component.top15Labels()).toEqual(expectedLabels);
+    expect(component.top15Datasets()).toEqual(expectedDataset);
   });
 
   interface SortedRatiosTestCase {
@@ -282,19 +281,13 @@ describe('DisasterLensComponent', () => {
     },
   ];
 
-  it.each(testTableSortedRatios)('$name', async ({ ratios, expectedOrder, expectedState }) => {
-    apiSpy.getDisasterOverview.mockReturnValue(of([]));
-    apiSpy.getDisasterStates.mockReturnValue(of([]));
-    apiSpy.getDisasterRecoveryRatios.mockReturnValue(of(ratios));
+  it.each(testTableSortedRatios)('$name', ({ ratios, expectedOrder, expectedState }) => {
+    const component = mount([], [], ratios);
 
-    component.ngOnInit();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(component.sortedRatios.map((r) => r.stateName)).toEqual(expectedOrder);
+    expect(component.sortedRatios().map(r => r.stateName)).toEqual(expectedOrder);
 
     if (expectedState) {
-      const row = component.sortedRatios.find((r) => r.stateName === expectedState.stateName);
+      const row = component.sortedRatios().find(r => r.stateName === expectedState.stateName);
       expect(row).toBeTruthy();
       expect(row!.femaObligated).toBe(expectedState.femaObligated);
       expect(row!.fedSpendingObligated).toBe(expectedState.fedSpendingObligated);

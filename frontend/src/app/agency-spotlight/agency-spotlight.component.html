@@ -3,56 +3,56 @@
 </button>
 
 <div class="agency-spotlight-header">
-  <h1>{{ agency?.agency?.name }}</h1>
-  <p class="abbreviation">{{ agency?.agency?.abbreviation }}</p>
+  <h1>{{ agency()?.agency?.name }}</h1>
+  <p class="abbreviation">{{ agency()?.agency?.abbreviation }}</p>
   <p class="total">
-    Total Obligated: {{ agency?.currentFyTotal | currencyFormat }}
+    Total Obligated: {{ agency()?.currentFyTotal | currencyFormat }}
   </p>
-  <span class="badge badge-{{ badgeColor }}">{{ badgeText }}</span>
+  <span class="badge badge-{{ badge().color }}">{{ badge().text }}</span>
 </div>
 
 <div class="fy-range-selector">
   <mat-form-field appearance="outline">
     <mat-label>From</mat-label>
-    <mat-select [(ngModel)]="fiscalYearStart" (ngModelChange)="onRangeChange()">
-      @for (year of availableYears; track year) {
+    <mat-select [ngModel]="fiscalYearStart()" (ngModelChange)="onFiscalYearStartChange($event)">
+      @for (year of availableYears(); track year) {
         <mat-option [value]="year">{{ year }}</mat-option>
       }
     </mat-select>
   </mat-form-field>
   <mat-form-field appearance="outline">
     <mat-label>To</mat-label>
-    <mat-select [(ngModel)]="fiscalYearEnd" (ngModelChange)="onRangeChange()">
-      @for (year of availableYears; track year) {
+    <mat-select [ngModel]="fiscalYearEnd()" (ngModelChange)="onFiscalYearEndChange($event)">
+      @for (year of availableYears(); track year) {
         <mat-option [value]="year">{{ year }}</mat-option>
       }
     </mat-select>
   </mat-form-field>
 </div>
 
-@if (insight) {
+@if (insight()) {
   <div class="insight">
     <mat-icon>insights</mat-icon>
-    <span>{{ insight }}</span>
+    <span>{{ insight() }}</span>
   </div>
 }
 
-@if (loading) {
+@if (loading()) {
   <div class="loading">Loading agency data...</div>
 }
 
-@if (error) {
-  <div class="error">{{ error }}</div>
+@if (error()) {
+  <div class="error">{{ error() }}</div>
 }
 
-@if (tableData.length > 0) {
-  <mat-table [dataSource]="tableData" class="award-breakdown">
+@if (tableData().length > 0) {
+  <mat-table [dataSource]="tableData()" class="award-breakdown">
     <ng-container matColumnDef="awardType">
       <mat-header-cell *matHeaderCellDef>Award Type</mat-header-cell>
       <mat-cell *matCellDef="let row">{{ row.awardType }}</mat-cell>
     </ng-container>
     <ng-container matColumnDef="obligatedAmount">
-      <mat-header-cell *matHeaderCellDef>FY{{ fiscalYearStart }}-{{ fiscalYearEnd }} Obligated</mat-header-cell>
+      <mat-header-cell *matHeaderCellDef>FY{{ fiscalYearStart() }}-{{ fiscalYearEnd() }} Obligated</mat-header-cell>
       <mat-cell *matCellDef="let row">{{ row.obligatedAmount | currencyFormat }}</mat-cell>
     </ng-container>
     <ng-container matColumnDef="percentageOfTotal">
@@ -64,10 +64,10 @@
   </mat-table>
 }
 
-@if (chartData.datasets.length > 0 && !loading) {
+@if (chartData().datasets.length > 0 && !loading()) {
   <app-bar-chart
-    [labels]="chartData.labels"
-    [datasets]="chartData.datasets"
+    [labels]="chartData().labels"
+    [datasets]="chartData().datasets"
     title="Spending by Fiscal Year"
     [stacked]="true"
     [horizontal]="false">

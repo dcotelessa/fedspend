@@ -334,15 +334,15 @@ describe('GeographicViewComponent', () => {
     component.scope.set(scope);
     fixture.detectChanges();
 
-    expect(component.agencyList).toEqual(expected.agencyList);
-    expect(component.fiscalYearList).toEqual(expected.fiscalYearList);
+    expect(component.agencyList()).toEqual(expected.agencyList);
+    expect(component.fiscalYearList()).toEqual(expected.fiscalYearList);
     expect(component.fiscalYear()).toEqual(expected.defaultFiscalYear);
-    expect(component.top10).toEqual(expected.top10);
-    expect(component.allStates.length).toEqual(expected.allStates);
+    expect(component.top10()).toEqual(expected.top10);
+    expect(component.allStates().length).toEqual(expected.allStates);
     for (let i = 0; i < expected.vsAvg.length; i++) {
-      expect(Math.abs(component.vsAvg[i] - expected.vsAvg[i])).toBeLessThan(0.5);
+      expect(Math.abs(component.vsAvg()[i] - expected.vsAvg[i])).toBeLessThan(0.5);
     }
-    expect(component.delta).toEqual(expected.delta);
+    expect(component.delta()).toEqual(expected.delta);
   });
 
   it('paginator defaults to 15 items per page', () => {

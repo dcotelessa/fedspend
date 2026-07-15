@@ -2,6 +2,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BarChartComponent } from './bar-chart.component';
 
 describe('BarChartComponent', () => {
+  let fixture: ComponentFixture<BarChartComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [BarChartComponent],
+    }).compileComponents();
+  });
+
   interface TestCase {
     name: string;
     input: {
@@ -221,15 +229,16 @@ describe('BarChartComponent', () => {
   ];
 
   it.each(testTable)('$name', ({ input, expected }) => {
-    const component = new BarChartComponent();
-    component.labels = input.labels;
-    component.datasets = input.datasets;
-    component.title = input.title;
-    component.horizontal = input.horizontal;
-    component.stacked = input.stacked;
+    fixture = TestBed.createComponent(BarChartComponent);
+    fixture.componentRef.setInput('labels', input.labels);
+    fixture.componentRef.setInput('datasets', input.datasets);
+    fixture.componentRef.setInput('title', input.title);
+    fixture.componentRef.setInput('horizontal', input.horizontal);
+    fixture.componentRef.setInput('stacked', input.stacked);
 
+    const component = fixture.componentInstance;
     expect(component.chartType).toEqual(expected.chartType);
-    expect(component.chartData).toEqual(expected.chartData);
-    expect(component.chartOptions).toEqual(expected.chartOptions);
+    expect(component.chartData()).toEqual(expected.chartData);
+    expect(component.chartOptions()).toEqual(expected.chartOptions);
   });
 });

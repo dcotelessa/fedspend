@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, input, computed } from '@angular/core';
 import { BaseChartDirective, provideCharts, withDefaultRegisterables } from 'ng2-charts';
 
 export interface ChartDataset {
@@ -21,43 +21,41 @@ export interface ChartDataset {
   providers: [provideCharts(withDefaultRegisterables())]
 })
 export class BarChartComponent {
-  @Input() labels: string[] = [];
-  @Input() datasets: ChartDataset[] = [];
-  @Input() title: string = '';
-  @Input() horizontal: boolean = false;
-  @Input() stacked: boolean = false;
+  readonly labels = input<string[]>([]);
+  readonly datasets = input<ChartDataset[]>([]);
+  readonly title = input('');
+  readonly horizontal = input(false);
+  readonly stacked = input(false);
 
-  get chartOptions() {
+  readonly chartOptions = computed(() => {
     const opts: Record<string, unknown> = {
-      indexAxis: (this.horizontal ? 'y' : 'x') as 'x' | 'y',
+      indexAxis: (this.horizontal() ? 'y' : 'x') as 'x' | 'y',
       maintainAspectRatio: false,
     };
 
-    if (this.stacked) {
+    if (this.stacked()) {
       opts['scales'] = {
         x: { stacked: true },
         y: { stacked: true },
       };
     }
 
-    if (this.title) {
+    if (this.title()) {
       opts['plugins'] = {
         title: {
           display: true,
-          text: this.title,
+          text: this.title(),
         },
       };
     }
 
     return opts;
-  }
+  });
 
-  get chartData() {
-    return {
-      labels: this.labels,
-      datasets: this.datasets
-    };
-  }
+  readonly chartData = computed(() => ({
+    labels: this.labels(),
+    datasets: this.datasets(),
+  }));
 
   readonly chartType = 'bar';
 }

@@ -1,7 +1,7 @@
 <h2 class="page-header">Agencies</h2>
 
 <div class="agencies-grid">
-  @for (a of agencies; track a.id) {
+  @for (a of agencies(); track a.id) {
     <a class="agency-card" [routerLink]="['/agencies', a.id]">
       <span class="agency-name">{{ a.name }}</span>
       <span class="agency-total">{{ a.totalCents | currencyFormat }}</span>

@@ -3968,6 +3968,68 @@
         }
       ],
       "notes": "Deploy architecture: single Render web service (free tier) running node backend/dist/backend/src/main.js which serves both the API (under /api) and the Angular SPA (static assets + index.html fallback). DATABASE_URL from Render Postgres (free tier, 90 days) switches TypeORM to postgres automatically (typeorm.config.ts). On first deploy the Postgres DB is empty; the Init migration (migrationsRun:true) creates the schema, then a manual POST /api/sync/agencies, /api/sync/geography, /api/sync/disaster backfill populates the data against the live USASpending/FEMA APIs. The SPA fallback middleware in main.ts serves index.html for any GET that is not /api, /health, or a file extension (so deep-links like /agencies/30 work). NestExpressApplication gives direct express access for useStaticAssets + the fallback. CORS origin is FRONTEND_URL or * (not strictly needed for same-origin deploy but kept for dev). No pi/build-agent run; harness=opencode."
+    },
+    {
+      "id": "E18-S01",
+      "epic": "E18",
+      "title": "Modernize Angular components to functional/signal style (remove all lifecycle hooks)",
+      "goal": "Make the frontend a consistent Angular 20 teaching example. Every component loses ngOnInit/ngOnDestroy and constructor DI in favor of inject(), signal state (signal/toSignal/computed/input), and reactive pipelines (toObservable+switchMap). Behavior is preserved: the 132 originally-green tests stay green with identical expected values (only access changes x -> x()). The already-red dashboard suite (18 failing: missing getDisasterOverview mock + stale chart expectations) is fixed to green as part of this story by reconciling the spec to the component actual behavior.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/bar-chart/bar-chart.component.ts",
+          "frontend/src/app/bar-chart/bar-chart.component.html",
+          "frontend/src/app/bar-chart/bar-chart.component.spec.ts",
+          "frontend/src/app/agency-list/agency-list.component.ts",
+          "frontend/src/app/agency-list/agency-list.component.html",
+          "frontend/src/app/agency-list/agency-list.component.spec.ts",
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "frontend/src/app/dashboard/dashboard.component.html",
+          "frontend/src/app/dashboard/dashboard.component.spec.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.ts",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.html",
+          "frontend/src/app/agency-spotlight/agency-spotlight.component.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html",
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "no component implements OnInit/OnDestroy or defines ngOnInit/ngOnDestroy",
+          "check": "cd frontend && ! grep -rqE \"implements OnInit|implements OnDestroy|ngOnInit\\(|ngOnDestroy\\(\" src/app --include=\"*.component.ts\""
+        },
+        {
+          "text": "no component uses constructor(private ...) DI (inject() only)",
+          "check": "cd frontend && ! grep -rqE \"constructor\\(private\" src/app --include=\"*.component.ts\""
+        },
+        {
+          "text": "no component uses @Input() decorator (input() signal inputs only)",
+          "check": "cd frontend && ! grep -rqF \"@Input(\" src/app --include=\"*.component.ts\""
+        },
+        {
+          "text": "no component tracks subscriptions manually (no Subscription field / unsubscribe)",
+          "check": "cd frontend && ! grep -rqE \": Subscription|new Subscription|\\.unsubscribe\\(\" src/app --include=\"*.component.ts\""
+        },
+        {
+          "text": "modern signal APIs are present across components (toSignal/input/computed)",
+          "check": "cd frontend && grep -rqE \"toSignal|input\\(|computed\\(\" src/app --include=\"*.component.ts\""
+        },
+        {
+          "text": "frontend full test suite green (150 tests, incl. the previously-red dashboard 18)",
+          "check": "cd frontend && pnpm test"
+        },
+        {
+          "text": "frontend production build succeeds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Refactor sweep of all 6 feature components to a uniform modern-functional Angular 20 style. Per component: BarChart @Input()->input(), getters->computed(); AgencyList one toSignal + drop OnInit; Dashboard toSignal per HTTP source + computed derived state; AgencySpotlight route param -> toSignal(toObservable(id).pipe(switchMap)) + helpers refactored to PURE static methods (computeInsight/buildTableData/computeBadge/computeAvailableYears/aggregateAwardTypesForRange) so computed signals call them and the spec unit-tests them directly; DisasterLens OnDestroy + 3 manual Subscriptions deleted, filter signals drive toSignal(toObservable(filters).pipe(switchMap)) pipelines; GeographicView imperative loadData()/processData() replaced by a reactive filter->computed pipeline with delta derived from primary+secondary signals. KEY TESTING LESSON: toSignal subscribes at CONSTRUCTION, so every spec that spies on the service must install the spy BEFORE TestBed.createComponent and create a fresh fixture per test (the old create-once-in-beforeEach + spyOn-in-it pattern leaks a real HTTP call through the unmocked service at construction). Templates updated to signal-call syntax (x -> x()). Dashboard fix: the suite was already red (18 failing) because the spec never mocked getDisasterOverview and expected a stale Other/sum-of-rest chart; reconciled spec to the richer component behavior (Disaster Spending bar = overview total). No existing green assertion weakened: 132/132 preserved, dashboard 18 red->green, total 150/150. Built by opencode/GLM-5.2 directly (harness=opencode), NOT via the pi tier ladder, per user request. Baseline before: 132 green / 18 red."
     }
   ],
   "storyOrder": [
@@ -4036,7 +4098,8 @@
     "E16-S02",
     "E16-S03",
     "E16-S04",
-    "E17-S01"
+    "E17-S01",
+    "E18-S01"
   ],
   "resolutions": [
     {
