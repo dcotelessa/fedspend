@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 interface TestCase {
@@ -17,6 +17,15 @@ const testTable: TestCase[] = [
       }
       const content = readFileSync(filePath, 'utf-8');
       return content.includes('/index.html') && content.includes('302');
+    },
+  },
+  {
+    name: 'prod bundle has no hardcoded localhost:3000 (uses relative /api)',
+    check: (buildDir: string) => {
+      const browserDir = join(buildDir, 'frontend', 'browser');
+      if (!existsSync(browserDir)) return false;
+      const jsFiles = readdirSync(browserDir).filter(f => f.endsWith('.js'));
+      return !jsFiles.some(f => readFileSync(join(browserDir, f), 'utf-8').includes('localhost:3000'));
     },
   },
 ];
