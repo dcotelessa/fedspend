@@ -4030,6 +4030,164 @@
         }
       ],
       "notes": "Refactor sweep of all 6 feature components to a uniform modern-functional Angular 20 style. Per component: BarChart @Input()->input(), getters->computed(); AgencyList one toSignal + drop OnInit; Dashboard toSignal per HTTP source + computed derived state; AgencySpotlight route param -> toSignal(toObservable(id).pipe(switchMap)) + helpers refactored to PURE static methods (computeInsight/buildTableData/computeBadge/computeAvailableYears/aggregateAwardTypesForRange) so computed signals call them and the spec unit-tests them directly; DisasterLens OnDestroy + 3 manual Subscriptions deleted, filter signals drive toSignal(toObservable(filters).pipe(switchMap)) pipelines; GeographicView imperative loadData()/processData() replaced by a reactive filter->computed pipeline with delta derived from primary+secondary signals. KEY TESTING LESSON: toSignal subscribes at CONSTRUCTION, so every spec that spies on the service must install the spy BEFORE TestBed.createComponent and create a fresh fixture per test (the old create-once-in-beforeEach + spyOn-in-it pattern leaks a real HTTP call through the unmocked service at construction). Templates updated to signal-call syntax (x -> x()). Dashboard fix: the suite was already red (18 failing) because the spec never mocked getDisasterOverview and expected a stale Other/sum-of-rest chart; reconciled spec to the richer component behavior (Disaster Spending bar = overview total). No existing green assertion weakened: 132/132 preserved, dashboard 18 red->green, total 150/150. Built by opencode/GLM-5.2 directly (harness=opencode), NOT via the pi tier ladder, per user request. Baseline before: 132 green / 18 red."
+    },
+    {
+      "id": "E19-S01",
+      "epic": "E19",
+      "title": "Backend boundary hardening: dissolve phantom SpendingModule + real DTO/ValidationPipe boundary",
+      "goal": "Close the deep-architecture gap between AGENTS.md Skill 1 (ValidationPipe is the only parsing boundary) and the read controllers. (1) Delete the empty phantom SpendingModule/Controller/Service stubs that imply an ownership they do not exercise (SpendingRecord is already owned by AgenciesModule via forFeature). (2) Replace manual parseInt in DisasterController and implicit @Query coercion in GeographyController with validated Query DTOs so the global ValidationPipe (whitelist+forbidNonWhitelisted+transform) actually enforces types and ranges. Behavior is preserved for valid input; bad input now rejects at the boundary instead of silently coercing.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/src/spending/spending.module.ts",
+          "backend/src/spending/spending.controller.ts",
+          "backend/src/spending/spending.service.ts",
+          "backend/src/app.module.ts",
+          "backend/src/modules.spec.ts",
+          "backend/src/geography/dto/geography-query.dto.ts",
+          "backend/src/geography/geography.controller.ts",
+          "backend/src/geography/geography.controller.spec.ts",
+          "backend/src/disaster/dto/disaster-query.dto.ts",
+          "backend/src/disaster/disaster.controller.ts",
+          "backend/src/disaster/disaster.controller.spec.ts",
+          "backend/src/agencies/dto/agency-list-query.dto.ts",
+          "backend/src/agencies/agencies.controller.ts",
+          "backend/src/agencies/agencies.controller.spec.ts"
+        ],
+        "regions": [
+          {
+            "file": "backend/src/app.module.ts",
+            "start": 7,
+            "end": 7,
+            "reason": "delete the SpendingModule import line."
+          },
+          {
+            "file": "backend/src/app.module.ts",
+            "start": 22,
+            "end": 22,
+            "reason": "delete the SpendingModule entry from the root @Module imports array."
+          },
+          {
+            "file": "backend/src/modules.spec.ts",
+            "start": 2,
+            "end": 2,
+            "reason": "delete the SpendingModule import."
+          },
+          {
+            "file": "backend/src/modules.spec.ts",
+            "start": 11,
+            "end": 11,
+            "reason": "delete the expect(SpendingModule).toBeDefined() assertion (and any sibling block referencing it)."
+          }
+        ]
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "phantom SpendingModule + its empty controller are removed",
+          "check": "! test -f backend/src/spending/spending.module.ts && ! test -f backend/src/spending/spending.controller.ts && ! test -f backend/src/spending/spending.service.ts"
+        },
+        {
+          "text": "no manual number parsing remains in any controller (ValidationPipe is the boundary)",
+          "check": "cd backend && ! grep -rqF \"parseInt(\" src --include=\"*.controller.ts\""
+        },
+        {
+          "text": "geography query DTO exists and enforces class-validator rules",
+          "check": "test -f backend/src/geography/dto/geography-query.dto.ts && grep -qE \"@IsInt|@IsString|@IsOptional\" backend/src/geography/dto/geography-query.dto.ts"
+        },
+        {
+          "text": "disaster query DTO exists and enforces class-validator rules",
+          "check": "test -f backend/src/disaster/dto/disaster-query.dto.ts && grep -qE \"@IsInt|@IsString|@IsOptional\" backend/src/disaster/dto/disaster-query.dto.ts"
+        },
+        {
+          "text": "backend full test suite green (excludes sync/usa-spending.service.spec.ts, tracked separately as E20-S01: its rate-limiter real-setTimeout drift is pre-existing and orthogonal to this story)",
+          "check": "cd backend && pnpm test --testPathIgnorePatterns=usa-spending"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "Deep-architecture cleanup (see AGENTS.md Skill 1 + Skill 3). SpendingModule is a shallow phantom: spending.module.ts is `export class SpendingModule {}` with an empty controller and service, while SpendingRecord is actually read via AgenciesService (@InjectRepository(SpendingRecord)). Dissolve the stubs; KEEP backend/src/spending/spending-record.entity.ts and backend/src/spending/dto/ (still used). DTO pattern: each read controller takes @Query() dto: XQueryDto (class-validator decorators @IsInt/@IsString/@IsOptional/@Min/@Max) instead of individual @Query string params. CRITICAL DETAIL: with transform:true the pipe coerces, but query params arrive as STRINGS — number fields in the DTO need @Type(() => Number) from class-transformer to coerce before @IsInt validates. Mirror the existing geography QueryStatesInput / disaster QueryStatesParams field shapes. GeographyController currently relies on implicit number coercion of @Query; DisasterController currently does manual parseInt(fiscalYear,10) — both become a single validated DTO. AgencySpotlightQueryDto already exists in backend/src/agencies/dto/ but is vestigial (not wired) — either wire it or add a new AgencyListQueryDto for the list endpoint and delete the vestigial one. Tests are table-driven (AGENTS.md Skill 2): for each DTO, rows of valid input (passes through) + bad input (non-int, out-of-range, unknown field) rejected by the pipe. Controller specs mock the service and assert the DTO is forwarded as the typed object. Do NOT touch the Sync module or any write pipeline — those are already exemplary deep modules."
+    },
+    {
+      "id": "E19-S02",
+      "epic": "E19",
+      "title": "Unify response shape to raw everywhere: drop ApiResponse envelope + dead interceptor",
+      "goal": "Make the API contract one uniform shape (raw arrays/objects) end-to-end. Today only GET /api/agencies is wrapped in ApiResponse{data,meta} with a FAKE meta (total/age/pageSize always = data.length) — the other 7 endpoints already return raw and the frontend ApiService expects raw. The ResponseWrapperInterceptor in common/ is dead code: never registered (no APP_INTERCEPTOR), relies on an isPaginated reflector key nobody sets, and its own spec is the only consumer. Remove the envelope, delete the dead interceptor, and drop the now-unused ApiResponse interface from @shared/interfaces. Backend + frontend ship together so /api/agencies and getAgencies change shape in lockstep within one deploy.",
+      "build": "BUILD-DEEP",
+      "dependencies": [
+        "E19-S01"
+      ],
+      "scope": {
+        "files": [
+          "backend/src/common/response-wrapper.interceptor.ts",
+          "backend/src/common/response-wrapper.interceptor.spec.ts",
+          "backend/src/agencies/agencies.service.ts",
+          "backend/src/agencies/agencies.service.spec.ts",
+          "backend/src/agencies/agencies.controller.ts",
+          "shared/interfaces/index.ts",
+          "frontend/src/app/api.service.ts",
+          "frontend/src/app/api.service.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "dead ResponseWrapperInterceptor + its spec are removed",
+          "check": "! test -f backend/src/common/response-wrapper.interceptor.ts && ! test -f backend/src/common/response-wrapper.interceptor.spec.ts"
+        },
+        {
+          "text": "no ApiResponse reference remains anywhere (backend, frontend, shared)",
+          "check": "! grep -rqF \"ApiResponse\" backend/src frontend/src shared"
+        },
+        {
+          "text": "agencies service no longer constructs an ApiResponse envelope",
+          "check": "cd backend && ! grep -qF \"ApiResponse\" src/agencies/agencies.service.ts"
+        },
+        {
+          "text": "frontend getAgencies treats /api/agencies as a raw array (no .data unwrap)",
+          "check": "cd frontend && grep -qF \"get<AgencyWithTotal[]>\" src/app/api.service.ts"
+        },
+        {
+          "text": "backend full test suite + build green (excludes sync/usa-spending.service.spec.ts, tracked separately as E20-S01: its rate-limiter real-setTimeout drift is pre-existing and orthogonal to this story)",
+          "check": "cd backend && pnpm test --testPathIgnorePatterns=usa-spending && pnpm build"
+        },
+        {
+          "text": "frontend full test suite + build green",
+          "check": "cd frontend && pnpm test && pnpm build"
+        }
+      ],
+      "notes": "Cross-stack contract change (BUILD-DEEP). AgenciesService.findAllWithTotals currently returns Promise<ApiResponse<{id,name,totalCents}[]>> building {data, meta:{total:data.length, page:1, pageSize:data.length}} — the meta is fake (no real pagination), pure ceremony. Change it to return the raw {id,name,totalCents}[] array directly; update AgenciesController list() return type to match. agencies.service.spec.ts currently asserts result.data and result.meta — rewrite those rows to assert the raw array (toStrictEqual the array), mirroring the findSummary/findSpotlight spec style already in that file. Delete backend/src/common/response-wrapper.interceptor.ts AND its spec (response-wrapper.interceptor.spec.ts) — confirmed never registered (grep APP_INTERCEPTOR = empty) and its isPaginated reflector key is set nowhere. Remove the ApiResponse interface from shared/interfaces/index.ts (repo-root file, stays in place per AGENTS.md) — it is unused after this. Frontend: api.service.ts getAgencies currently does http.get<{data: AgencyWithTotal[]}>(...).pipe(map(r => r.data)) — change to http.get<AgencyWithTotal[]>(...) with no map unwrap; update api.service.spec.ts expectations. The other 7 ApiService methods already consume raw — no change. verify2.sh grep guard ensures no ApiResponse string survives. CRITICAL: backend + frontend must land in the same deploy (Render auto-deploys main), otherwise /api/agencies returns [] shape while an old frontend still reads .data."
+    },
+    {
+      "id": "E20-S01",
+      "epic": "E20",
+      "title": "Reconcile usa-spending.service.spec with rate-limited impl via fake timers",
+      "goal": "Make sync/usa-spending.service.spec.ts green against the current rate-limited implementation. The suite drifted when the rate limiter was added (commit 907fa4a): fetchWithRetry/rateLimit use real setTimeout (RATE_LIMIT_MS=1000 plus exponential backoff), so tests that exercise fetchSpendingByAgency (which loops 5 AWARD_TYPES, each awaiting the rate limiter) exceed Jest's 5s timeout and report partial call counts. The fetch calls themselves are already mocked (jest.spyOn(global,'fetch')) but unconfigured calls fall through to the real network and the timer waits are real. Goal: zero real-time waiting and zero live-network calls, with the existing call-count assertions (which already account for the 5-award-type loop, e.g. retry-thrice expects 3 attempts) passing.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "backend/src/sync/usa-spending.service.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "usa-spending.service suite is green (no timeouts, no live network)",
+          "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service"
+        },
+        {
+          "text": "full backend suite green at 210/210 (incl. usa-spending)",
+          "check": "cd backend && pnpm test"
+        },
+        {
+          "text": "backend builds cleanly",
+          "check": "cd backend && pnpm build"
+        }
+      ],
+      "notes": "Pre-existing test-infra drift (independent of E19). Root cause: the rate limiter added in 907fa4a (RATE_LIMIT_MS=1000 via real setTimeout) + exponential backoff in fetchWithRetry means every fetchSpendingByAgency call waits real wall-clock time across its 5 AWARD_TYPES loop -> Jest 5s timeout -> partial call counts (e.g. the 'HTTP 500 thrice' test reports 5 calls instead of 3 because it times out mid-loop). Fix with fake timers: call jest.useFakeTimers() in beforeEach and jest.useRealTimers() in afterEach, and flush the queued timers with jest.advanceTimersByTimeAsync(ms) after kicking off each awaited service call (advance enough to cover rate-limit + backoff, e.g. 60000ms). Pattern for a success test: const p = svc.fetchSpendingByAgency({...}); await jest.advanceTimersByTimeAsync(60000); const result = await p; expect(...). For a rejects test: const p = svc.fetchSpendingByAgency({...}); await jest.advanceTimersByTimeAsync(60000); await expect(p).rejects.toThrow(). ALSO add a default fetch mock so unconfigured calls return an empty 200 page instead of calling through to the real api.usaspending.gov: jest.spyOn(global,'fetch').mockImplementation(() => Promise.resolve(new Response(JSON.stringify({results:[],page_metadata:{has_next:false}}), {status:200, headers:{'Content-Type':'application/json'}}))) (mockImplementation, not mockResolvedValue, so each call gets a FRESH Response body). The retry-table expectedAttempts already encode the 5-award-type loop (6 = 2 retry + 4 single-fetch; 3 = throw-on-first-award-type), so once timers are fake + network is mocked the existing assertions should hold. Do NOT change usa-spending.service.ts impl."
     }
   ],
   "storyOrder": [
@@ -4099,7 +4257,10 @@
     "E16-S03",
     "E16-S04",
     "E17-S01",
-    "E18-S01"
+    "E18-S01",
+    "E19-S01",
+    "E19-S02",
+    "E20-S01"
   ],
   "resolutions": [
     {
