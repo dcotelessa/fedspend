@@ -237,10 +237,10 @@ describe('DashboardComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(apiSpy.getAgencies).toHaveBeenCalled();
-    expect(apiSpy.getDisasterOverview).toHaveBeenCalled();
-    expect(apiSpy.getDisasterRecoveryRatios).toHaveBeenCalled();
-    expect(apiSpy.getLastSync).toHaveBeenCalled();
+    expect(apiSpy.getAgencies).toHaveBeenCalledTimes(1);
+    expect(apiSpy.getDisasterOverview).toHaveBeenCalledTimes(1);
+    expect(apiSpy.getDisasterRecoveryRatios).toHaveBeenCalledTimes(1);
+    expect(apiSpy.getLastSync).toHaveBeenCalledTimes(1);
     expect(component.lastSync()).toBe('2024-01-15T10:00:00Z');
   });
 

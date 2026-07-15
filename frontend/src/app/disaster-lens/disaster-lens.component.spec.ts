@@ -293,4 +293,16 @@ describe('DisasterLensComponent', () => {
       expect(row!.fedSpendingObligated).toBe(expectedState.fedSpendingObligated);
     }
   });
+
+  it('does not over-call the API on init (one call per pipeline, no loop)', () => {
+    mount(
+      [{ defGroup: 'COVID-19', totalObligated: 500000, totalAwardCount: 1, stateCount: 1, highestPerCapitaState: 'CA', highestPerCapita: 1, coverageGapCount: 0 }],
+      [{ id: 1, stateCode: 'CA', stateName: 'California', obligatedAmount: 500000, awardCount: 1, perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '' }],
+      [{ id: 1, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligated: 100000, fedSpendingObligated: 500000, declarationCount: 1, recoveryRatio: 5, dominantIncidentType: 'Fire' }],
+    );
+
+    expect(apiSpy.getDisasterOverview).toHaveBeenCalledTimes(1);
+    expect(apiSpy.getDisasterStates).toHaveBeenCalledTimes(1);
+    expect(apiSpy.getDisasterRecoveryRatios).toHaveBeenCalledTimes(1);
+  });
 });

@@ -173,6 +173,12 @@ describe('AgencySpotlightComponent', () => {
     }
   });
 
+  it('does not over-call the API per route id (one summary + one spotlight, no loop)', () => {
+    bootstrapWithId(1, []);
+    expect(apiService.getAgencySummary).toHaveBeenCalledTimes(1);
+    expect(apiService.getAgencySpotlight).toHaveBeenCalledTimes(1);
+  });
+
   describe('AWARD_COLORS', () => {
     const awardTypes = ['Contracts', 'Grants', 'Direct Payments', 'Loans', 'IDVs'];
 

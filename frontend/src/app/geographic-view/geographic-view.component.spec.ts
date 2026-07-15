@@ -1,5 +1,6 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { of } from 'rxjs';
+import { delay } from 'rxjs/operators';
 import { ApiService } from '../api.service';
 import { GeoSpendingSnapshot } from '@shared/interfaces';
 import { GeographicViewComponent } from './geographic-view.component';
@@ -354,5 +355,28 @@ describe('GeographicViewComponent', () => {
     fixture.detectChanges();
 
     expect(component.paginator.pageSize).toEqual(15);
+  });
+
+  it('does not over-call the API on init (bounded calls, no reactive loop)', () => {
+    apiSpy.getAgencies.mockReturnValue(of([
+      { id: 1, name: 'Agency A', totalCents: 5000000000 },
+    ]));
+    apiSpy.getGeographyStates.mockImplementation((params: { scope?: string }) =>
+      of(params.scope === 'performance'
+        ? [{ id: 4, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'performance', obligatedAmount: 3000000000, awardCount: 60, population: 39500000, perCapita: 7594 }]
+        : [
+            { id: 1, stateCode: '06', stateName: 'California', fiscalYear: 2024, agencyId: null, scope: 'recipient', obligatedAmount: 5000000000, awardCount: 100, population: 39500000, perCapita: 12658 },
+          ]),
+    );
+
+    const fixture = TestBed.createComponent(GeographicViewComponent);
+    fixture.detectChanges();
+
+    const geoCalls = apiSpy.getGeographyStates.mock.calls.length;
+    const agencyCalls = apiSpy.getAgencies.mock.calls.length;
+    // years(1) + primary(1-2, +1 if fiscalYear gets corrected into range) + secondary(1-2)
+    expect(geoCalls).toBeLessThanOrEqual(6);
+    expect(geoCalls).toBeGreaterThanOrEqual(1);
+    expect(agencyCalls).toBe(1);
   });
 });
