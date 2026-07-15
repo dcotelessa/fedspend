@@ -1,37 +1,24 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { DisasterService, QueryRatiosParams, QueryStatesParams } from './disaster.service';
+import { DisasterService } from './disaster.service';
+import { DisasterQueryDto } from './dto/disaster-query.dto';
 
 @Controller('disaster')
 export class DisasterController {
   constructor(private readonly service: DisasterService) {}
 
   @Get('overview')
-  async getOverview(
-    @Query('defGroup') defGroup?: string,
-  ) {
-    const params: { defGroup?: string } = {};
-    if (defGroup) params.defGroup = defGroup;
-    return this.service.getOverview(params);
+  async getOverview(@Query() dto?: DisasterQueryDto) {
+    return this.service.getOverview(dto ?? {});
   }
 
   @Get('states')
-  async queryStates(
-    @Query('defGroup') defGroup?: string,
-    @Query('fiscalYear') fiscalYear?: string,
-  ) {
-    const params: QueryStatesParams = {};
-    if (defGroup) params.defGroup = defGroup;
-    if (fiscalYear) params.fiscalYear = parseInt(fiscalYear, 10);
-    return this.service.queryStates(params);
+  async queryStates(@Query() dto?: DisasterQueryDto) {
+    return this.service.queryStates(dto ?? {});
   }
 
   @Get('recovery-ratios')
-  async queryRatios(
-    @Query('fiscalYear') fiscalYear?: string,
-  ) {
-    const params: QueryRatiosParams = {};
-    if (fiscalYear) params.fiscalYear = parseInt(fiscalYear, 10);
-    return this.service.queryRatios(params);
+  async queryRatios(@Query() dto?: DisasterQueryDto) {
+    return this.service.queryRatios(dto ?? {});
   }
 
   @Get('state/:code')

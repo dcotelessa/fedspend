@@ -1,0 +1,217 @@
+{
+  "story": "E19-S01",
+  "epic": "E19",
+  "title": "Backend boundary hardening: dissolve phantom SpendingModule + real DTO/ValidationPipe boundary",
+  "goal": "Close the deep-architecture gap between AGENTS.md Skill 1 (ValidationPipe is the only parsing boundary) and the read controllers. (1) Delete the empty phantom SpendingModule/Controller/Service stubs that imply an ownership they do not exercise (SpendingRecord is already owned by AgenciesModule via forFeature). (2) Replace manual parseInt in DisasterController and implicit @Query coercion in GeographyController with validated Query DTOs so the global ValidationPipe (whitelist+forbidNonWhitelisted+transform) actually enforces types and ranges. Behavior is preserved for valid input; bad input now rejects at the boundary instead of silently coercing.",
+  "notes": "Deep-architecture cleanup (see AGENTS.md Skill 1 + Skill 3). SpendingModule is a shallow phantom: spending.module.ts is `export class SpendingModule {}` with an empty controller and service, while SpendingRecord is actually read via AgenciesService (@InjectRepository(SpendingRecord)). Dissolve the stubs; KEEP backend/src/spending/spending-record.entity.ts and backend/src/spending/dto/ (still used). DTO pattern: each read controller takes @Query() dto: XQueryDto (class-validator decorators @IsInt/@IsString/@IsOptional/@Min/@Max) instead of individual @Query string params. CRITICAL DETAIL: with transform:true the pipe coerces, but query params arrive as STRINGS — number fields in the DTO need @Type(() => Number) from class-transformer to coerce before @IsInt validates. Mirror the existing geography QueryStatesInput / disaster QueryStatesParams field shapes. GeographyController currently relies on implicit number coercion of @Query; DisasterController currently does manual parseInt(fiscalYear,10) — both become a single validated DTO. AgencySpotlightQueryDto already exists in backend/src/agencies/dto/ but is vestigial (not wired) — either wire it or add a new AgencyListQueryDto for the list endpoint and delete the vestigial one. Tests are table-driven (AGENTS.md Skill 2): for each DTO, rows of valid input (passes through) + bad input (non-int, out-of-range, unknown field) rejected by the pipe. Controller specs mock the service and assert the DTO is forwarded as the typed object. Do NOT touch the Sync module or any write pipeline — those are already exemplary deep modules.",
+  "dependencies": "",
+  "acceptanceCriteria": [
+    {
+      "text": "phantom SpendingModule + its empty controller are removed",
+      "check": "! test -f backend/src/spending/spending.module.ts && ! test -f backend/src/spending/spending.controller.ts && ! test -f backend/src/spending/spending.service.ts"
+    },
+    {
+      "text": "no manual number parsing remains in any controller (ValidationPipe is the boundary)",
+      "check": "cd backend && ! grep -rqF \"parseInt(\" src --include=\"*.controller.ts\""
+    },
+    {
+      "text": "geography query DTO exists and enforces class-validator rules",
+      "check": "test -f backend/src/geography/dto/geography-query.dto.ts && grep -qE \"@IsInt|@IsString|@IsOptional\" backend/src/geography/dto/geography-query.dto.ts"
+    },
+    {
+      "text": "disaster query DTO exists and enforces class-validator rules",
+      "check": "test -f backend/src/disaster/dto/disaster-query.dto.ts && grep -qE \"@IsInt|@IsString|@IsOptional\" backend/src/disaster/dto/disaster-query.dto.ts"
+    },
+    {
+      "text": "backend full test suite green (excludes sync/usa-spending.service.spec.ts, tracked separately as E20-S01: its rate-limiter real-setTimeout drift is pre-existing and orthogonal to this story)",
+      "check": "cd backend && pnpm test --testPathIgnorePatterns=usa-spending"
+    },
+    {
+      "text": "backend builds cleanly",
+      "check": "cd backend && pnpm build"
+    }
+  ],
+  "resolutions": [
+    {
+      "contradiction": "File tree shows sync/sync.controller.ts but Step 8 CLI command uses --no-controller for sync module",
+      "resolution": "Do NOT create sync/sync.controller.ts in Epic 1. Only create sync.module.ts and sync.service.ts.",
+      "reason": "CLI command is the executable spec. Sync API endpoints belong to Epic 2. The sync module in Epic 1 is infrastructure only.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows common/api-response.interface.ts but ApiResponse<T> already exists in shared/interfaces/index.ts",
+      "resolution": "Do NOT create common/api-response.interface.ts. Import ApiResponse<T> from @shared/interfaces in the interceptor.",
+      "reason": "Duplicating the interface creates drift risk. shared/interfaces/ exists for cross-layer type sharing.",
+      "affects": [
+        "E1-S06"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Epic Step 5 says to possibly exclude ../shared from tsconfig.build.json",
+      "resolution": "Do NOT exclude ../shared from tsconfig.build.json. TypeScript needs to resolve @shared/* types for compilation. These are type-only imports and do not produce output in dist/.",
+      "reason": "Excluding ../shared would prevent tsc from resolving @shared/* imports at compile time, causing build failures.",
+      "affects": [
+        "E1-S02"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Entity glob pattern __dirname + '/../**/*.entity{.ts,.js}' appears to go up from config/ — is this correct?",
+      "resolution": "The glob is correct as written. At runtime, typeorm.config.ts is compiled to dist/config/typeorm.config.js, so __dirname is dist/config/. Going ../ reaches dist/. The glob dist/**/*.entity.js matches all compiled entities.",
+      "reason": "Traced compilation path: src/config/ compiles to dist/config/, __dirname = dist/config/, ../ = dist/, glob matches dist/agencies/agency.entity.js etc.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "data/ directory does not exist and is not tracked by git; better-sqlite3 will fail if parent directory is missing",
+      "resolution": "The TypeORM config factory must call mkdirSync('data', { recursive: true }) before returning the SQLite config object.",
+      "reason": "better-sqlite3 does not create parent directories. The config factory is the correct place to ensure the directory exists before the database file is created.",
+      "affects": [
+        "E1-S03"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "GeoSpendingSnapshot unique constraint (stateCode, fiscalYear, agencyId, scope) includes nullable agencyId; SQLite treats NULLs as distinct in UNIQUE constraints, allowing duplicate rows with NULL agencyId",
+      "resolution": "Use the standard @Unique decorator as-is. Accept that SQLite allows multiple NULL agencyId rows with the same (stateCode, fiscalYear, scope). Deduplication is enforced at application level in Epic 2's sync upsert logic.",
+      "reason": "TypeORM does not natively support partial unique indexes. Using a sentinel value would change the data model's semantic contract. Application-level enforcement is standard practice for nullable unique columns in SQLite.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "perCapita fields (GeoSpendingSnapshot, DisasterFundingRecord) are monetary-derived; unclear if stored as cents/person integer or dollars/person float",
+      "resolution": "Store perCapita as integer (cents per person), consistent with the 'all money values are integers' rule. Frontend divides by 100 for display.",
+      "reason": "perCapita = obligatedAmount(cents) / population. Storing as integer cents/person avoids floating-point issues and maintains consistency with the all-money-is-cents convention.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "recoveryRatio (DisasterRecoveryRatio) is a dimensionless ratio (fedSpending/fema), not a monetary amount — should it be integer or float?",
+      "resolution": "Store recoveryRatio as float/decimal type. It is a ratio, not a monetary value. The 'money as cents integer' rule does not apply.",
+      "reason": "recoveryRatio = fedSpendingObligated / femaObligated produces values like 2.5. Forcing to integer would lose precision on a non-monetary derived field.",
+      "affects": [
+        "E1-S05"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "File tree shows empty dto/ directories but git does not track empty directories",
+      "resolution": "Create each dto/ directory with a .gitkeep file so git tracks the directory. These are placeholders for Epic 3 DTOs.",
+      "reason": "File tree explicitly shows these directories. Creating them now prevents 'directory not found' issues when Epic 3 adds DTO files.",
+      "affects": [
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "Full TDD mandate vs scaffolding stories (S01 install deps, S02 tsconfig) that have no behavior to test",
+      "resolution": "Every story still ships a spec. For scaffolding stories, the spec asserts structural invariants: AppModule compiles and is decorated (S01), @shared/interfaces resolves at runtime (S02). The spec shape is table-driven where there is branching logic; for structural assertions a flat testTable with one row per invariant is acceptable.",
+      "reason": "Keeping a spec in every story is non-negotiable per AGENTS.md Skill 2. Structural specs catch scaffold drift (missing deps, broken aliases) that would otherwise surface mid-build.",
+      "affects": [
+        "E1-S01",
+        "E1-S02",
+        "E1-S04"
+      ],
+      "needs_human": false
+    },
+    {
+      "contradiction": "E4-S01 scaffolded @angular/material@^22 + @angular/cdk@^22 against @angular/core@^20 — Material v22 requires Angular v22 APIs, breaking the build. Also @angular/animations was missing (needed by provideAnimationsAsync).",
+      "resolution": "Material/CDK must match Angular core major version. Use @angular/material@^20.0.0 + @angular/cdk@^20.0.0 (latest 20.x LTS = 20.2.14). @angular/animations@^20.3.0 is a required dependency (provideAnimationsAsync lazy-loads it).",
+      "reason": "Material/CDK lag behind core in minor versions — 20.3.x does not exist for Material. Scope-leakage in E4-S04 (builder fixed package.json in worktree but it was not in scope.files) shipped a broken build to main. Caught by QA."
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/src/spending/spending.module.ts",
+      "mode": "full",
+      "contents": "import { Module } from '@nestjs/common';\nimport { TypeOrmModule } from '@nestjs/typeorm';\nimport { SpendingController } from './spending.controller';\nimport { SpendingService } from './spending.service';\nimport { SpendingRecord } from './spending-record.entity';\n\n@Module({\n  controllers: [SpendingController],\n  providers: [SpendingService],\n  imports: [TypeOrmModule.forFeature([SpendingRecord])]\n})\nexport class SpendingModule {}"
+    },
+    {
+      "path": "backend/src/spending/spending.controller.ts",
+      "mode": "full",
+      "contents": "import { Controller } from '@nestjs/common';\n\n@Controller()\nexport class SpendingController {}"
+    },
+    {
+      "path": "backend/src/spending/spending.service.ts",
+      "mode": "full",
+      "contents": "import { Injectable } from '@nestjs/common';\n\n@Injectable()\nexport class SpendingService {}"
+    },
+    {
+      "path": "backend/src/app.module.ts",
+      "mode": "slice",
+      "start": 7,
+      "end": 7,
+      "reason": "delete the SpendingModule import line.",
+      "excerpt": "   5: import { getTypeOrmConfig } from './config/typeorm.config';\n   6: import { AgenciesModule } from './agencies/agencies.module';\n   7: import { SpendingModule } from './spending/spending.module';\n   8: import { GeographyModule } from './geography/geography.module';\n   9: import { DisasterModule } from './disaster/disaster.module';"
+    },
+    {
+      "path": "backend/src/app.module.ts",
+      "mode": "slice",
+      "start": 22,
+      "end": 22,
+      "reason": "delete the SpendingModule entry from the root @Module imports array.",
+      "excerpt": "  20:     ScheduleModule.forRoot(),\n  21:     AgenciesModule,\n  22:     SpendingModule,\n  23:     GeographyModule,\n  24:     DisasterModule,"
+    },
+    {
+      "path": "backend/src/modules.spec.ts",
+      "mode": "slice",
+      "start": 2,
+      "end": 2,
+      "reason": "delete the SpendingModule import.",
+      "excerpt": "   1: import { AgenciesModule } from './agencies/agencies.module';\n   2: import { SpendingModule } from './spending/spending.module';\n   3: import { GeographyModule } from './geography/geography.module';\n   4: import { DisasterModule } from './disaster/disaster.module';"
+    },
+    {
+      "path": "backend/src/modules.spec.ts",
+      "mode": "slice",
+      "start": 11,
+      "end": 11,
+      "reason": "delete the expect(SpendingModule).toBeDefined() assertion (and any sibling block referencing it).",
+      "excerpt": "   9:   it('should have all modules defined', () => {\n  10:     expect(AgenciesModule).toBeDefined();\n  11:     expect(SpendingModule).toBeDefined();\n  12:     expect(GeographyModule).toBeDefined();\n  13:     expect(DisasterModule).toBeDefined();"
+    },
+    {
+      "path": "backend/src/geography/dto/geography-query.dto.ts",
+      "mode": "full",
+      "contents": "import { IsInt, IsOptional, IsEnum, Min, Max } from 'class-validator';\nimport { ScopeEnum } from '../../common/pagination.dto';\n\nexport class GeographyQueryDto {\n  @IsInt()\n  @Min(2020)\n  @Max(2024)\n  @IsOptional()\n  fiscalYear?: number;\n\n  @IsEnum(ScopeEnum)\n  scope: ScopeEnum;\n}"
+    },
+    {
+      "path": "backend/src/geography/geography.controller.ts",
+      "mode": "full",
+      "contents": "import { Controller, Get, Param, Query } from '@nestjs/common';\nimport { GeographyService, QueryStatesInput } from './geography.service';\nimport { GeoSpendingSnapshot } from './geo-spending-snapshot.entity';\n\n@Controller('geography')\nexport class GeographyController {\n  constructor(private readonly geographyService: GeographyService) {}\n\n  @Get('states')\n  getStates(\n    @Query('fiscalYear') fiscalYear?: number,\n    @Query('agencyId') agencyId?: number,\n    @Query('scope') scope?: string,\n  ): Promise<GeoSpendingSnapshot[]> {\n    return this.geographyService.queryStates({ fiscalYear, agencyId, scope });\n  }\n\n  @Get('state/:code')\n  getStateDetail(@Param('code') code: string): Promise<GeoSpendingSnapshot[]> {\n    return this.geographyService.getStateDetail(code);\n  }\n}\n"
+    },
+    {
+      "path": "backend/src/geography/geography.controller.spec.ts",
+      "mode": "full",
+      "contents": "import { Test, TestingModule } from '@nestjs/testing';\nimport { GeographyController } from './geography.controller';\nimport { GeographyService } from './geography.service';\nimport { GeoSpendingSnapshot } from './geo-spending-snapshot.entity';\n\ndescribe('GeographyController', () => {\n  let controller: GeographyController;\n  let service: GeographyService;\n\n  beforeEach(async () => {\n    const module: TestingModule = await Test.createTestingModule({\n      controllers: [GeographyController],\n      providers: [\n        {\n          provide: GeographyService,\n          useValue: {\n            queryStates: jest.fn(),\n            getStateDetail: jest.fn(),\n          },\n        },\n      ],\n    }).compile();\n\n    controller = module.get<GeographyController>(GeographyController);\n    service = module.get<GeographyService>(GeographyService);\n  });\n\n  it('should query states with fiscalYear', async () => {\n    const mockResult: GeoSpendingSnapshot[] = [\n      {\n        id: 1,\n        stateCode: 'AL',\n        stateName: 'Alabama',\n        fiscalYear: 2024,\n        agencyId: 1,\n        scope: 'state',\n        obligatedAmount: 500000,\n        awardCount: 10,\n        population: 5000000,\n        perCapita: 100,\n      } as GeoSpendingSnapshot,\n    ];\n    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);\n\n    const result = await controller.getStates(2024);\n\n    expect(result).toEqual(mockResult);\n    expect(service.queryStates).toHaveBeenCalledWith({ fiscalYear: 2024 });\n  });\n\n  it('should query states with fiscalYear and agencyId', async () => {\n    const mockResult: GeoSpendingSnapshot[] = [];\n    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);\n\n    const result = await controller.getStates(2024, 2);\n\n    expect(result).toEqual(mockResult);\n    expect(service.queryStates).toHaveBeenCalledWith({\n      fiscalYear: 2024,\n      agencyId: 2,\n    });\n  });\n\n  it('should query states with scope', async () => {\n    const mockResult: GeoSpendingSnapshot[] = [];\n    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);\n\n    const result = await controller.getStates(2024, undefined, 'county');\n\n    expect(result).toEqual(mockResult);\n    expect(service.queryStates).toHaveBeenCalledWith({\n      fiscalYear: 2024,\n      scope: 'county',\n    });\n  });\n\n  it('should query states without agencyId for combined-agency data', async () => {\n    const mockResult: GeoSpendingSnapshot[] = [];\n    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);\n\n    const result = await controller.getStates(2024);\n\n    expect(result).toEqual(mockResult);\n    expect(service.queryStates).toHaveBeenCalledWith({ fiscalYear: 2024 });\n  });\n\n  it('should return state detail for a given state code', async () => {\n    const mockResult: GeoSpendingSnapshot[] = [\n      {\n        id: 1,\n        stateCode: 'CA',\n        stateName: 'California',\n        fiscalYear: 2024,\n        agencyId: 1,\n        scope: 'state',\n        obligatedAmount: 1500000,\n        awardCount: 30,\n        population: 40000000,\n        perCapita: 3750,\n      } as GeoSpendingSnapshot,\n    ];\n    jest.spyOn(service, 'getStateDetail').mockResolvedValue(mockResult);\n\n    const result = await controller.getStateDetail('CA');\n\n    expect(result).toEqual(mockResult);\n    expect(service.getStateDetail).toHaveBeenCalledWith('CA');\n  });\n});\n"
+    },
+    {
+      "path": "backend/src/disaster/disaster.controller.ts",
+      "mode": "full",
+      "contents": "import { Controller, Get, Param, Query } from '@nestjs/common';\nimport { DisasterService, QueryRatiosParams, QueryStatesParams } from './disaster.service';\n\n@Controller('disaster')\nexport class DisasterController {\n  constructor(private readonly service: DisasterService) {}\n\n  @Get('overview')\n  async getOverview(\n    @Query('defGroup') defGroup?: string,\n  ) {\n    const params: { defGroup?: string } = {};\n    if (defGroup) params.defGroup = defGroup;\n    return this.service.getOverview(params);\n  }\n\n  @Get('states')\n  async queryStates(\n    @Query('defGroup') defGroup?: string,\n    @Query('fiscalYear') fiscalYear?: string,\n  ) {\n    const params: QueryStatesParams = {};\n    if (defGroup) params.defGroup = defGroup;\n    if (fiscalYear) params.fiscalYear = parseInt(fiscalYear, 10);\n    return this.service.queryStates(params);\n  }\n\n  @Get('recovery-ratios')\n  async queryRatios(\n    @Query('fiscalYear') fiscalYear?: string,\n  ) {\n    const params: QueryRatiosParams = {};\n    if (fiscalYear) params.fiscalYear = parseInt(fiscalYear, 10);\n    return this.service.queryRatios(params);\n  }\n\n  @Get('state/:code')\n  async getStateProfile(@Param('code') code: string) {\n    return this.service.getStateProfile(code);\n  }\n}"
+    },
+    {
+      "path": "backend/src/disaster/disaster.controller.spec.ts",
+      "mode": "full",
+      "contents": "import { Test, TestingModule } from '@nestjs/testing';\nimport { DisasterController } from './disaster.controller';\nimport { DisasterService } from './disaster.service';\n\ndescribe('DisasterController', () => {\n  let controller: DisasterController;\n  let service: DisasterService;\n\n  const mockService = {\n    getOverview: jest.fn(),\n    queryStates: jest.fn(),\n    queryRatios: jest.fn(),\n    getStateProfile: jest.fn(),\n  };\n\n  beforeEach(async () => {\n    const module: TestingModule = await Test.createTestingModule({\n      controllers: [DisasterController],\n      providers: [\n        { provide: DisasterService, useValue: mockService },\n      ],\n    }).compile();\n\n    controller = module.get<DisasterController>(DisasterController);\n    service = module.get<DisasterService>(DisasterService);\n  });\n\n  it('should be defined', () => {\n    expect(controller).toBeDefined();\n  });\n\n  it('calls service.getOverview and returns the result', async () => {\n    const overviewData = [\n      { defGroup: 'CA', totalObligated: 300000, totalAwardCount: 15, stateCount: 2, highestPerCapitaState: 'California', highestPerCapita: 1000, coverageGapCount: 1 },\n      { defGroup: '01', totalObligated: 50000, totalAwardCount: 3, stateCount: 1, highestPerCapitaState: 'Florida', highestPerCapita: 200, coverageGapCount: 0 },\n    ];\n    mockService.getOverview.mockResolvedValue(overviewData);\n\n    const result = await controller.getOverview();\n\n    expect(result).toEqual(overviewData);\n    expect(service.getOverview).toHaveBeenCalled();\n  });\n\n  it('calls service.queryStates with defGroup and fiscalYear query params', async () => {\n    const statesData = [\n      { id: 1, defGroup: 'CA', stateCode: 'CA', stateName: 'California', obligatedAmount: 200000, awardCount: 10, perCapita: 1000, population: 200 },\n      { id: 2, defGroup: 'CA', stateCode: 'NY', stateName: 'New York', obligatedAmount: 100000, awardCount: 5, perCapita: 500, population: 200 },\n    ];\n    mockService.queryStates.mockResolvedValue(statesData);\n\n    const result = await controller.queryStates('CA', '2024');\n\n    expect(result).toEqual(statesData);\n    expect(service.queryStates).toHaveBeenCalledWith({ defGroup: 'CA', fiscalYear: 2024 });\n  });\n\n  it('calls service.queryStates with only defGroup', async () => {\n    const statesData: any[] = [];\n    mockService.queryStates.mockResolvedValue(statesData);\n\n    const result = await controller.queryStates('CA', undefined);\n\n    expect(result).toEqual(statesData);\n    expect(service.queryStates).toHaveBeenCalledWith({ defGroup: 'CA' });\n  });\n\n  it('calls service.queryRatios with fiscalYear query param and sorts ascending', async () => {\n    const ratiosData = [\n      { id: 1, stateCode: 'CA', stateName: 'California', fiscalYear: 2024, femaObligated: 300000, fedSpendingObligated: 100000, recoveryRatio: 0.3, declarationCount: 2, dominantIncidentType: 'Earthquake' },\n      { id: 2, stateCode: 'FL', stateName: 'Florida', fiscalYear: 2024, femaObligated: 50000, fedSpendingObligated: 50000, recoveryRatio: 1.0, declarationCount: 1, dominantIncidentType: 'Hurricane' },\n    ];\n    mockService.queryRatios.mockResolvedValue(ratiosData);\n\n    const result = await controller.queryRatios('2024');\n\n    expect(result).toEqual(ratiosData);\n    expect(service.queryRatios).toHaveBeenCalledWith({ fiscalYear: 2024 });\n  });\n\n  it('calls service.queryRatios with no fiscalYear', async () => {\n    const ratiosData: any[] = [];\n    mockService.queryRatios.mockResolvedValue(ratiosData);\n\n    const result = await controller.queryRatios(undefined);\n\n    expect(result).toEqual(ratiosData);\n    expect(service.queryRatios).toHaveBeenCalledWith({});\n  });\n\n  it('calls service.getStateProfile with state code parameter', async () => {\n    const profileData = {\n      stateCode: 'NY',\n      stateName: 'New York',\n      totalObligated: 150000,\n      totalAwardCount: 8,\n      ratios: [{ recoveryRatio: 2.0, femaObligated: 100000, fedSpendingObligated: 200000, declarationCount: 1 }],\n      declarationCount: 1,\n    };\n    mockService.getStateProfile.mockResolvedValue(profileData);\n\n    const result = await controller.getStateProfile('NY');\n\n    expect(result).toEqual(profileData);\n    expect(service.getStateProfile).toHaveBeenCalledWith('NY');\n  });\n\n  it('returns null for getStateProfile when no data exists', async () => {\n    mockService.getStateProfile.mockResolvedValue(null);\n\n    const result = await controller.getStateProfile('ZZ');\n\n    expect(result).toBeNull();\n    expect(service.getStateProfile).toHaveBeenCalledWith('ZZ');\n  });\n});\n"
+    },
+    {
+      "path": "backend/src/agencies/agencies.controller.ts",
+      "mode": "full",
+      "contents": "import { Controller, Get, Param, Query } from '@nestjs/common';\nimport { AgenciesService } from './agencies.service';\nimport { ApiResponse, AgencySummary } from '@shared/interfaces';\nimport { SpendingRecord } from '../spending/spending-record.entity';\n\n@Controller('agencies')\nexport class AgenciesController {\n  constructor(private readonly agenciesService: AgenciesService) {}\n\n  @Get()\n  list(@Query('fiscalYear') fiscalYear?: string): Promise<ApiResponse<{ id: number; name: string; totalCents: number }[]>> {\n    return this.agenciesService.findAllWithTotals(fiscalYear ? Number(fiscalYear) : undefined);\n  }\n\n  @Get(':id/summary')\n  summary(@Param('id') id: string): Promise<AgencySummary | null> {\n    return this.agenciesService.findSummary(Number(id));\n  }\n\n  @Get(':id/spotlight')\n  spotlight(@Param('id') id: string): Promise<SpendingRecord[] | null> {\n    return this.agenciesService.findSpotlight(Number(id));\n  }\n}"
+    },
+    {
+      "path": "backend/src/agencies/agencies.controller.spec.ts",
+      "mode": "full",
+      "contents": "import { AgenciesController } from './agencies.controller';\nimport { AgenciesService } from './agencies.service';\nimport { ApiResponse, Agency, AgencySummary } from '@shared/interfaces';\nimport { SpendingRecord } from '../spending/spending-record.entity';\n\ndescribe('AgenciesController', () => {\n  let controller: AgenciesController;\n  let service: AgenciesService;\n\n  beforeEach(() => {\n    const mockService = {\n      findAllWithTotals: jest.fn(),\n      findSummary: jest.fn(),\n      findSpotlight: jest.fn(),\n    };\n    service = mockService as any;\n    controller = new AgenciesController(service);\n  });\n\n  describe('list', () => {\n    interface TestCase {\n      name: string;\n      fiscalYear?: string;\n      expectedFy?: number;\n      serviceReturn: ApiResponse<{ id: number; name: string; totalCents: number }[]>;\n      expected: ApiResponse<{ id: number; name: string; totalCents: number }[]>;\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'returns paginated ApiResponse with agency list when no fiscalYear param is supplied',\n        expectedFy: undefined,\n        serviceReturn: {\n          data: [\n            { id: 1, name: 'Agency A', totalCents: 300000 },\n          ],\n          meta: { total: 6, page: 1, pageSize: 6 },\n        },\n        expected: {\n          data: [\n            { id: 1, name: 'Agency A', totalCents: 300000 },\n          ],\n          meta: { total: 6, page: 1, pageSize: 6 },\n        },\n      },\n      {\n        name: 'passes a numeric fiscalYear query param through to the service',\n        fiscalYear: '2023',\n        expectedFy: 2023,\n        serviceReturn: {\n          data: [\n            { id: 1, name: 'Agency A', totalCents: 300000 },\n          ],\n          meta: { total: 6, page: 1, pageSize: 6 },\n        },\n        expected: {\n          data: [\n            { id: 1, name: 'Agency A', totalCents: 300000 },\n          ],\n          meta: { total: 6, page: 1, pageSize: 6 },\n        },\n      },\n      {\n        name: 'omits fiscalYear when the query param is an empty string',\n        fiscalYear: '',\n        expectedFy: undefined,\n        serviceReturn: {\n          data: [],\n          meta: { total: 0, page: 1, pageSize: 0 },\n        },\n        expected: {\n          data: [],\n          meta: { total: 0, page: 1, pageSize: 0 },\n        },\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ fiscalYear, expectedFy, serviceReturn, expected }) => {\n      service.findAllWithTotals.mockResolvedValue(serviceReturn);\n      const result = await controller.list(fiscalYear);\n      expect(service.findAllWithTotals).toHaveBeenCalledWith(expectedFy);\n      expect(result).toEqual(expected);\n    });\n  });\n\n  describe('summary', () => {\n    interface TestCase {\n      name: string;\n      serviceReturn: AgencySummary;\n      expected: AgencySummary;\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'returns summary for given agency id',\n        serviceReturn: {\n          agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n          currentFyTotal: 300000,\n          priorFyTotal: 200000,\n          yoyChange: 50,\n        },\n        expected: {\n          agency: { id: 1, name: 'Agency A', abbreviation: 'A', toptierCode: '001' },\n          currentFyTotal: 300000,\n          priorFyTotal: 200000,\n          yoyChange: 50,\n        },\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ serviceReturn, expected }) => {\n      service.findSummary.mockResolvedValue(serviceReturn);\n      const result = await controller.summary(1);\n      expect(service.findSummary).toHaveBeenCalledWith(1);\n      expect(result).toEqual(expected);\n    });\n  });\n\n  describe('spotlight', () => {\n    interface TestCase {\n      name: string;\n      serviceReturn: SpendingRecord[];\n      expected: SpendingRecord[];\n    }\n\n    const testTable: TestCase[] = [\n      {\n        name: 'returns spotlight data for given agency id',\n        serviceReturn: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 300000, outlayAmount: 230000, awardCount: 15 } as SpendingRecord,\n        ],\n        expected: [\n          { id: 1, agencyId: 1, fiscalYear: 2026, quarter: 1, awardTypeLabel: 'Grant', awardTypeCodes: 'G', obligatedAmount: 300000, outlayAmount: 230000, awardCount: 15 } as SpendingRecord,\n        ],\n      },\n    ];\n\n    it.each(testTable)('$name', async ({ serviceReturn, expected }) => {\n      service.findSpotlight.mockResolvedValue(serviceReturn);\n      const result = await controller.spotlight(1);\n      expect(service.findSpotlight).toHaveBeenCalledWith(1);\n      expect(result).toEqual(expected);\n    });\n  });\n});\n"
+    }
+  ]
+}

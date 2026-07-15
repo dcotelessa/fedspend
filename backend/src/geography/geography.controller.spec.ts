@@ -1,87 +1,66 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { GeographyController } from './geography.controller';
 import { GeographyService } from './geography.service';
 import { GeoSpendingSnapshot } from './geo-spending-snapshot.entity';
+import { GeographyQueryDto } from './dto/geography-query.dto';
 
 describe('GeographyController', () => {
+  interface TestCase {
+    name: string;
+    input: Partial<GeographyQueryDto>;
+    serviceReturn: GeoSpendingSnapshot[];
+    expected: GeoSpendingSnapshot[];
+  }
+
   let controller: GeographyController;
-  let service: GeographyService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [GeographyController],
-      providers: [
-        {
-          provide: GeographyService,
-          useValue: {
-            queryStates: jest.fn(),
-            getStateDetail: jest.fn(),
-          },
-        },
-      ],
-    }).compile();
-
-    controller = module.get<GeographyController>(GeographyController);
-    service = module.get<GeographyService>(GeographyService);
+  beforeEach(() => {
+    const mockService = {
+      queryStates: jest.fn(),
+      getStateDetail: jest.fn(),
+    };
+    controller = new GeographyController(mockService as any);
   });
 
-  it('should query states with fiscalYear', async () => {
-    const mockResult: GeoSpendingSnapshot[] = [
-      {
-        id: 1,
-        stateCode: 'AL',
-        stateName: 'Alabama',
-        fiscalYear: 2024,
-        agencyId: 1,
-        scope: 'state',
-        obligatedAmount: 500000,
-        awardCount: 10,
-        population: 5000000,
-        perCapita: 100,
-      } as GeoSpendingSnapshot,
-    ];
-    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);
-
-    const result = await controller.getStates(2024);
-
-    expect(result).toEqual(mockResult);
-    expect(service.queryStates).toHaveBeenCalledWith({ fiscalYear: 2024 });
-  });
-
-  it('should query states with fiscalYear and agencyId', async () => {
-    const mockResult: GeoSpendingSnapshot[] = [];
-    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);
-
-    const result = await controller.getStates(2024, 2);
-
-    expect(result).toEqual(mockResult);
-    expect(service.queryStates).toHaveBeenCalledWith({
-      fiscalYear: 2024,
-      agencyId: 2,
+  it.each([
+    {
+      name: 'forwards valid query dto to service queryStates',
+      input: { fiscalYear: 2024, scope: 'state' },
+      serviceReturn: [{ id: 1, stateCode: 'AL' }],
+      expected: [{ id: 1, stateCode: 'AL' }],
+    },
+    {
+      name: 'forwards fiscalYear with agencyId and scope',
+      input: { fiscalYear: 2023, agencyId: 2, scope: 'county' },
+      serviceReturn: [],
+      expected: [],
+    },
+    {
+      name: 'forwards fiscalYear with only scope',
+      input: { fiscalYear: 2024, scope: 'county' },
+      serviceReturn: [],
+      expected: [],
+    },
+    {
+      name: 'forwards fiscalYear without agencyId for combined-agency data',
+      input: { fiscalYear: 2024 },
+      serviceReturn: [],
+      expected: [],
+    },
+    {
+      name: 'forwards fiscalYear with agencyId but no scope',
+      input: { fiscalYear: 2024, agencyId: 1 },
+      serviceReturn: [],
+      expected: [],
+    },
+  ])('$name', async ({ input, serviceReturn, expected }) => {
+    controller['geographyService'].queryStates.mockResolvedValue(serviceReturn);
+    const result = await controller.getStates(input);
+    expect(result).toEqual(expected);
+    expect(controller['geographyService'].queryStates).toHaveBeenCalledWith({
+      fiscalYear: input.fiscalYear,
+      agencyId: input.agencyId,
+      scope: input.scope,
     });
-  });
-
-  it('should query states with scope', async () => {
-    const mockResult: GeoSpendingSnapshot[] = [];
-    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);
-
-    const result = await controller.getStates(2024, undefined, 'county');
-
-    expect(result).toEqual(mockResult);
-    expect(service.queryStates).toHaveBeenCalledWith({
-      fiscalYear: 2024,
-      scope: 'county',
-    });
-  });
-
-  it('should query states without agencyId for combined-agency data', async () => {
-    const mockResult: GeoSpendingSnapshot[] = [];
-    jest.spyOn(service, 'queryStates').mockResolvedValue(mockResult);
-
-    const result = await controller.getStates(2024);
-
-    expect(result).toEqual(mockResult);
-    expect(service.queryStates).toHaveBeenCalledWith({ fiscalYear: 2024 });
   });
 
   it('should return state detail for a given state code', async () => {
@@ -99,11 +78,11 @@ describe('GeographyController', () => {
         perCapita: 3750,
       } as GeoSpendingSnapshot,
     ];
-    jest.spyOn(service, 'getStateDetail').mockResolvedValue(mockResult);
+    controller['geographyService'].getStateDetail.mockResolvedValue(mockResult);
 
     const result = await controller.getStateDetail('CA');
 
     expect(result).toEqual(mockResult);
-    expect(service.getStateDetail).toHaveBeenCalledWith('CA');
+    expect(controller['geographyService'].getStateDetail).toHaveBeenCalledWith('CA');
   });
 });

@@ -2,6 +2,7 @@ import { AgenciesController } from './agencies.controller';
 import { AgenciesService } from './agencies.service';
 import { ApiResponse, Agency, AgencySummary } from '@shared/interfaces';
 import { SpendingRecord } from '../spending/spending-record.entity';
+import { AgencyListQueryDto } from './dto/agency-list-query.dto';
 
 describe('AgenciesController', () => {
   let controller: AgenciesController;
@@ -20,7 +21,7 @@ describe('AgenciesController', () => {
   describe('list', () => {
     interface TestCase {
       name: string;
-      fiscalYear?: string;
+      input: Partial<AgencyListQueryDto>;
       expectedFy?: number;
       serviceReturn: ApiResponse<{ id: number; name: string; totalCents: number }[]>;
       expected: ApiResponse<{ id: number; name: string; totalCents: number }[]>;
@@ -28,24 +29,8 @@ describe('AgenciesController', () => {
 
     const testTable: TestCase[] = [
       {
-        name: 'returns paginated ApiResponse with agency list when no fiscalYear param is supplied',
-        expectedFy: undefined,
-        serviceReturn: {
-          data: [
-            { id: 1, name: 'Agency A', totalCents: 300000 },
-          ],
-          meta: { total: 6, page: 1, pageSize: 6 },
-        },
-        expected: {
-          data: [
-            { id: 1, name: 'Agency A', totalCents: 300000 },
-          ],
-          meta: { total: 6, page: 1, pageSize: 6 },
-        },
-      },
-      {
-        name: 'passes a numeric fiscalYear query param through to the service',
-        fiscalYear: '2023',
+        name: 'forwards fiscalYear query param through to the service',
+        input: { fiscalYear: 2023 },
         expectedFy: 2023,
         serviceReturn: {
           data: [
@@ -61,8 +46,8 @@ describe('AgenciesController', () => {
         },
       },
       {
-        name: 'omits fiscalYear when the query param is an empty string',
-        fiscalYear: '',
+        name: 'forwards undefined when no fiscalYear query param',
+        input: {},
         expectedFy: undefined,
         serviceReturn: {
           data: [],
@@ -75,10 +60,10 @@ describe('AgenciesController', () => {
       },
     ];
 
-    it.each(testTable)('$name', async ({ fiscalYear, expectedFy, serviceReturn, expected }) => {
+    it.each(testTable)('$name', async ({ input, expectedFy, serviceReturn, expected }) => {
       service.findAllWithTotals.mockResolvedValue(serviceReturn);
-      const result = await controller.list(fiscalYear);
-      expect(service.findAllWithTotals).toHaveBeenCalledWith(expectedFy);
+      const result = await controller.list(input);
+      expect(service.findAllWithTotals).toHaveBeenCalledWith(input.fiscalYear);
       expect(result).toEqual(expected);
     });
   });
