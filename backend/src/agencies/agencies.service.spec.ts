@@ -54,11 +54,11 @@ describe('AgenciesService', () => {
         ],
       },
       {
-        name: 'findAllWithTotals passes fiscalYear parameter through JOIN when provided',
-        rawResults: [
-          { agency_id: 1, agency_name: 'Agency A', totalCents: '300000' },
-        ],
-        fiscalYear: 2023,
+      name: 'findAllWithTotals sums all years regardless of fiscalYear argument',
+      rawResults: [
+        { agency_id: 1, agency_name: 'Agency A', totalCents: '300000' },
+      ],
+      fiscalYear: 2023,
         expected: [
           { id: 1, name: 'Agency A', totalCents: 300000 },
         ],
@@ -97,15 +97,12 @@ describe('AgenciesService', () => {
         return undefined;
       }) } as any;
       const svc = new AgenciesService(agencyRepo, spendingRepo, configService);
-      const fy = fiscalYear ?? currentFy ?? 2026;
       const result = await svc.findAllWithTotals(fiscalYear);
       expect(result.data).toEqual(expected);
       expect(agencyRepo.createQueryBuilder).toHaveBeenCalledWith('agency');
       expect(mockQueryBuilder.leftJoin).toHaveBeenCalledWith(
         'agency.spendingRecords',
         'sr',
-        'sr.fiscalYear = :fy',
-        { fy },
       );
       expect(mockQueryBuilder.groupBy).toHaveBeenCalledWith('agency.id');
       expect(mockQueryBuilder.getRawMany).toHaveBeenCalled();

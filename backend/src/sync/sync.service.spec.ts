@@ -54,6 +54,13 @@ describe('SyncService', () => {
     toptierCode: `${index + 1}`,
   }));
 
+  const agenciesExceedingLimit = Array.from({ length: SPENDING_AGENCY_SYNC_LIMIT + 9 }, (_, index) => ({
+    id: index + 1,
+    name: `Agency ${index + 1}`,
+    abbreviation: `A${index + 1}`,
+    toptierCode: `${index + 1}`,
+  }));
+
   const testTable: TestCase[] = [
     {
       name: 'syncAgenciesAndSpending upserts a new agency',
@@ -128,9 +135,9 @@ describe('SyncService', () => {
     {
       name: 'syncAgenciesAndSpending syncs spending for at most SPENDING_AGENCY_SYNC_LIMIT agencies while upserting every fetched agency',
       method: 'syncAgenciesAndSpending',
-      agencyFetchResult: { status: 'success', agencies: twentyFiveAgencies },
+      agencyFetchResult: { status: 'success', agencies: agenciesExceedingLimit },
       expectedUpsertCalls: [
-        { repoName: 'agency', count: 25 },
+        { repoName: 'agency', count: agenciesExceedingLimit.length },
         { repoName: 'spending', count: SPENDING_AGENCY_SYNC_LIMIT * SPENDING_FISCAL_YEARS.length * 5 },
       ],
       expectedSpendingDeleteCount: SPENDING_AGENCY_SYNC_LIMIT * SPENDING_FISCAL_YEARS.length,
