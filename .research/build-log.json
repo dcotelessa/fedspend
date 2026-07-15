@@ -1428,6 +1428,58 @@
       "elapsedSec": 0,
       "thinking": "high",
       "timestamp": "2026-07-15T21:48:24Z"
+    },
+    {
+      "story": "E19-S02",
+      "epic": "E19",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 17,
+      "thinking": "medium",
+      "timestamp": "2026-07-15T21:54:13Z"
+    },
+    {
+      "story": "E19-S02",
+      "epic": "E19",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "ornith:35b",
+      "result": "FAIL",
+      "attemptOfTier": 2,
+      "tierMaxAttempts": 2,
+      "elapsedSec": 15,
+      "thinking": "high",
+      "timestamp": "2026-07-15T21:54:28Z"
+    },
+    {
+      "story": "E19-S02",
+      "epic": "E19",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3.6:35b",
+      "result": "FAIL",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 687,
+      "thinking": "high",
+      "timestamp": "2026-07-15T22:07:41Z"
+    },
+    {
+      "story": "E19-S02",
+      "epic": "E19",
+      "tier": "T1",
+      "harness": "opencode",
+      "model": "glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 0,
+      "thinking": "high",
+      "timestamp": "2026-07-15T22:13:08Z"
     }
   ]
 }
