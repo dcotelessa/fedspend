@@ -1493,6 +1493,19 @@
       "elapsedSec": 0,
       "thinking": "high",
       "timestamp": "2026-07-16T01:00:56Z"
+    },
+    {
+      "story": "E21-S01",
+      "epic": "E21",
+      "tier": "T1",
+      "harness": "pi",
+      "model": "qwen3.6:35b",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 639,
+      "thinking": "high",
+      "timestamp": "2026-07-16T07:23:31Z"
     }
   ]
 }
