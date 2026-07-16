@@ -4188,6 +4188,55 @@
         }
       ],
       "notes": "Pre-existing test-infra drift (independent of E19). Root cause: the rate limiter added in 907fa4a (RATE_LIMIT_MS=1000 via real setTimeout) + exponential backoff in fetchWithRetry means every fetchSpendingByAgency call waits real wall-clock time across its 5 AWARD_TYPES loop -> Jest 5s timeout -> partial call counts (e.g. the 'HTTP 500 thrice' test reports 5 calls instead of 3 because it times out mid-loop). Fix with fake timers: call jest.useFakeTimers() in beforeEach and jest.useRealTimers() in afterEach, and flush the queued timers with jest.advanceTimersByTimeAsync(ms) after kicking off each awaited service call (advance enough to cover rate-limit + backoff, e.g. 60000ms). Pattern for a success test: const p = svc.fetchSpendingByAgency({...}); await jest.advanceTimersByTimeAsync(60000); const result = await p; expect(...). For a rejects test: const p = svc.fetchSpendingByAgency({...}); await jest.advanceTimersByTimeAsync(60000); await expect(p).rejects.toThrow(). ALSO add a default fetch mock so unconfigured calls return an empty 200 page instead of calling through to the real api.usaspending.gov: jest.spyOn(global,'fetch').mockImplementation(() => Promise.resolve(new Response(JSON.stringify({results:[],page_metadata:{has_next:false}}), {status:200, headers:{'Content-Type':'application/json'}}))) (mockImplementation, not mockResolvedValue, so each call gets a FRESH Response body). The retry-table expectedAttempts already encode the 5-award-type loop (6 = 2 retry + 4 single-fetch; 3 = throw-on-first-award-type), so once timers are fake + network is mocked the existing assertions should hold. Do NOT change usa-spending.service.ts impl."
+    },
+    {
+      "id": "E21-S01",
+      "epic": "E21",
+      "title": "Angular polish: stable chart-input references + functional geography paginator + modern control flow",
+      "goal": "Close the polish gaps surfaced by the Angular deep-architecture review. The frontend is structurally sound post-E18 (deep ApiService, no premature stores), but three view-layer items remain: (1) inline object/array literals in chart input bindings make ng2-charts re-render on every change-detection cycle; (2) the geographic-view mat-paginator is decorative (no page handler, table renders all rows); (3) mixed legacy *ngIf/*ngFor vs modern @if/@for control flow across components. All three are behavior-preserving polish with an existing in-repo pattern to copy. No backend changes.",
+      "build": "BUILD-FAST",
+      "dependencies": [],
+      "scope": {
+        "files": [
+          "frontend/src/app/dashboard/dashboard.component.ts",
+          "frontend/src/app/dashboard/dashboard.component.html",
+          "frontend/src/app/dashboard/dashboard.component.spec.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.ts",
+          "frontend/src/app/disaster-lens/disaster-lens.component.html",
+          "frontend/src/app/disaster-lens/disaster-lens.component.spec.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.ts",
+          "frontend/src/app/geographic-view/geographic-view.component.html",
+          "frontend/src/app/geographic-view/geographic-view.component.spec.ts"
+        ],
+        "regions": []
+      },
+      "acceptanceCriteria": [
+        {
+          "text": "no inline object/array literal in any chart [datasets] or [data] binding (stable computed references)",
+          "check": "cd frontend && ! grep -rqE '\\[(datasets|data)\\]=\"[\\{\\[]' src/app --include='*.html'"
+        },
+        {
+          "text": "dashboard chart options are a stable field (not an inline template literal)",
+          "check": "cd frontend && grep -qE 'readonly chartOptions' src/app/dashboard/dashboard.component.ts"
+        },
+        {
+          "text": "geographic-view paginator is functional: binds a paged source and wires a (page) handler",
+          "check": "cd frontend && grep -qF '(page)=' src/app/geographic-view/geographic-view.component.html && grep -qE 'pageIndex' src/app/geographic-view/geographic-view.component.ts"
+        },
+        {
+          "text": "no legacy structural directives (*ngIf/*ngFor) in the polished components",
+          "check": "cd frontend && ! grep -rqE '\\*ng(If|For)' src/app/disaster-lens src/app/geographic-view --include='*.html'"
+        },
+        {
+          "text": "frontend full test suite green",
+          "check": "cd frontend && pnpm test"
+        },
+        {
+          "text": "frontend production build succeeds",
+          "check": "cd frontend && pnpm build"
+        }
+      ],
+      "notes": "Behavior-preserving view-layer polish (see Angular deep-arch review). Three independent fixes, each with an existing in-repo pattern to copy:\n\n(1) STABLE CHART-INPUT REFERENCES. ng2-charts BaseChartDirective re-renders whenever its [data]/[datasets]/[options] input REFERENCE changes. Inline literals in the template create a NEW object/array on every change-detection cycle, so the chart redraws on every CD (HTTP completion, tab clicks, selects). Offenders: disaster-lens.component.html binds [datasets]=\"[{ label: 'Obligated Amount', data: top15Datasets() }]\" (new array each CD); dashboard.component.html binds [data]=\"{ labels: chartLabels(), datasets: chartDatasets() }\" and [options]=\"{...}\" (new objects each CD). FIX: hoist to computed/readonly fields in the component. COPY THE EXISTING PATTERN: agency-spotlight.component.ts already does 'readonly chartData = computed<ChartData>(() => ...)' and binds [datasets]=\"chartData().datasets\"; geographic-view.component.ts binds [datasets]=\"chartData()\" (a computed). For disaster-lens add 'readonly top15ChartDatasets = computed<ChartDataset[]>(() => [{ label: 'Obligated Amount', data: this.top15Datasets() }])' and bind it. For dashboard add 'readonly chartData = computed(() => ({ labels: this.chartLabels(), datasets: this.chartDatasets() }))' and a 'readonly chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }' field (options are static so a plain readonly field is fine — no need for computed), then bind [data]=\"chartData()\" [options]=\"chartOptions\".\n\n(2) GEOGRAPHIC-VIEW PAGINATOR. geographic-view.component.html has <mat-paginator [length]=\"paginator.length\" ...> with NO (page) handler, and the table binds [dataSource]=\"allStates()\" (all rows) — so the paginator is dead UI. FIX: wire paging. COPY disaster-lens: add pageIndex/pageSize signals + an onPage handler + a pagedStates computed (sortedStates().slice(start, start+pageSize)), bind the table [dataSource]=\"pagedStates()\" and the paginator [length]=\"allStates().length\" (page)=\"onPage($event)\". Update the spec to assert paging state.\n\n(3) MODERN CONTROL FLOW. disaster-lens.component.html and geographic-view.component.html still use legacy *ngFor/*ngIf; agency-spotlight already uses @for/@if. Convert *ngFor -> @for (with track) and *ngIf -> @if for consistency. Same rendered output, so specs that query DOM are unaffected.\n\nDo NOT touch ApiService, interceptors, theme/loading services, or any backend. The chart re-render fix is the highest-value item (real CPU saving on interaction); the other two are consistency. Tests are table-driven (AGENTS.md Skill 2); the existing chart/paginator specs need only minimal updates (the dashboard chart spec already reads component.chartLabels()/chartDatasets() — keep those computeds, just add the wrapping chartData)."
     }
   ],
   "storyOrder": [
@@ -4260,7 +4309,8 @@
     "E18-S01",
     "E19-S01",
     "E19-S02",
-    "E20-S01"
+    "E20-S01",
+    "E21-S01"
   ],
   "resolutions": [
     {
