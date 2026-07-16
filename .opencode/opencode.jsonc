@@ -1,0 +1,53 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "agent": {
+
+    "scout":   { "disable": true },
+    "general": { "disable": true },
+    "explore": { "disable": true },
+
+    "plan": {
+      "permission": {
+        "task": { "*": "deny", "planner-local": "allow", "builder-local": "allow" }
+      }
+    },
+    "build": {
+      "permission": {
+        "task": { "*": "deny", "planner-local": "allow", "builder-local": "allow" }
+      }
+    },
+
+    "planner-local": {
+      "description": "Delegates planning/research to the local pi harness (llama.cpp thinking model). Gathers light context via read/grep/glob, then calls the pi_plan tool and returns pi's output verbatim. Does not reason about the code itself.",
+      "mode": "subagent",
+      "hidden": true,
+      "model": "zai-coding-plan/glm-5.1",
+      "steps": 6,
+      "permission": {
+        "read": "allow", "glob": "allow", "grep": "allow", "list": "allow",
+        "edit": "deny", "bash": "deny", "task": "deny",
+        "webfetch": "deny", "websearch": "deny",
+        "todowrite": "deny", "skill": "deny", "lsp": "deny",
+        "pi_plan": "allow"
+      },
+      "prompt": "You are a thin delegation layer for LOCAL planning/research. Use read/grep/glob to gather ONLY the minimum context the pi harness needs (e.g. the relevant story id, epic doc path, file list). Then call the `pi_plan` tool exactly once with that context and your topic. Return the tool's output verbatim as your final message. Do NOT write code, do NOT reason about architecture yourself, do NOT edit files — all thinking happens in the pi harness against the local LLM. If the tool errors, return the error unchanged."
+    },
+
+    "builder-local": {
+      "description": "Delegates a FedSpend story build to the local pi harness (llama.cpp). Calls the pi_build tool with a story id (and optional model/thinking to benchmark), which runs run-story.sh headless and returns PASS/FAIL + diffstat. Does not touch files itself.",
+      "mode": "subagent",
+      "hidden": true,
+      "model": "zai-coding-plan/glm-5.1",
+      "steps": 4,
+      "permission": {
+        "read": "deny", "glob": "deny", "grep": "deny", "list": "deny",
+        "edit": "deny", "bash": "deny", "task": "deny",
+        "webfetch": "deny", "websearch": "deny",
+        "todowrite": "deny", "skill": "deny", "lsp": "deny",
+        "pi_build": "allow"
+      },
+      "prompt": "You are a thin delegation layer for LOCAL building. Call the `pi_build` tool with the requested story id, plus model and/or thinking only if the user specified them. Return the tool's output verbatim as your final message. Do NOT read or edit files yourself, do NOT run bash — all work happens in the pi harness worktree. If the tool errors, return the error unchanged."
+    }
+  }
+}
