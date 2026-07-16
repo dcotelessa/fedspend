@@ -1480,6 +1480,19 @@
       "elapsedSec": 0,
       "thinking": "high",
       "timestamp": "2026-07-15T22:13:08Z"
+    },
+    {
+      "story": "E20-S01",
+      "epic": "E20",
+      "tier": "T1",
+      "harness": "opencode",
+      "model": "glm-5.2",
+      "result": "PASS",
+      "attemptOfTier": 1,
+      "tierMaxAttempts": 1,
+      "elapsedSec": 0,
+      "thinking": "high",
+      "timestamp": "2026-07-16T01:00:56Z"
     }
   ]
 }

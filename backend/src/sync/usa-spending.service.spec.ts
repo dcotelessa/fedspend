@@ -5,12 +5,27 @@ describe('UsaSpendingService', () => {
   let fetchMock: jest.SpyInstance;
   let svc: UsaSpendingService;
 
+  const flushAndAwait = async <T>(p: Promise<T>): Promise<T> => {
+    p.catch(() => {});
+    await jest.advanceTimersByTimeAsync(120000);
+    return p;
+  };
+
   beforeEach(() => {
+    jest.useFakeTimers();
     svc = new UsaSpendingService();
-    fetchMock = jest.spyOn(global, 'fetch');
+    fetchMock = jest.spyOn(global, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ results: [], page_metadata: { has_next: false }, codes: [] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
@@ -130,7 +145,7 @@ describe('UsaSpendingService', () => {
     const responseBody = { results: rows };
     fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-    const result = await svc.fetchAgencies();
+    const result = await flushAndAwait(svc.fetchAgencies());
 
     expect(result).toBeDefined();
     if (result.status === 'success') {
@@ -146,11 +161,11 @@ describe('UsaSpendingService', () => {
     const responseBody = { results: rows, meta: { total: rows.length, page: 1, pageSize: rows.length } };
     fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-    const result = await svc.fetchGeoSnapshots({
+    const result = await flushAndAwait(svc.fetchGeoSnapshots({
       agency: '080',
       fiscalYear: 2024,
       scope,
-    });
+    }));
 
     expect(result).toBeDefined();
     if (result.status === 'success') {
@@ -194,7 +209,7 @@ describe('UsaSpendingService', () => {
     };
     fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-    const result = await svc.fetchGeoSnapshots({ agency, fiscalYear: 2024, scope: 'recipient', agencyId });
+    const result = await flushAndAwait(svc.fetchGeoSnapshots({ agency, fiscalYear: 2024, scope: 'recipient', agencyId }));
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     if (expectAgenciesFilter) {
@@ -213,10 +228,10 @@ describe('UsaSpendingService', () => {
         fetchMock.mockResolvedValueOnce(createResponse(resp));
       }
 
-      await svc.fetchSpendingByAgency({
+      await flushAndAwait(svc.fetchSpendingByAgency({
         toptierCode: '080',
         fiscalYear: 2024,
-      });
+      }));
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/search/spending_by_geography/'),
@@ -228,7 +243,7 @@ describe('UsaSpendingService', () => {
       const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      await svc.fetchDisasterSpending(['L'], 'COVID-19');
+      await flushAndAwait(svc.fetchDisasterSpending(['L'], 'COVID-19'));
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/search/spending_by_geography/'),
@@ -240,7 +255,7 @@ describe('UsaSpendingService', () => {
       const responseBody = { results: [] };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      await svc.fetchAgencies();
+      await flushAndAwait(svc.fetchAgencies());
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/references/toptier_agencies/'),
@@ -252,7 +267,7 @@ describe('UsaSpendingService', () => {
       const responseBody = { codes: [] };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      await svc.fetchDefCodes();
+      await flushAndAwait(svc.fetchDefCodes());
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/references/def_codes/'),
@@ -291,10 +306,10 @@ describe('UsaSpendingService', () => {
         fetchMock.mockResolvedValueOnce(resp);
       }
 
-      const result = await svc.fetchSpendingByAgency({
+      const result = await flushAndAwait(svc.fetchSpendingByAgency({
         toptierCode: '080',
         fiscalYear: 2024,
-      });
+      }));
 
       expect(result).toBeDefined();
       if (result.status === 'success') {
@@ -366,11 +381,11 @@ describe('UsaSpendingService', () => {
 
       if (shouldSucceed) {
         await expect(
-          svc.fetchSpendingByAgency({ toptierCode: '080', fiscalYear: 2024 }),
+          flushAndAwait(svc.fetchSpendingByAgency({ toptierCode: '080', fiscalYear: 2024 })),
         ).resolves.toBeDefined();
       } else {
         await expect(
-          svc.fetchSpendingByAgency({ toptierCode: '080', fiscalYear: 2024 }),
+          flushAndAwait(svc.fetchSpendingByAgency({ toptierCode: '080', fiscalYear: 2024 })),
         ).rejects.toThrow();
       }
 
@@ -383,7 +398,7 @@ describe('UsaSpendingService', () => {
       const responseBody = { results: [], meta: { total: 0, page: 1, pageSize: 10 } };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      await svc.fetchDisasterSpending(['L', 'M', 'N'], 'COVID-19');
+      await flushAndAwait(svc.fetchDisasterSpending(['L', 'M', 'N'], 'COVID-19'));
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const call = fetchMock.mock.calls[0];
@@ -625,7 +640,7 @@ describe('UsaSpendingService', () => {
       fetchMock.mockResolvedValueOnce(createResponse(resp));
     }
 
-    const result = await svc.fetchSpendingByAgency({ toptierCode, fiscalYear });
+    const result = await flushAndAwait(svc.fetchSpendingByAgency({ toptierCode, fiscalYear }));
 
     expect(result).toBeDefined();
 
@@ -682,7 +697,7 @@ describe('UsaSpendingService', () => {
       };
       fetchMock.mockResolvedValueOnce(createResponse(responseBody));
 
-      const result = await svc.fetchDefCodes();
+      const result = await flushAndAwait(svc.fetchDefCodes());
 
       expect(result).toBeDefined();
       if (result.status === 'success') {
@@ -698,7 +713,7 @@ describe('UsaSpendingService', () => {
     it('returns not_found when no results', async () => {
       fetchMock.mockResolvedValueOnce(createResponse({ results: [] }));
 
-      const result = await svc.fetchAgencies();
+    const result = await flushAndAwait(svc.fetchAgencies());
 
       expect(result).toEqual({ status: 'not_found' });
     });

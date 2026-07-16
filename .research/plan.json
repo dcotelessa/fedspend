@@ -4179,7 +4179,7 @@
           "check": "cd backend && pnpm test --testPathPatterns=usa-spending.service"
         },
         {
-          "text": "full backend suite green at 210/210 (incl. usa-spending)",
+          "text": "full backend suite green at 207/207 (incl. usa-spending)",
           "check": "cd backend && pnpm test"
         },
         {
