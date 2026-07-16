@@ -38,7 +38,9 @@ export class GeographicViewComponent {
     GeographicViewComponent.computeDelta(this.primary$(), this.secondary$()),
   );
 
-  readonly paginator = { pageSize: 15, length: 0 } as { pageSize: number; length: number };
+  readonly pageIndex = signal(0);
+  readonly pageSize = signal(15);
+  readonly paginator = { length: 0 } as { length: number };
   readonly displayedColumns = ['state', 'obligatedAmount', 'perCapita', 'vsAvg'];
 
   private readonly agenciesSource$ = toSignal(this.apiService.getAgencies(), {
@@ -86,6 +88,11 @@ export class GeographicViewComponent {
     [...this.primary$()].sort((a, b) => b.obligatedAmount - a.obligatedAmount),
   );
 
+  readonly pagedStates = computed(() => {
+    const start = this.pageIndex() * this.pageSize();
+    return this.allStates().slice(start, start + this.pageSize());
+  });
+
   readonly top10 = computed(() =>
     this.allStates()
       .slice(0, 10)
@@ -131,6 +138,11 @@ export class GeographicViewComponent {
 
   onScopeChange(value: 'recipient' | 'performance'): void {
     this.scope.set(value);
+  }
+
+  onPage(event: { pageIndex: number; pageSize: number }): void {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
   }
 
   static computeDelta(primary: GeoSpendingSnapshot[], secondary: GeoSpendingSnapshot[]): number | null {

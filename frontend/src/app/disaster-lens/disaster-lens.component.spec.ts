@@ -294,6 +294,20 @@ describe('DisasterLensComponent', () => {
     }
   });
 
+  it('wraps top15Datasets in a stable single dataset', () => {
+    const component = mount(
+      [],
+      [
+        { id: 1, stateCode: 'CA', stateName: 'California', obligatedAmount: 500000, awardCount: 0, perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '' },
+        { id: 2, stateCode: 'NY', stateName: 'New York', obligatedAmount: 300000, awardCount: 0, perCapita: 0, population: 0, defGroup: 'COVID-19', defCodes: '' },
+      ],
+      [],
+    );
+    expect(component.top15ChartDatasets()).toEqual([
+      { label: 'Obligated Amount', data: [500000, 300000] },
+    ]);
+  });
+
   it('does not over-call the API on init (one call per pipeline, no loop)', () => {
     mount(
       [{ defGroup: 'COVID-19', totalObligated: 500000, totalAwardCount: 1, stateCount: 1, highestPerCapitaState: 'CA', highestPerCapita: 1, coverageGapCount: 0 }],

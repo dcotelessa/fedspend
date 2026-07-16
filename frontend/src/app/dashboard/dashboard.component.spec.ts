@@ -142,6 +142,10 @@ describe('DashboardComponent', () => {
     expect(component.chartDatasets()[0].data).toEqual([500000, 300000, 200000, 100000, 50000, 0]);
     expect(component.chartAgencyIds()).toEqual([1, 2, 3, 4, 5]);
     expect(component.chartLabels().length).toBe(6);
+    expect(component.chartData()).toMatchObject({
+      labels: ['Agency A', 'Agency B', 'Agency C', 'Agency D', 'Agency E', 'Disaster Spending'],
+      datasets: [{ label: 'Obligated (cents)', data: [500000, 300000, 200000, 100000, 50000, 0] }],
+    });
   });
 
   it('shows single Disaster Spending bar when all agencies have zero spending', () => {
@@ -160,6 +164,10 @@ describe('DashboardComponent', () => {
     expect(component.chartDatasets()[0].data).toEqual([0]);
     expect(component.chartAgencyIds()).toEqual([]);
     expect(component.chartLabels().length).toBe(1);
+    expect(component.chartData()).toMatchObject({
+      labels: ['Disaster Spending'],
+      datasets: [{ label: 'Obligated (cents)', data: [0] }],
+    });
   });
 
   it('shows fewer bars than TOP_N plus Disaster Spending when fewer agencies have data', () => {

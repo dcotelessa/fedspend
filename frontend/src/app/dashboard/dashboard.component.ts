@@ -86,6 +86,17 @@ export class DashboardComponent {
 
   readonly chartAgencyIds = computed(() => this.topAgencies().map(a => a.id));
 
+  readonly chartData = computed(() => ({
+    labels: this.chartLabels(),
+    datasets: this.chartDatasets(),
+  }));
+
+  readonly chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+  };
+
   onChartClick(event: any): void {
     const clicked = event.active[0];
     if (!clicked) return;

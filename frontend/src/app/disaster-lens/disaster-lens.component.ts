@@ -6,7 +6,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
-import { BarChartComponent } from '../bar-chart/bar-chart.component';
+import { BarChartComponent, ChartDataset } from '../bar-chart/bar-chart.component';
 import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import { ApiService } from '../api.service';
 import { CurrencyFormatPipe } from '../currency-format.pipe';
@@ -94,6 +94,10 @@ export class DisasterLensComponent {
   private readonly top15 = computed(() => DisasterLensComponent.pickTop15(this.states$()));
   readonly top15Labels = computed(() => this.top15().map(s => s.stateName));
   readonly top15Datasets = computed(() => this.top15().map(s => s.obligatedAmount));
+
+  readonly top15ChartDatasets = computed<ChartDataset[]>(() => [
+    { label: 'Obligated Amount', data: this.top15Datasets() },
+  ]);
 
   readonly sortedRatios = computed(() =>
     DisasterLensComponent.aggregateByState(this.ratios$()).sort(

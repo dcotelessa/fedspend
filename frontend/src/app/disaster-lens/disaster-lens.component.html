@@ -1,15 +1,18 @@
 <h1>Disaster Lens</h1>
 
 <mat-tab-group [selectedIndex]="tabIndex()" (selectedTabChange)="onTabChange($event)">
-  <mat-tab *ngFor="let group of defGroups" [label]="group">
+  @for (group of defGroups; track group) {
+  <mat-tab [label]="group">
     <div class="controls">
       <mat-form-field appearance="outline">
         <mat-label>Fiscal Year</mat-label>
         <mat-select [ngModel]="selectedFiscalYear()" (ngModelChange)="onFiscalYearChange($event)">
           <mat-option [value]="null">All</mat-option>
-          <mat-option *ngFor="let fy of fiscalYears" [value]="fy">
+          @for (fy of fiscalYears; track fy) {
+          <mat-option [value]="fy">
             {{ fy }}
           </mat-option>
+          }
         </mat-select>
       </mat-form-field>
     </div>
@@ -46,7 +49,7 @@
     <div class="chart-container">
       <app-bar-chart
         [labels]="top15Labels()"
-        [datasets]="[{ label: 'Obligated Amount', data: top15Datasets() }]"
+        [datasets]="top15ChartDatasets()"
         [horizontal]="true"
         title="Top 15 States by Obligated Amount"
       ></app-bar-chart>
@@ -86,4 +89,5 @@
 
     <mat-paginator [length]="sortedRatios().length" [pageSize]="15" [pageSizeOptions]="[15, 30, 50]" showFirstLastButtons (page)="onPage($event)"></mat-paginator>
   </mat-tab>
+  }
 </mat-tab-group>

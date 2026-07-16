@@ -346,7 +346,7 @@ describe('GeographicViewComponent', () => {
     expect(component.delta()).toEqual(expected.delta);
   });
 
-  it('paginator defaults to 15 items per page', () => {
+  it('pageSize signal defaults to 15', () => {
     apiSpy.getAgencies.mockReturnValue(of([]));
     apiSpy.getGeographyStates.mockReturnValue(of([]));
 
@@ -354,7 +354,48 @@ describe('GeographicViewComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(component.paginator.pageSize).toEqual(15);
+    expect(component.pageSize()).toEqual(15);
+  });
+
+  it('paginates states by pageIndex and pageSize', () => {
+    apiSpy.getAgencies.mockReturnValue(of([]));
+    apiSpy.getGeographyStates.mockReturnValue(
+      of(
+        Array.from(
+          { length: 40 },
+          (_, i) =>
+            ({
+              id: i + 1,
+              stateCode: String(i + 1).padStart(2, '0'),
+              stateName: `State ${i + 1}`,
+              fiscalYear: 2024,
+              agencyId: null,
+              scope: 'recipient',
+              obligatedAmount: (40 - i) * 100000000,
+              awardCount: 10,
+              population: 1000000,
+              perCapita: 1000,
+            }) as GeoSpendingSnapshot,
+        ),
+      ),
+    );
+
+    const fixture = TestBed.createComponent(GeographicViewComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.allStates().length).toBe(40);
+    expect(component.pagedStates().length).toBe(15);
+    expect(component.pagedStates()[0].stateName).toBe('State 1');
+
+    component.pageIndex.set(1);
+    expect(component.pagedStates().length).toBe(15);
+    expect(component.pagedStates()[0].stateName).toBe('State 16');
+
+    component.pageIndex.set(2);
+    component.pageSize.set(10);
+    expect(component.pagedStates().length).toBe(10);
+    expect(component.pagedStates()[0].stateName).toBe('State 21');
   });
 
   it('does not over-call the API on init (bounded calls, no reactive loop)', () => {

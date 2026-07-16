@@ -56,8 +56,8 @@
   <h2>Agency & Disaster Spending</h2>
   <canvas baseChart
     [type]="'bar'"
-    [data]="{ labels: chartLabels(), datasets: chartDatasets() }"
-    [options]="{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }"
+    [data]="chartData()"
+    [options]="chartOptions"
     (chartClick)="onChartClick($event)">
   </canvas>
 </div>
